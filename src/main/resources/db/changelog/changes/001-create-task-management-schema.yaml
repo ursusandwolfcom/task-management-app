@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-task-management-schema
+      author: task-management
+      changes:
+        - sql:
+            sql: CREATE SCHEMA task_management;
+      rollback:
+        - sql:
+            sql: DROP SCHEMA task_management;

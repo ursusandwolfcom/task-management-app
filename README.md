@@ -16,7 +16,7 @@ and the PostgreSQL JDBC driver.
 
 4. Configure the local database. Install and start Docker with Compose support.
    If Docker is available only inside WSL, run the Docker commands in WSL from
-   `/mnt/c/Data/Projects/java/jv-task-management-system`.
+   `/mnt/c/Data/Projects/java/task-management-app`.
    If `.env` does not exist yet, copy the sample and replace its password:
 
    ```powershell
@@ -67,8 +67,9 @@ or detailed diagnostics.
 Local tests use an in-memory H2 database in PostgreSQL compatibility mode and do
 not require Docker. The startup test verifies that Liquibase created the schema
 and recorded the migration. This does not cover all PostgreSQL-specific behavior.
-CI runs that test against a real PostgreSQL 17 service using `SPRING_DATASOURCE_*`
-environment variables to override the test datasource.
+CI runs separate H2 and PostgreSQL 17 builds using `SPRING_DATASOURCE_*` environment
+variables to override the test datasource. It also starts the packaged application
+twice and checks health, exercising Liquibase's existing migration history on restart.
 
 To run the tests against your local PostgreSQL from PowerShell, with the database running:
 
@@ -80,6 +81,13 @@ If you changed the database name or port, adjust the URL in the command.
 The username and password placeholders resolve from `.env` when Spring starts.
 
 ### Code style and CI
+
+If IntelliJ IDEA Maven import fails with
+`No implementation for ArtifactHandlerManager was bound`, select **Bundled (Maven 3)**
+in **Settings → Build, Execution, Deployment → Build Tools → Maven**, disable
+**Work offline**, and reload all Maven projects. This was verified with IntelliJ IDEA
+Community 2025.2.6.2 and its bundled Maven 3.9.9. Command-line and CI builds use the
+project Maven Wrapper.
 
 `clean verify` checks the style of production and test Java sources, runs tests,
 and packages the application. A style violation fails the build before compilation.
@@ -101,6 +109,18 @@ To require a successful build before merging, add `Build, tests and Checkstyle`
 as a required status check in the protection settings for the base branch.
 
 The original assignment requirements follow below.
+
+### Current contribution workflow
+
+This project is developed by one developer with an AI agent. The selected workflow
+supersedes the original assignment's direct feature-to-main instructions below:
+create `sprint/sNN` from `dev`, make small commits, review and test the sprint PR into
+`dev`, then repeat tests on the merged `dev` commit before a release PR into `main`.
+Use merge commits, check main CI/health, and synchronise `dev` before the next sprint.
+Keep only `main`, `dev` and the current sprint branch locally and on origin; delete
+integrated branches and their clean temporary worktrees before starting the next sprint.
+Required checks are Maven Wrapper `clean verify`, current GitHub CI, and applicable
+database/startup tests. Local planning documents and secrets are excluded from Git.
 
 Manage tasks and projects effectively through a web-based application. This system enables task creation, assignment, progress tracking, and completion.
 
