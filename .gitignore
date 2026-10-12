@@ -33,3 +33,6 @@ target/
 
 # Local project instructions
 /docs/
+
+# Local frontend verification dependencies
+node_modules/

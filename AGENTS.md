@@ -37,6 +37,11 @@ The user selected this workflow: `sprint/sNN` → `dev` → `main`.
   architecture and sprint plans. If available, read `docs/UNIFIED_PLAN.md`, `docs/ARCHITECTURE.md`,
   `docs/DEVELOPMENT_SPRINTS.md` and `docs/WORKFLOW.md` before relevant implementation.
 - Keep deliverable README/OpenAPI current without links to ignored local files.
+- The early alpha interface is explicitly user-approved as a browser-storage prototype.
+  Keep alpha assets/endpoint behind the alpha profile and loopback defaults. Alpha task
+  states/IDs are prototype data, not completed PostgreSQL CRUD, authentication, lifecycle
+  history or resource guards. Route graph calculation to planning.core, not a JS copy.
+  Update the frontend npm type/storage checks when changing alpha behavior.
 - Preserve Java 21, UTC startup/tests, Liquibase tracking in `public`, and ddl-auto=validate.
 - Keep the algorithm core independent of Spring/JPA/HTTP. Introduce it before CRUD; verify
   the graph invariants and concurrency against the merged requirements.
