@@ -110,6 +110,41 @@ as a required status check in the protection settings for the base branch.
 
 The original assignment requirements follow below.
 
+### Local alpha interface
+
+The early application interface is available at `http://localhost:8080/alpha/`
+when explicitly started with the `alpha` profile. It provides projects, task creation
+and editing, priorities, minute estimates, due dates, dependencies, filters, and
+start/complete/fail/retry actions for the prototype.
+
+```powershell
+.\mvnw.cmd spring-boot:run '-Dspring-boot.run.profiles=alpha'
+```
+
+Or after building:
+
+```powershell
+java -jar target/task-management-app-0.0.1-SNAPSHOT.jar --spring.profiles.active=alpha
+```
+
+Start the PostgreSQL service as described above. The alpha server binds to loopback.
+Projects and task states are stored only in this browser's local storage; clearing site
+data removes them. The server calculates execution order and readiness using the real
+JDK core and rejects cyclic changes before the browser saves them. It does not store
+these projects/tasks in PostgreSQL or authenticate users. Domain CRUD, permissions,
+execution history, calendars and resource guards remain planned features. This
+prototype does not replace their acceptance criteria.
+
+The page, its assets and `/alpha/plan` are disabled without the `alpha` profile. No
+local docs or secrets are served. Frontend assets need no runtime CDN or bundler.
+With Node 24 installed, run the frontend verification separately:
+
+```powershell
+npm.cmd ci --ignore-scripts
+npm.cmd run check:alpha
+npm.cmd run test:alpha
+```
+
 ### Pure planning core
 
 `com.example.taskmanagement.planning.core` is a JDK-only algorithm package, introduced

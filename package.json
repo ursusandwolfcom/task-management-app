@@ -1,0 +1,12 @@
+{
+  "name": "projectflow-alpha-checks",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check:alpha": "tsc -p alpha-jsconfig.json",
+    "test:alpha": "node --test src/test/frontend/*.test.mjs"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}
