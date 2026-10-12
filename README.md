@@ -110,7 +110,51 @@ as a required status check in the protection settings for the base branch.
 
 The original assignment requirements follow below.
 
-### Current contribution workflow
+### Pure planning core
+
+`com.example.taskmanagement.planning.core` is a JDK-only algorithm package, introduced
+before domain CRUD. It provides immutable `TaskNode`, `DependencyEdge`, `GraphSnapshot`
+and `ExecutionFacts`, priority-aware topological ordering, and dependency readiness.
+Task adapters will map CRITICAL > HIGH > MEDIUM > LOW to explicit numeric weights.
+Optional estimates are positive whole minutes, allowing fractional hours without
+floating-point arithmetic. Estimates are not needed for ordering or readiness.
+
+The sorter uses Kahn's algorithm with a priority queue: higher weight first, then
+earlier due date (missing dates last), then smaller ID. Dependencies always win over
+successor priority. Runtime is O(E + V log V), with O(V + E) graph storage. Snapshot
+construction checks structural errors; the sorter rejects cycles with a typed
+`CYCLIC_DEPENDENCY` diagnostic. Its unresolved IDs can include descendants of a cycle.
+
+Execution order includes every task and does not simulate real completion. Available
+tasks are only supplied candidates whose predecessors are actually completed; next
+is a recommendation, without starting a task or reserving an assignee. Resource and
+permission guards, calendars, CPM and domain REST endpoints follow in later sprints.
+
+After building, try the pure core with `jshell --class-path target/classes`:
+
+```java
+import com.example.taskmanagement.planning.core.*;
+import java.util.*;
+
+var a = new TaskNode(1, 10, null, 30L);
+var b = new TaskNode(2, 40, null, 60L);
+var graph = GraphSnapshot.of(List.of(a, b), List.of(new DependencyEdge(1, 2)));
+var sorter = new PriorityTopologicalSorter();
+var readiness = new ReadinessCalculator(sorter);
+sorter.executionOrder(graph).stream().map(TaskNode::id).toList(); // [1, 2]
+readiness.availableTasks(graph, new ExecutionFacts(Set.of(), Set.of(1L, 2L)))
+    .stream().map(TaskNode::id).toList(); // [1]
+readiness.availableTasks(graph, new ExecutionFacts(Set.of(1L), Set.of(2L)))
+    .stream().map(TaskNode::id).toList(); // [2]
+```
+
+Run only the core tests in PowerShell, without starting a Spring context or database:
+
+```powershell
+.\mvnw.cmd '-Dtest=GraphSnapshotTest,PriorityTopologicalSorterTest,ReadinessCalculatorTest' test
+```
+
+### Contribution process
 
 This project is developed by one developer with an AI agent. The selected workflow
 supersedes the original assignment's direct feature-to-main instructions below:
