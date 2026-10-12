@@ -3,59 +3,124 @@
 ## Local development
 
 The application uses Java 21, Spring Boot 4.1.1, and Maven Wrapper.
-This first infrastructure step includes Spring Web MVC, Validation, and Actuator.
+Dependencies: Spring Web MVC, Validation, Actuator, Spring Data JPA, Liquibase,
+and the PostgreSQL JDBC driver.
 
 1. Install JDK 21 and set `JAVA_HOME` to its installation directory.
-2. Open this directory as a Maven project in your IDE and select JDK 21.
-3. Build the application and run its startup test in PowerShell:
+2. Open this directory as a Maven project in your IDE; select JDK 21 as the project SDK.
+3. Build and run the tests in PowerShell:
 
    ```powershell
-   .\mvnw.cmd --batch-mode --no-transfer-progress clean verify
+   .\mvnw.cmd clean verify
    ```
 
-4. Start the application:
+4. Configure the local database. Install and start Docker with Compose support.
+   If Docker is available only inside WSL, run the Docker commands in WSL from
+   `/mnt/c/Data/Projects/java/task-management-app`.
+   If `.env` does not exist yet, copy the sample and replace its password:
+
+   ```powershell
+   Copy-Item .env.sample .env
+   ```
+
+   Start PostgreSQL and wait until it is ready:
+
+   ```powershell
+   docker compose up -d --wait
+   ```
+
+5. Start the application from the project directory:
 
    ```powershell
    .\mvnw.cmd spring-boot:run
    ```
 
-5. Open `http://localhost:8080/actuator/health`; its `status` should be `UP`.
+6. Open `http://localhost:8080/actuator/health`; its `status` should be `UP`.
    Stop the application with `Ctrl+C`.
 
 On Linux/macOS, use `./mvnw` instead of `.\mvnw.cmd`.
 The first build requires internet access to download Maven and dependencies.
-The application and tests use UTC independently of the operating system timezone.
-Only the health endpoint is exposed, without detailed diagnostics.
+The application requires PostgreSQL when started normally. It reads `.env` as a
+properties file; use simple `KEY=value` lines without shell `export` or quotes.
+Environment variables take precedence. `.env` is ignored by Git; keep only
+`.env.sample` in the repository.
+
+PostgreSQL uses a persistent Docker volume and is exposed on localhost port 5432.
+If the port is occupied, change `POSTGRES_PORT` in `.env`.
+`docker compose down` stops the database and preserves its data.
+Changing credentials in `.env` does not change users in an existing database volume.
+
+### Database migrations and tests
+
+Liquibase applies `src/main/resources/db/changelog/db.changelog-master.yaml` on
+startup. The first migration creates the `task_management` schema for application
+tables; Liquibase keeps its own tracking tables in `public`. Add each future
+migration as a new file and include it in the master changelog. Do not edit migrations
+that have already been applied to a shared database.
+
+Hibernate uses `ddl-auto=validate`, so Liquibase manages table creation and changes.
+The application and tests run in UTC, independently of the operating system timezone.
+This also avoids JDBC startup failures with legacy timezone names such as `Europe/Kiev`.
+The health endpoint also checks database connectivity without exposing credentials
+or detailed diagnostics.
+
+Local tests use an in-memory H2 database in PostgreSQL compatibility mode and do
+not require Docker. The startup test verifies that Liquibase created the schema
+and recorded the migration. This does not cover all PostgreSQL-specific behavior.
+CI runs separate H2 and PostgreSQL 17 builds using `SPRING_DATASOURCE_*` environment
+variables to override the test datasource. It also starts the packaged application
+twice and checks health, exercising Liquibase's existing migration history on restart.
+
+To run the tests against your local PostgreSQL from PowerShell, with the database running:
+
+```powershell
+.\mvnw.cmd --batch-mode --no-transfer-progress '-Dspring.datasource.url=jdbc:postgresql://localhost:5432/task_management' '-Dspring.datasource.username=${POSTGRES_USER}' '-Dspring.datasource.password=${POSTGRES_PASSWORD}' test
+```
+
+If you changed the database name or port, adjust the URL in the command.
+The username and password placeholders resolve from `.env` when Spring starts.
 
 ### Code style and CI
 
-`clean verify` checks production and test Java sources with Checkstyle, runs tests,
-and packages the application. Style violations fail the build during `validate`.
+If IntelliJ IDEA Maven import fails with
+`No implementation for ArtifactHandlerManager was bound`, select **Bundled (Maven 3)**
+in **Settings → Build, Execution, Deployment → Build Tools → Maven**, disable
+**Work offline**, and reload all Maven projects. This was verified with IntelliJ IDEA
+Community 2025.2.6.2 and its bundled Maven 3.9.9. Command-line and CI builds use the
+project Maven Wrapper.
+
+`clean verify` checks the style of production and test Java sources, runs tests,
+and packages the application. A style violation fails the build before compilation.
 The shared rules are in `config/checkstyle/checkstyle.xml`: four spaces for indentation,
 120 characters per line, no tabs or trailing whitespace, and no wildcard or unused imports.
-`.editorconfig` supplies matching indentation settings for editors.
+`.editorconfig` supplies matching indentation settings for editors that support it.
 
-To check only code style in PowerShell:
+To run only the style check in PowerShell:
 
 ```powershell
 .\mvnw.cmd --batch-mode --no-transfer-progress validate
 ```
 
-GitHub Actions runs `clean verify` on pushes and pull requests using Temurin Java 21
-and a Maven dependency cache. The workflow can also be started manually.
-The job name is `Build, tests and Checkstyle`.
-
-### IntelliJ IDEA
-
-If Maven import fails with `No implementation for ArtifactHandlerManager was bound`,
-select **Bundled (Maven 3)** in **Settings → Build, Execution, Deployment → Build Tools → Maven**,
-disable **Work offline**, and reload all Maven projects. This was verified with
-IntelliJ IDEA Community 2025.2.6.2 and its bundled Maven 3.9.9.
-Command-line and CI builds use the project Maven Wrapper.
-
-PostgreSQL/Liquibase will be added in a separate infrastructure PR.
+GitHub Actions runs the same Maven Wrapper build on pushes and pull requests,
+using Temurin Java 21 and a Maven dependency cache. It can also be started manually
+from the Actions tab. The workflow is in `.github/workflows/ci.yml`.
+After pushing these files to GitHub, inspect the CI run in the Actions tab.
+To require a successful build before merging, add `Build, tests and Checkstyle`
+as a required status check in the protection settings for the base branch.
 
 The original assignment requirements follow below.
+
+### Current contribution workflow
+
+This project is developed by one developer with an AI agent. The selected workflow
+supersedes the original assignment's direct feature-to-main instructions below:
+create `sprint/sNN` from `dev`, make small commits, review and test the sprint PR into
+`dev`, then repeat tests on the merged `dev` commit before a release PR into `main`.
+Use merge commits, check main CI/health, and synchronise `dev` before the next sprint.
+Keep only `main`, `dev` and the current sprint branch locally and on origin; delete
+integrated branches and their clean temporary worktrees before starting the next sprint.
+Required checks are Maven Wrapper `clean verify`, current GitHub CI, and applicable
+database/startup tests. Local planning documents and secrets are excluded from Git.
 
 Manage tasks and projects effectively through a web-based application. This system enables task creation, assignment, progress tracking, and completion.
 
