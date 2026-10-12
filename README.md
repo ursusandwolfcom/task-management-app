@@ -27,7 +27,33 @@ The first build requires internet access to download Maven and dependencies.
 The application and tests use UTC independently of the operating system timezone.
 Only the health endpoint is exposed, without detailed diagnostics.
 
-Checkstyle, CI, and PostgreSQL/Liquibase will be added in separate infrastructure PRs.
+### Code style and CI
+
+`clean verify` checks production and test Java sources with Checkstyle, runs tests,
+and packages the application. Style violations fail the build during `validate`.
+The shared rules are in `config/checkstyle/checkstyle.xml`: four spaces for indentation,
+120 characters per line, no tabs or trailing whitespace, and no wildcard or unused imports.
+`.editorconfig` supplies matching indentation settings for editors.
+
+To check only code style in PowerShell:
+
+```powershell
+.\mvnw.cmd --batch-mode --no-transfer-progress validate
+```
+
+GitHub Actions runs `clean verify` on pushes and pull requests using Temurin Java 21
+and a Maven dependency cache. The workflow can also be started manually.
+The job name is `Build, tests and Checkstyle`.
+
+### IntelliJ IDEA
+
+If Maven import fails with `No implementation for ArtifactHandlerManager was bound`,
+select **Bundled (Maven 3)** in **Settings → Build, Execution, Deployment → Build Tools → Maven**,
+disable **Work offline**, and reload all Maven projects. This was verified with
+IntelliJ IDEA Community 2025.2.6.2 and its bundled Maven 3.9.9.
+Command-line and CI builds use the project Maven Wrapper.
+
+PostgreSQL/Liquibase will be added in a separate infrastructure PR.
 
 The original assignment requirements follow below.
 
