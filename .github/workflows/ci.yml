@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Build, tests and Checkstyle
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: task_management_ci
+          POSTGRES_USER: task_management
+          POSTGRES_PASSWORD: ci_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U task_management -d task_management_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: pom.xml
+
+      - name: Verify with H2
+        run: bash ./mvnw --batch-mode --no-transfer-progress clean verify
+
+      - name: Verify with PostgreSQL
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/task_management_ci
+          SPRING_DATASOURCE_USERNAME: task_management
+          SPRING_DATASOURCE_PASSWORD: ci_test_password
+        run: bash ./mvnw --batch-mode --no-transfer-progress clean verify
+
+      - name: Check packaged startup and restart
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/task_management_ci
+          SPRING_DATASOURCE_USERNAME: task_management
+          SPRING_DATASOURCE_PASSWORD: ci_test_password
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2; do
+            java -jar target/task-management-app-0.0.1-SNAPSHOT.jar --server.port=18080 > "target/startup-${attempt}.log" 2>&1 &
+            app_pid=$!
+            trap 'kill "$app_pid" 2>/dev/null || true' EXIT
+            healthy=false
+            for check in $(seq 1 60); do
+              if curl --fail --silent http://localhost:18080/actuator/health | grep -q '"status":"UP"'; then
+                healthy=true
+                break
+              fi
+              if ! kill -0 "$app_pid" 2>/dev/null; then
+                echo "Application exited before becoming healthy"
+                exit 1
+              fi
+              sleep 1
+            done
+            if [ "$healthy" != true ]; then
+              echo "Application did not become healthy"
+              exit 1
+            fi
+            kill "$app_pid"
+            wait "$app_pid" || true
+            trap - EXIT
+          done

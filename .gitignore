@@ -30,3 +30,6 @@ target/
 .env
 .env.*
 !.env.sample
+
+# Local project instructions
+/docs/
