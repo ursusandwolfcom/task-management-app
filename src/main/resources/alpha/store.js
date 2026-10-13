@@ -1,20 +1,36 @@
 // @ts-check
+import { demoProjects, demoGuides } from './demo.js';
 /** @typedef {import('./types').Workspace} Workspace */
 /** @typedef {import('./types').Project} Project */
 /** @typedef {import('./types').Task} Task */
 /** @typedef {import('./types').Plan} Plan */
 /** @typedef {import('./types').Preferences} Preferences */
 /** @typedef {import('./types').TaskSort} TaskSort */
+/** @typedef {import('./types').Theme} Theme */
+/** @typedef {import('./types').TaskView} TaskView */
+/** @typedef {import('./types').Density} Density */
 
 export const STORAGE_KEY = 'projectflow.alpha.workspace.v1';
 const PREFERENCES_KEY = 'projectflow.alpha.preferences.v1';
 const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 const STATUSES = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'FAILED'];
+export const THEMES = Object.freeze(/** @type {Theme[]} */ (
+  ['dark', 'light', 'gray', 'ivory', 'pearl', 'graphite', 'taupe', 'forest']));
 
 /** @returns {Preferences} */
-export function defaultPreferences() { return { taskSort: 'newest', theme: 'dark' }; }
+export function defaultPreferences() {
+  return { taskSort: 'newest', theme: 'dark', taskView: 'list', density: 'comfortable' };
+}
 /** @param {unknown} value @returns {value is TaskSort} */
 export function isTaskSort(value) { return value === 'newest' || value === 'oldest' || value === 'execution'; }
+/** @param {unknown} value @returns {value is Theme} */
+export function isTheme(value) { return THEMES.some(theme => theme === value); }
+/** @param {Theme} theme @returns {Theme} */
+export function nextTheme(theme) { return THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]; }
+/** @param {unknown} value @returns {value is TaskView} */
+export function isTaskView(value) { return value === 'list' || value === 'kanban'; }
+/** @param {unknown} value @returns {value is Density} */
+export function isDensity(value) { return value === 'comfortable' || value === 'compact'; }
 /** @param {Storage} storage @returns {Preferences} */
 export function loadPreferences(storage) {
   const defaults = defaultPreferences();
@@ -23,7 +39,9 @@ export function loadPreferences(storage) {
     const saved = JSON.parse(storage.getItem(PREFERENCES_KEY) ?? 'null');
     if (!isObject(saved) || saved.version !== 1) return defaults;
     return { taskSort: isTaskSort(saved.taskSort) ? saved.taskSort : defaults.taskSort,
-      theme: saved.theme === 'dark' || saved.theme === 'light' ? saved.theme : defaults.theme };
+      theme: isTheme(saved.theme) ? saved.theme : defaults.theme,
+      taskView: isTaskView(saved.taskView) ? saved.taskView : defaults.taskView,
+      density: isDensity(saved.density) ? saved.density : defaults.density };
   } catch { return defaults; }
 }
 /** @param {Storage} storage @param {Preferences} preferences */
@@ -84,6 +102,7 @@ function isTask(value) {
 function isProject(value) {
   if (!isObject(value) || !isId(value.id) || typeof value.name !== 'string' || !value.name.trim()
       || value.name.length > 120 || typeof value.description !== 'string' || value.description.length > 1000
+      || (value.demoKey !== undefined && (typeof value.demoKey !== 'string' || !Object.hasOwn(demoGuides, value.demoKey)))
       || !Array.isArray(value.tasks) || value.tasks.length > 1000 || !value.tasks.every(isTask)) return false;
   const ids = new Set(value.tasks.map(task => task.id));
   return ids.size === value.tasks.length && value.tasks.every(task =>
@@ -93,11 +112,16 @@ function isProject(value) {
 /** @param {Storage} storage @returns {Workspace} */
 export function loadWorkspace(storage) {
   const saved = storage.getItem(STORAGE_KEY);
-  if (saved === null) return exampleWorkspace();
+  if (saved === null) return addDemoProjects(exampleWorkspace(), false);
   /** @type {unknown} */
   let value;
   try { value = JSON.parse(saved); }
   catch { throw new Error('Сохранённые данные не удалось прочитать. Исходная запись сохранена без изменений.'); }
+  return validatedWorkspace(value);
+}
+
+/** @param {unknown} value @returns {Workspace} */
+function validatedWorkspace(value) {
   if (!isObject(value) || value.version !== 1 || !isId(value.selectedProjectId)
       || (value.revision !== undefined && (!Number.isSafeInteger(value.revision)
         || typeof value.revision !== 'number' || value.revision < 0))
@@ -110,24 +134,116 @@ export function loadWorkspace(storage) {
     selectedProjectId: value.selectedProjectId, projects: value.projects };
 }
 
-/** The read/check/write sequence runs under the same exclusive lock in every tab.
+/** IndexedDB is shared across renderers; localStorage caches can lag even under a Web Lock.
+ * Existing local records are imported on first access. The mirror remains for legacy readers.
+ * @param {Storage} storage @param {LockManager | undefined} [locks]
+ * @param {IDBFactory | undefined} [database] @returns {Promise<Workspace>} */
+export async function loadCoordinatedWorkspace(storage, locks = globalThis.navigator?.locks, database = globalThis.indexedDB) {
+  if (!locks) return loadWorkspace(storage);
+  if (!database) throw new Error('Общее хранилище браузера недоступно. Сохранение отключено; существующие данные сохранены.');
+  return locks.request(STORAGE_KEY, () => workspaceTransaction(database, (store, record) => {
+    const legacy = loadWorkspace(storage);
+    if (record && legacy.revision > record.revision) {
+      throw new Error('Локальная запись новее общего хранилища. Исходная запись сохранена; сохранение отключено. Перезагрузите страницу.');
+    }
+    const current = record ?? legacy;
+    if (current !== record) store.put(current, STORAGE_KEY);
+    return current;
+  }));
+}
+
+/** @param {IDBFactory} database @returns {Promise<IDBDatabase>} */
+function openWorkspaceDatabase(database) {
+  return new Promise((resolve, reject) => {
+    const request = database.open('projectflow.alpha.workspace.v1', 1);
+    let blocked = false;
+    request.onupgradeneeded = () => request.result.createObjectStore('workspace');
+    request.onblocked = () => {
+      blocked = true;
+      reject(new Error('Общее хранилище занято. Закройте другие вкладки и перезагрузите страницу.'));
+    };
+    request.onerror = () => reject(new Error('Не удалось открыть общее хранилище браузера. Данные сохранены без изменений.'));
+    request.onsuccess = () => {
+      if (blocked) { request.result.close(); return; }
+      request.result.onversionchange = () => request.result.close();
+      resolve(request.result);
+    };
+  });
+}
+
+/** Keep the revision check and canonical write in one cross-renderer transaction.
+ * @param {IDBFactory} database
+ * @param {(store: IDBObjectStore, current: Workspace | undefined) => Workspace} action
+ * @param {() => void} [rollbackMirror] @returns {Promise<Workspace>} */
+async function workspaceTransaction(database, action, rollbackMirror = () => {}) {
+  const connection = await openWorkspaceDatabase(database);
+  try {
+    return await new Promise((resolve, reject) => {
+      const transaction = connection.transaction('workspace', 'readwrite');
+      const store = transaction.objectStore('workspace');
+      /** @type {Workspace | undefined} */
+      let result;
+      /** @type {unknown} */
+      let failure;
+      const request = store.get(STORAGE_KEY);
+      request.onsuccess = () => {
+        try { result = action(store, request.result === undefined ? undefined : validatedWorkspace(request.result)); }
+        catch (error) { failure = error; transaction.abort(); }
+      };
+      transaction.oncomplete = () => {
+        if (result) resolve(result);
+        else reject(new Error('Не удалось прочитать общее хранилище браузера.'));
+      };
+      transaction.onabort = () => {
+        try { rollbackMirror(); } catch { /* Canonical data remains intact if the mirror becomes unavailable. */ }
+        reject(failure ?? new Error('Не удалось сохранить изменения в общем хранилище браузера.'));
+      };
+    });
+  } finally { connection.close(); }
+}
+
+/** The read/check/write sequence runs under an exclusive lock and an IndexedDB transaction.
  * Legacy records have revision zero and are upgraded only on a successful save.
  * @param {Storage} storage @param {Workspace} workspace
- * @param {LockManager | undefined} [locks] @returns {Promise<Workspace>} */
-export async function saveWorkspace(storage, workspace, locks = globalThis.navigator?.locks) {
+ * @param {LockManager | undefined} [locks] @param {IDBFactory | undefined} [database]
+ * @returns {Promise<Workspace>} */
+export async function saveWorkspace(storage, workspace, locks = globalThis.navigator?.locks, database = globalThis.indexedDB) {
   if (!locks) throw new Error('Для сохранения нужен браузер с поддержкой Web Locks. Обновите браузер.');
+  if (!database && typeof window !== 'undefined') {
+    throw new Error('Общее хранилище браузера недоступно. Изменения не сохранены.');
+  }
   return locks.request(STORAGE_KEY, () => {
-    const current = loadWorkspace(storage);
-    if (current.revision !== workspace.revision) {
-      throw new Error('Данные изменены в другой вкладке. Изменения не сохранены. Перезагрузите страницу.');
-    }
-    if (!Number.isSafeInteger(workspace.revision) || workspace.revision >= Number.MAX_SAFE_INTEGER) {
-      throw new Error('Не удалось сохранить изменения: диапазон ревизий исчерпан.');
-    }
-    const saved = { ...workspace, revision: workspace.revision + 1 };
-    try { storage.setItem(STORAGE_KEY, JSON.stringify(saved)); }
-    catch { throw new Error('Не удалось сохранить изменения. Разрешите хранение данных для этого сайта.'); }
-    return saved;
+    let mirrorWritten = false;
+    /** @type {Workspace | undefined} */
+    let previous;
+    const previousMirror = storage.getItem(STORAGE_KEY);
+    /** @param {IDBObjectStore | undefined} store @param {Workspace | undefined} record */
+    const write = (store, record) => {
+      const legacy = loadWorkspace(storage);
+      const current = record ?? legacy;
+      if (record && legacy.revision > record.revision) {
+        throw new Error('Данные изменены в другой вкладке. Изменения не сохранены. Перезагрузите страницу.');
+      }
+      if (current.revision !== workspace.revision) {
+        throw new Error('Данные изменены в другой вкладке. Изменения не сохранены. Перезагрузите страницу.');
+      }
+      if (!Number.isSafeInteger(workspace.revision) || workspace.revision >= Number.MAX_SAFE_INTEGER) {
+        throw new Error('Не удалось сохранить изменения: диапазон ревизий исчерпан.');
+      }
+      previous = current;
+      const saved = { ...workspace, revision: workspace.revision + 1 };
+      try { storage.setItem(STORAGE_KEY, JSON.stringify(saved)); }
+      catch { throw new Error('Не удалось сохранить изменения. Разрешите хранение данных для этого сайта.'); }
+      mirrorWritten = true;
+      store?.put(saved, STORAGE_KEY);
+      return saved;
+    };
+    if (!database) return write(undefined, undefined); // Non-browser storage unit checks.
+    return workspaceTransaction(database, write, () => {
+      if (!mirrorWritten) return;
+      if (previousMirror === null && previous?.revision === 0) storage.removeItem(STORAGE_KEY);
+      else if (previous) storage.setItem(STORAGE_KEY, JSON.stringify(previous));
+    });
   });
 }
 
@@ -143,6 +259,20 @@ export function nextId(items) {
   const id = Math.max(0, ...items.map(item => item.id)) + 1;
   if (!Number.isSafeInteger(id)) throw new Error('Не удалось создать идентификатор: диапазон значений исчерпан.');
   return id;
+}
+
+/** Add missing scenarios without replacing projects or resetting edited demo tasks.
+ * @param {Workspace} workspace @param {boolean} [selectDemo] @returns {Workspace} */
+export function addDemoProjects(workspace, selectDemo = true) {
+  const candidate = structuredClone(workspace);
+  for (const project of demoProjects(1)) {
+    if (!candidate.projects.some(existing => existing.demoKey === project.demoKey)) {
+      project.id = nextId(candidate.projects);
+      candidate.projects.push(project);
+    }
+  }
+  if (selectDemo) candidate.selectedProjectId = candidate.projects.find(project => project.demoKey === 'portal')?.id ?? candidate.selectedProjectId;
+  return candidate;
 }
 
 /** @param {Project} project @param {AbortSignal} [signal] @returns {Promise<Plan>} */

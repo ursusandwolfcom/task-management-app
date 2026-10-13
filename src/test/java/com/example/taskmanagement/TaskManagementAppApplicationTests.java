@@ -41,7 +41,8 @@ class TaskManagementAppApplicationTests {
 
     @Test
     void alphaPageAssetsAndPlanningEndpointAreDisabledByDefault() throws Exception {
-        for (String path : new String[] {"/alpha/", "/alpha/styles.css", "/alpha/app.js", "/alpha/store.js"}) {
+        for (String path : new String[] {"/alpha/", "/alpha/styles.css", "/alpha/app.js", "/alpha/store.js",
+                "/alpha/demo.js"}) {
             mvc.perform(get(path)).andExpect(status().isNotFound());
         }
         mvc.perform(post("/alpha/plan")).andExpect(status().isNotFound());

@@ -239,9 +239,10 @@ Playwright starts and stops its own alpha server on loopback port 18082, uses is
 browser storage, and leaves a separately running preview on port 8080 alone.
 Set `ALPHA_TEST_PORT` to change the test port. To use an installed Google Chrome instead
 of downloading Chromium, set `$env:PLAYWRIGHT_CHANNEL = 'chrome'` before running the suite.
-The eight scenarios cover ordering/theme persistence, execution readiness, cycle rejection,
+The fifteen scenarios cover ordering/theme persistence, execution readiness, cycle rejection,
 network/quota failures, exhausted IDs, corrupt storage, XSS, Swagger and selected WCAG A/AA
-checks in both themes. Failure traces are written to `target/playwright-results`.
+checks in all three themes and List/Kanban views, including settings, search and summary
+updates. Failure traces are written to `target/playwright-results`.
 CI installs Chromium and runs this suite against PostgreSQL.
 
 Test database cleanup and concurrent-call helpers live in test-only `support` classes.
@@ -405,8 +406,31 @@ start/complete/fail/retry actions for the prototype.
 New tasks appear at the top by default. The task-order selector supports newest first,
 oldest first and the execution order returned by the Java core. Display sorting leaves
 the stored task creation order and dependency calculation unchanged. Dark theme is the
-default; use the sidebar button to switch to light. Both preferences persist in this
-browser separately from project/task data. Existing browser workspaces need no migration.
+default; the upper-right toolbar groups List/Kanban, the theme shortcut and settings.
+Gray uses charcoal surfaces (RGB channels at most 40%) and beige/ivory foregrounds. Open
+**Interface settings** to choose the theme, List/Kanban view and comfortable/compact
+density. All preferences persist in this browser separately from project/task data;
+existing preference records retain their theme/order and use defaults for new fields.
+Eight palettes are available: Dark, Light, Gray, Ivory, Pearl, Graphite, Taupe and Forest.
+The theme shortcut cycles through all eight; the settings dialog displays palette swatches.
+
+The project overview displays total, ready, active and completed task counts plus completion
+progress. Search filters task names locally in both views. The Kanban board groups the existing
+prototype task states; use the card actions to change state with the same dependency guards.
+Search, display settings and sorting never rewrite workspace data or recalculate the graph.
+
+Fresh browsers include three business demo projects alongside the introductory project:
+client portal (parallel dependencies and all four states), service recovery (retry and
+blocked successors), and priority queue (priority, due date and ID tie-breaks).
+Choose **Открыть демо-сценарии** to add missing scenarios to an existing workspace
+and open the client portal. Loading them again preserves edits and avoids duplicates.
+Each demo project includes a presentation guide. All graph results come from `/alpha/plan`;
+demo data and prototype statuses stay in browser storage. Dates are illustrative;
+estimates do not yet calculate schedules, Gantt or the critical path.
+See [the customer demo walkthrough](DEMO.md) for presentation steps and the separate
+identity/project API demonstration.
+See [the product development roadmap](PRODUCT_ROADMAP.md) for the proposed path from
+this local prototype to server-backed project work, task execution and scheduling.
 
 ```powershell
 .\mvnw.cmd spring-boot:run '-Dspring-boot.run.profiles=alpha'
@@ -419,7 +443,8 @@ java -jar target/task-management-app-0.0.1-SNAPSHOT.jar --spring.profiles.active
 ```
 
 Start the PostgreSQL service as described above. The alpha server binds to loopback.
-Projects and task states are stored only in this browser's local storage; clearing site
+Projects and task states are stored only in this browser (IndexedDB with a localStorage
+compatibility mirror); clearing site
 data removes them. The server calculates execution order and readiness using the real
 JDK core and rejects cyclic changes before the browser saves them. It does not store
 these prototype projects/tasks in PostgreSQL or connect this UI to user accounts.
@@ -427,12 +452,16 @@ The separate protected project API is persisted; task CRUD, persisted execution 
 calendars and resource guards remain planned features. This
 prototype does not replace their acceptance criteria.
 
-Saving requires Web Locks support in a secure browser context (loopback qualifies).
-Workspace writes use an exclusive lock and an expected revision across tabs. A stale tab
+Saving requires IndexedDB and Web Locks in a secure browser context (loopback qualifies).
+Existing localStorage workspaces are imported without removing the original record.
+Workspace writes check the expected revision and update the canonical workspace in one
+IndexedDB transaction under an exclusive lock. This avoids stale localStorage renderer
+caches letting two tabs overwrite each other. A stale tab
 reports a conflict and preserves the saved data and open form input; reload it to use the
 latest workspace. Selecting the current project does not write workspace data. Existing
-records without a revision are upgraded on their first successful save. Older alpha pages
-opened before this update must be reloaded before editing, because they lack the lock protocol.
+records without a revision are upgraded on their first successful save. Unavailable IndexedDB
+disables saving while retaining readable legacy data. Reload alpha pages opened before this
+update before editing, so all tabs use the canonical revision protocol.
 
 The page, its assets and `/alpha/plan` are disabled without the `alpha` profile. No
 local docs or secrets are served. Frontend assets need no runtime CDN or bundler.

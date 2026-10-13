@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { exampleWorkspace, loadWorkspace, saveWorkspace, selectedProject, nextId } from '../../main/resources/alpha/store.js';
 import { defaultPreferences, loadPreferences, savePreferences, sortedTasks } from '../../main/resources/alpha/store.js';
+import { addDemoProjects } from '../../main/resources/alpha/store.js';
+import { THEMES, isTheme, nextTheme } from '../../main/resources/alpha/store.js';
 
 function serialLocks() {
   let tail = Promise.resolve();
@@ -29,6 +31,26 @@ function memoryStorage() {
     snapshot: () => [...values.entries()]
   };
 }
+
+test('demo scenarios populate fresh storage and are added once without replacing user projects or edits', async () => {
+  const storage = memoryStorage();
+  const fresh = loadWorkspace(storage);
+  assert.equal(fresh.projects.filter(project => project.demoKey).length, 3);
+  assert.equal(storage.getItem('projectflow.alpha.workspace.v1'), null);
+  const user = exampleWorkspace();
+  user.projects[0].id = user.selectedProjectId = 20;
+  const original = structuredClone(user);
+  const candidate = addDemoProjects(user);
+  assert.deepEqual(user, original);
+  assert.deepEqual(candidate.projects[0], user.projects[0]);
+  assert.equal(new Set(candidate.projects.map(project => project.id)).size, 4);
+  const portal = selectedProject(candidate);
+  portal.tasks[2].name = 'Customer edit';
+  await persist(storage, candidate);
+  const repeated = addDemoProjects(loadWorkspace(storage));
+  assert.deepEqual(repeated, candidate);
+  assert.equal(selectedProject(repeated).tasks[2].name, 'Customer edit');
+});
 
 test('persists projects, minute estimates, execution state and dependency links across reload', async () => {
   const storage = memoryStorage();
@@ -104,15 +126,42 @@ test('theme and task order default to dark/newest and persist independently of w
   const storage = memoryStorage();
   const workspace = exampleWorkspace();
   await persist(storage, workspace);
-  assert.deepEqual(loadPreferences(storage), { taskSort: 'newest', theme: 'dark' });
-  for (const taskSort of ['newest', 'oldest', 'execution']) for (const theme of ['dark', 'light']) {
-    savePreferences(storage, { taskSort, theme });
-    assert.deepEqual(loadPreferences(storage), { taskSort, theme });
+  assert.deepEqual(loadPreferences(storage), defaultPreferences());
+  for (const taskSort of ['newest', 'oldest', 'execution']) for (const theme of THEMES)
+    for (const taskView of ['list', 'kanban']) for (const density of ['comfortable', 'compact']) {
+    const preferences = { taskSort, theme, taskView, density };
+    savePreferences(storage, preferences);
+    assert.deepEqual(loadPreferences(storage), preferences);
     assert.deepEqual(loadWorkspace(storage), workspace);
   }
   const defaults = defaultPreferences();
   defaults.theme = 'light';
   assert.equal(defaultPreferences().theme, 'dark');
+});
+
+test('theme shortcut visits all eight palettes once and rejects unsupported values', () => {
+  let theme = 'dark';
+  const visited = [];
+  for (let index = 0; index < THEMES.length; index++) {
+    visited.push(theme);
+    assert.equal(isTheme(theme), true);
+    theme = nextTheme(theme);
+  }
+  assert.deepEqual(visited, THEMES);
+  assert.equal(theme, 'dark');
+  for (const invalid of ['unknown', null, {}, 3]) assert.equal(isTheme(invalid), false);
+});
+
+test('legacy preferences retain theme/order and new fields use defaults without rewriting storage', () => {
+  const storage = memoryStorage();
+  for (const fields of [{}, { taskView: 'unknown', density: null }]) {
+    storage.setItem('projectflow.alpha.preferences.v1', JSON.stringify({ version: 1,
+      taskSort: 'oldest', theme: 'light', ...fields }));
+    const original = storage.snapshot();
+    assert.deepEqual(loadPreferences(storage), { taskSort: 'oldest', theme: 'light',
+      taskView: 'list', density: 'comfortable' });
+    assert.deepEqual(storage.snapshot(), original);
+  }
 });
 
 test('invalid or unavailable preferences use safe defaults without overwriting stored data', async () => {
