@@ -74,6 +74,18 @@ This also avoids JDBC startup failures with legacy timezone names such as `Europ
 The health endpoint also checks database connectivity without exposing credentials
 or detailed diagnostics.
 
+### Coverage gate
+
+`clean verify` instruments tests with JaCoCo and requires at least 60% line coverage
+across all application Java classes, including the alpha adapter. There are no class
+exclusions. Open `target/site/jacoco/index.html` for the HTML report; XML and CSV reports
+are generated in the same directory. Both H2 and PostgreSQL CI builds enforce the gate.
+
+To verify that the gate rejects insufficient coverage, temporarily demand 100%:
+`./mvnw -Dcoverage.minimum=1.00 verify`. A coverage violation must fail the build;
+run the normal `clean verify` afterward. Do not use the override to lower the shared threshold.
+The plugin configuration follows the [JaCoCo check documentation](https://www.jacoco.org/jacoco/trunk/doc/check-mojo.html).
+
 Local tests use an in-memory H2 database in PostgreSQL compatibility mode and do
 not require Docker. The startup test verifies that Liquibase created the schema
 and recorded the migration. This does not cover all PostgreSQL-specific behavior.
