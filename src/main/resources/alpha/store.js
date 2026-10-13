@@ -6,7 +6,7 @@
 /** @typedef {import('./types').Preferences} Preferences */
 /** @typedef {import('./types').TaskSort} TaskSort */
 
-const STORAGE_KEY = 'projectflow.alpha.workspace.v1';
+export const STORAGE_KEY = 'projectflow.alpha.workspace.v1';
 const PREFERENCES_KEY = 'projectflow.alpha.preferences.v1';
 const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 const STATUSES = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'FAILED'];
@@ -43,7 +43,7 @@ export function sortedTasks(tasks, sort, plan) {
 
 /** @returns {Workspace} */
 export function exampleWorkspace() {
-  return { version: 1, selectedProjectId: 1, projects: [{
+  return { version: 1, revision: 0, selectedProjectId: 1, projects: [{
     id: 1, name: 'Запуск сайта', description: 'Первый проект: от идеи до готовой страницы.',
     tasks: [
       { id: 1, name: 'Подготовить содержание', priority: 'HIGH', estimatedMinutes: 60,
@@ -99,18 +99,36 @@ export function loadWorkspace(storage) {
   try { value = JSON.parse(saved); }
   catch { throw new Error('Сохранённые данные не удалось прочитать. Исходная запись сохранена без изменений.'); }
   if (!isObject(value) || value.version !== 1 || !isId(value.selectedProjectId)
+      || (value.revision !== undefined && (!Number.isSafeInteger(value.revision)
+        || typeof value.revision !== 'number' || value.revision < 0))
       || !Array.isArray(value.projects) || !value.projects.length || !value.projects.every(isProject)
       || new Set(value.projects.map(project => project.id)).size !== value.projects.length
       || !value.projects.some(project => project.id === value.selectedProjectId)) {
     throw new Error('Сохранённые данные не удалось прочитать. Исходная запись сохранена без изменений.');
   }
-  return { version: 1, selectedProjectId: value.selectedProjectId, projects: value.projects };
+  return { version: 1, revision: typeof value.revision === 'number' ? value.revision : 0,
+    selectedProjectId: value.selectedProjectId, projects: value.projects };
 }
 
-/** @param {Storage} storage @param {Workspace} workspace */
-export function saveWorkspace(storage, workspace) {
-  try { storage.setItem(STORAGE_KEY, JSON.stringify(workspace)); }
-  catch { throw new Error('Не удалось сохранить изменения. Разрешите хранение данных для этого сайта.'); }
+/** The read/check/write sequence runs under the same exclusive lock in every tab.
+ * Legacy records have revision zero and are upgraded only on a successful save.
+ * @param {Storage} storage @param {Workspace} workspace
+ * @param {LockManager | undefined} [locks] @returns {Promise<Workspace>} */
+export async function saveWorkspace(storage, workspace, locks = globalThis.navigator?.locks) {
+  if (!locks) throw new Error('Для сохранения нужен браузер с поддержкой Web Locks. Обновите браузер.');
+  return locks.request(STORAGE_KEY, () => {
+    const current = loadWorkspace(storage);
+    if (current.revision !== workspace.revision) {
+      throw new Error('Данные изменены в другой вкладке. Изменения не сохранены. Перезагрузите страницу.');
+    }
+    if (!Number.isSafeInteger(workspace.revision) || workspace.revision >= Number.MAX_SAFE_INTEGER) {
+      throw new Error('Не удалось сохранить изменения: диапазон ревизий исчерпан.');
+    }
+    const saved = { ...workspace, revision: workspace.revision + 1 };
+    try { storage.setItem(STORAGE_KEY, JSON.stringify(saved)); }
+    catch { throw new Error('Не удалось сохранить изменения. Разрешите хранение данных для этого сайта.'); }
+    return saved;
+  });
 }
 
 /** @param {Workspace} workspace */

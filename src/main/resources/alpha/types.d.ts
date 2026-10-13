@@ -10,7 +10,7 @@ export interface Task {
   dependencies: number[];
 }
 export interface Project { id: number; name: string; description: string; tasks: Task[]; }
-export interface Workspace { version: 1; selectedProjectId: number; projects: Project[]; }
+export interface Workspace { version: 1; revision: number; selectedProjectId: number; projects: Project[]; }
 export interface Plan { executionOrder: number[]; availableIds: number[]; nextId: number | null; }
 export type TaskSort = 'newest' | 'oldest' | 'execution';
 export type Theme = 'dark' | 'light';

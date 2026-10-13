@@ -6,7 +6,7 @@
 /** @typedef {import('./types').Preferences} Preferences */
 /** @typedef {import('./ui').TaskFilter} TaskFilter */
 import { calculatePlan, defaultPreferences, exampleWorkspace, isTaskSort, loadPreferences, loadWorkspace,
-  nextId, savePreferences, saveWorkspace, selectedProject } from './store.js';
+  nextId, savePreferences, saveWorkspace, selectedProject, STORAGE_KEY } from './store.js';
 import { element, notify, openTaskDialog, render } from './ui.js';
 
 /** @type {Workspace} */
@@ -21,6 +21,16 @@ let plan = null;
 /** @type {TaskFilter} */
 let filter = 'all';
 let busy = false;
+if (!navigator.locks) storageWarning = 'Для сохранения нужен браузер с поддержкой Web Locks. Обновите браузер.';
+let externalChange = false;
+
+window.addEventListener('storage', event => {
+  if (event.storageArea !== localStorage || (event.key !== STORAGE_KEY && event.key !== null)) return;
+  externalChange = true;
+  plan = null;
+  notify('Данные изменены в другой вкладке. Перезагрузите страницу; введённые поля пока сохранены в форме.');
+  draw();
+});
 
 /** @param {unknown} error */
 function message(error) { return error instanceof Error ? error.message : 'Не удалось выполнить действие.'; }
@@ -56,7 +66,10 @@ async function refresh() {
   if (busy) return;
   setBusy(true);
   plan = null;
-  try { plan = await calculatePlan(selectedProject(workspace)); notify(storageWarning); }
+  try {
+    const result = await calculatePlan(selectedProject(workspace));
+    if (!externalChange) { plan = result; notify(storageWarning); }
+  }
   catch (error) { notify(message(error)); }
   finally { setBusy(false); }
 }
@@ -64,11 +77,11 @@ async function refresh() {
 /** @param {Workspace} candidate */
 async function commit(candidate) {
   if (busy || storageWarning) throw new Error('Изменения пока недоступны.');
+  if (externalChange) throw new Error('Данные изменены в другой вкладке. Изменения не сохранены. Перезагрузите страницу.');
   setBusy(true);
   try {
     const result = await calculatePlan(selectedProject(candidate));
-    saveWorkspace(localStorage, candidate);
-    workspace = candidate;
+    workspace = await saveWorkspace(localStorage, candidate);
     plan = result;
     notify('');
   } finally { setBusy(false); }
@@ -103,6 +116,7 @@ element('#project-list').addEventListener('click', async event => {
   if (!(event.target instanceof Element) || busy) return;
   const button = event.target.closest('button[data-project]');
   if (!(button instanceof HTMLButtonElement) || button.disabled) return;
+  if (Number(button.dataset.project) === workspace.selectedProjectId) { void refresh(); return; }
   const candidate = structuredClone(workspace);
   candidate.selectedProjectId = Number(button.dataset.project);
   try { await commit(candidate); }

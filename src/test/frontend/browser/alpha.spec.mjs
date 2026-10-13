@@ -136,3 +136,73 @@ test('Swagger renders the real local alpha API and XSS-like task names remain pl
   expect(await page.locator('#task-list img').count()).toBe(0);
   expect(await page.evaluate(() => window.alphaInjected)).toBeUndefined();
 });
+
+test('another tab task survives stale project selection and form submission', async ({ page, context }) => {
+  await page.goto('/alpha/');
+  await settled(page);
+  const stale = await context.newPage();
+  await stale.goto('/alpha/');
+  await settled(stale);
+  await stale.getByRole('button', { name: '+ Добавить задачу', exact: true }).click();
+  const dialog = stale.getByRole('dialog');
+  await dialog.getByLabel('Название задачи', { exact: true }).fill('Unsaved in B');
+  await createTask(page, 'Z saved in A');
+  await expect(stale.getByRole('status')).toContainText('другой вкладке');
+  await dialog.getByRole('button', { name: 'Сохранить задачу', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('другой вкладке');
+  await expect(dialog.getByLabel('Название задачи', { exact: true })).toHaveValue('Unsaved in B');
+  await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
+  const saved = await page.evaluate(() => localStorage.getItem('projectflow.alpha.workspace.v1'));
+  await stale.locator('#project-list button[data-project]').click();
+  await settled(stale);
+  expect(await stale.evaluate(() => localStorage.getItem('projectflow.alpha.workspace.v1'))).toBe(saved);
+  await page.reload();
+  await settled(page);
+  await expect(card(page, 'Z saved in A')).toBeVisible();
+  await stale.reload();
+  await settled(stale);
+  await expect(card(stale, 'Z saved in A')).toBeVisible();
+  await createTask(stale, 'B after reload');
+});
+
+test('simultaneous tab submissions retain one write and explicitly reject the other', async ({ page, context }) => {
+  await page.goto('/alpha/');
+  await settled(page);
+  const other = await context.newPage();
+  await other.goto('/alpha/');
+  await settled(other);
+  const tabs = [page, other];
+  let arrivals = 0;
+  let release;
+  const bothReady = new Promise(resolve => { release = resolve; });
+  await context.route('**/alpha/plan', async route => {
+    arrivals++;
+    if (arrivals === 2) release();
+    await bothReady;
+    await route.continue();
+  });
+  for (const [index, tab] of tabs.entries()) {
+    await tab.getByRole('button', { name: '+ Добавить задачу', exact: true }).click();
+    await tab.getByRole('dialog').getByLabel('Название задачи', { exact: true }).fill(`Concurrent ${index}`);
+  }
+  await Promise.all(tabs.map(tab => tab.getByRole('dialog')
+    .getByRole('button', { name: 'Сохранить задачу', exact: true }).click()));
+  await Promise.all(tabs.map(settled));
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('projectflow.alpha.workspace.v1')).revision)).toBe(1);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('projectflow.alpha.workspace.v1'))
+    .projects[0].tasks.filter(task => task.name.startsWith('Concurrent ')).length)).toBe(1);
+  const losers = [];
+  for (const tab of tabs) if (await tab.getByRole('dialog').isVisible()) losers.push(tab);
+  expect(losers).toHaveLength(1);
+  await expect(losers[0].getByRole('dialog').getByRole('alert')).toContainText('другой вкладке');
+});
+
+test('browser without Web Locks permits reading and prevents unsafe saving', async ({ page, context }) => {
+  await context.addInitScript(() => Object.defineProperty(navigator, 'locks', { value: undefined }));
+  await page.goto('/alpha/');
+  await settled(page);
+  await expect(card(page, 'Подготовить содержание')).toBeVisible();
+  await expect(page.getByRole('button', { name: '+ Добавить задачу', exact: true })).toBeDisabled();
+  await expect(page.getByRole('status')).toContainText('Web Locks');
+  expect(await page.evaluate(() => localStorage.getItem('projectflow.alpha.workspace.v1'))).toBeNull();
+});
