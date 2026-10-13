@@ -104,15 +104,29 @@ test('theme and task order default to dark/newest and persist independently of w
   const storage = memoryStorage();
   const workspace = exampleWorkspace();
   await persist(storage, workspace);
-  assert.deepEqual(loadPreferences(storage), { taskSort: 'newest', theme: 'dark' });
-  for (const taskSort of ['newest', 'oldest', 'execution']) for (const theme of ['dark', 'light']) {
-    savePreferences(storage, { taskSort, theme });
-    assert.deepEqual(loadPreferences(storage), { taskSort, theme });
+  assert.deepEqual(loadPreferences(storage), defaultPreferences());
+  for (const taskSort of ['newest', 'oldest', 'execution']) for (const theme of ['dark', 'light', 'gray'])
+    for (const taskView of ['list', 'kanban']) for (const density of ['comfortable', 'compact']) {
+    const preferences = { taskSort, theme, taskView, density };
+    savePreferences(storage, preferences);
+    assert.deepEqual(loadPreferences(storage), preferences);
     assert.deepEqual(loadWorkspace(storage), workspace);
   }
   const defaults = defaultPreferences();
   defaults.theme = 'light';
   assert.equal(defaultPreferences().theme, 'dark');
+});
+
+test('legacy preferences retain theme/order and new fields use defaults without rewriting storage', () => {
+  const storage = memoryStorage();
+  for (const fields of [{}, { taskView: 'unknown', density: null }]) {
+    storage.setItem('projectflow.alpha.preferences.v1', JSON.stringify({ version: 1,
+      taskSort: 'oldest', theme: 'light', ...fields }));
+    const original = storage.snapshot();
+    assert.deepEqual(loadPreferences(storage), { taskSort: 'oldest', theme: 'light',
+      taskView: 'list', density: 'comfortable' });
+    assert.deepEqual(storage.snapshot(), original);
+  }
 });
 
 test('invalid or unavailable preferences use safe defaults without overwriting stored data', async () => {

@@ -13,5 +13,7 @@ export interface Project { id: number; name: string; description: string; tasks:
 export interface Workspace { version: 1; revision: number; selectedProjectId: number; projects: Project[]; }
 export interface Plan { executionOrder: number[]; availableIds: number[]; nextId: number | null; }
 export type TaskSort = 'newest' | 'oldest' | 'execution';
-export type Theme = 'dark' | 'light';
-export interface Preferences { taskSort: TaskSort; theme: Theme; }
+export type Theme = 'dark' | 'light' | 'gray';
+export type TaskView = 'list' | 'kanban';
+export type Density = 'comfortable' | 'compact';
+export interface Preferences { taskSort: TaskSort; theme: Theme; taskView: TaskView; density: Density; }

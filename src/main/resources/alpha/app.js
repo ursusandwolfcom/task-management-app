@@ -5,7 +5,8 @@
 /** @typedef {import('./types').Plan} Plan */
 /** @typedef {import('./types').Preferences} Preferences */
 /** @typedef {import('./ui').TaskFilter} TaskFilter */
-import { calculatePlan, defaultPreferences, exampleWorkspace, isTaskSort, loadPreferences, loadWorkspace,
+import { calculatePlan, defaultPreferences, exampleWorkspace, isTaskSort, isTheme, isTaskView, isDensity,
+  loadPreferences, loadWorkspace,
   nextId, savePreferences, saveWorkspace, selectedProject, STORAGE_KEY } from './store.js';
 import { element, notify, openTaskDialog, render } from './ui.js';
 
@@ -20,6 +21,7 @@ try { preferences = loadPreferences(localStorage); } catch { /* Keep usable defa
 let plan = null;
 /** @type {TaskFilter} */
 let filter = 'all';
+let search = '';
 let busy = false;
 if (!navigator.locks) storageWarning = 'Для сохранения нужен браузер с поддержкой Web Locks. Обновите браузер.';
 let externalChange = false;
@@ -34,23 +36,52 @@ window.addEventListener('storage', event => {
 
 /** @param {unknown} error */
 function message(error) { return error instanceof Error ? error.message : 'Не удалось выполнить действие.'; }
-function draw() { render(workspace, plan, filter, busy, preferences, Boolean(storageWarning)); }
+function draw() { render(workspace, plan, filter, busy, preferences, Boolean(storageWarning), search); }
 /** @param {Preferences} candidate */
 function changePreferences(candidate) {
   try {
     savePreferences(localStorage, candidate);
     preferences = candidate;
-    notify(storageWarning);
-  } catch (error) { notify(message(error)); }
+    notify(externalChange ? 'Данные изменены в другой вкладке. Перезагрузите страницу.' : storageWarning);
+  } catch (error) { notify(message(error)); draw(); return false; }
   draw();
+  return true;
 }
 
 element('#task-sort').addEventListener('change', event => {
   if (!(event.target instanceof HTMLSelectElement) || !isTaskSort(event.target.value)) return;
   changePreferences({ ...preferences, taskSort: event.target.value });
 });
+element('#task-search').addEventListener('input', event => {
+  if (!(event.target instanceof HTMLInputElement)) return;
+  search = event.target.value;
+  draw();
+});
 element('#theme-toggle').addEventListener('click', () => {
-  changePreferences({ ...preferences, theme: preferences.theme === 'dark' ? 'light' : 'dark' });
+  const theme = preferences.theme === 'dark' ? 'light' : preferences.theme === 'light' ? 'gray' : 'dark';
+  changePreferences({ ...preferences, theme });
+});
+element('#task-view').addEventListener('click', event => {
+  if (!(event.target instanceof HTMLButtonElement) || !isTaskView(event.target.dataset.view)) return;
+  changePreferences({ ...preferences, taskView: event.target.dataset.view });
+});
+element('#open-settings').addEventListener('click', () => {
+  /** @type {HTMLInputElement} */ (element(`#settings-form input[value="${preferences.theme}"]`)).checked = true;
+  /** @type {HTMLSelectElement} */ (element('#settings-view')).value = preferences.taskView;
+  /** @type {HTMLSelectElement} */ (element('#settings-density')).value = preferences.density;
+  element('#settings-form-error').hidden = true;
+  /** @type {HTMLDialogElement} */ (element('#settings-dialog')).showModal();
+});
+element('#settings-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const data = new FormData(/** @type {HTMLFormElement} */ (event.currentTarget));
+  const theme = data.get('theme'), taskView = data.get('taskView'), density = data.get('density');
+  if (!isTheme(theme) || !isTaskView(taskView) || !isDensity(density)) {
+    formError('#settings-form-error', new Error('Выберите тему, представление и плотность интерфейса.')); return;
+  }
+  if (changePreferences({ ...preferences, theme, taskView, density })) {
+    /** @type {HTMLDialogElement} */ (element('#settings-dialog')).close();
+  } else formError('#settings-form-error', new Error('Не удалось сохранить настройки. Проверьте хранилище браузера.'));
 });
 /** @param {boolean} value */
 function setBusy(value) {

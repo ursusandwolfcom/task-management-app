@@ -239,9 +239,10 @@ Playwright starts and stops its own alpha server on loopback port 18082, uses is
 browser storage, and leaves a separately running preview on port 8080 alone.
 Set `ALPHA_TEST_PORT` to change the test port. To use an installed Google Chrome instead
 of downloading Chromium, set `$env:PLAYWRIGHT_CHANNEL = 'chrome'` before running the suite.
-The eight scenarios cover ordering/theme persistence, execution readiness, cycle rejection,
+The fifteen scenarios cover ordering/theme persistence, execution readiness, cycle rejection,
 network/quota failures, exhausted IDs, corrupt storage, XSS, Swagger and selected WCAG A/AA
-checks in both themes. Failure traces are written to `target/playwright-results`.
+checks in all three themes and List/Kanban views, including settings, search and summary
+updates. Failure traces are written to `target/playwright-results`.
 CI installs Chromium and runs this suite against PostgreSQL.
 
 Test database cleanup and concurrent-call helpers live in test-only `support` classes.
@@ -405,8 +406,15 @@ start/complete/fail/retry actions for the prototype.
 New tasks appear at the top by default. The task-order selector supports newest first,
 oldest first and the execution order returned by the Java core. Display sorting leaves
 the stored task creation order and dependency calculation unchanged. Dark theme is the
-default; use the sidebar button to switch to light. Both preferences persist in this
-browser separately from project/task data. Existing browser workspaces need no migration.
+default; the sidebar shortcut cycles through dark, light and gray themes. Open
+**Interface settings** to choose the theme, List/Kanban view and comfortable/compact
+density. All preferences persist in this browser separately from project/task data;
+existing preference records retain their theme/order and use defaults for new fields.
+
+The project overview displays total, ready, active and completed task counts plus completion
+progress. Search filters task names locally in both views. The Kanban board groups the existing
+prototype task states; use the card actions to change state with the same dependency guards.
+Search, display settings and sorting never rewrite workspace data or recalculate the graph.
 
 ```powershell
 .\mvnw.cmd spring-boot:run '-Dspring-boot.run.profiles=alpha'

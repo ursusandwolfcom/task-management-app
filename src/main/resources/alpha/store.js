@@ -5,6 +5,9 @@
 /** @typedef {import('./types').Plan} Plan */
 /** @typedef {import('./types').Preferences} Preferences */
 /** @typedef {import('./types').TaskSort} TaskSort */
+/** @typedef {import('./types').Theme} Theme */
+/** @typedef {import('./types').TaskView} TaskView */
+/** @typedef {import('./types').Density} Density */
 
 export const STORAGE_KEY = 'projectflow.alpha.workspace.v1';
 const PREFERENCES_KEY = 'projectflow.alpha.preferences.v1';
@@ -12,9 +15,17 @@ const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 const STATUSES = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'FAILED'];
 
 /** @returns {Preferences} */
-export function defaultPreferences() { return { taskSort: 'newest', theme: 'dark' }; }
+export function defaultPreferences() {
+  return { taskSort: 'newest', theme: 'dark', taskView: 'list', density: 'comfortable' };
+}
 /** @param {unknown} value @returns {value is TaskSort} */
 export function isTaskSort(value) { return value === 'newest' || value === 'oldest' || value === 'execution'; }
+/** @param {unknown} value @returns {value is Theme} */
+export function isTheme(value) { return value === 'dark' || value === 'light' || value === 'gray'; }
+/** @param {unknown} value @returns {value is TaskView} */
+export function isTaskView(value) { return value === 'list' || value === 'kanban'; }
+/** @param {unknown} value @returns {value is Density} */
+export function isDensity(value) { return value === 'comfortable' || value === 'compact'; }
 /** @param {Storage} storage @returns {Preferences} */
 export function loadPreferences(storage) {
   const defaults = defaultPreferences();
@@ -23,7 +34,9 @@ export function loadPreferences(storage) {
     const saved = JSON.parse(storage.getItem(PREFERENCES_KEY) ?? 'null');
     if (!isObject(saved) || saved.version !== 1) return defaults;
     return { taskSort: isTaskSort(saved.taskSort) ? saved.taskSort : defaults.taskSort,
-      theme: saved.theme === 'dark' || saved.theme === 'light' ? saved.theme : defaults.theme };
+      theme: isTheme(saved.theme) ? saved.theme : defaults.theme,
+      taskView: isTaskView(saved.taskView) ? saved.taskView : defaults.taskView,
+      density: isDensity(saved.density) ? saved.density : defaults.density };
   } catch { return defaults; }
 }
 /** @param {Storage} storage @param {Preferences} preferences */

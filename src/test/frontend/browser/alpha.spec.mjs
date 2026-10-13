@@ -24,6 +24,17 @@ async function createTask(page, name, dependency) {
   await settled(page);
 }
 
+async function applySettings(page, theme, taskView = 'list', density = 'comfortable') {
+  await page.getByRole('button', { name: 'Настройки интерфейса', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  const labels = { dark: 'Тёмная', light: 'Светлая', gray: 'Серая' };
+  await dialog.getByRole('radio', { name: labels[theme], exact: true }).check();
+  await dialog.getByLabel('Представление задач', { exact: true }).selectOption(taskView);
+  await dialog.getByLabel('Плотность интерфейса', { exact: true }).selectOption(density);
+  await dialog.getByRole('button', { name: 'Применить настройки', exact: true }).click();
+  await expect(dialog).toBeHidden();
+}
+
 test('new tasks, sort and theme preferences survive reload without graph recalculation', async ({ page }) => {
   await page.goto('/alpha/');
   await settled(page);
@@ -106,11 +117,12 @@ for (const kind of ['task', 'project', 'date']) {
   });
 }
 
-test('both themes and dialogs meet selected WCAG checks on desktop and mobile', async ({ page }) => {
+test('three themes, both views and dialogs meet WCAG checks on desktop and mobile', async ({ page }) => {
+  test.setTimeout(90000);
   await page.goto('/alpha/');
   await settled(page);
-  for (const theme of ['dark', 'light']) {
-    if (theme === 'light') await page.getByRole('button', { name: 'Светлая тема', exact: true }).click();
+  for (const theme of ['dark', 'light', 'gray']) for (const taskView of ['list', 'kanban']) {
+    await applySettings(page, theme, taskView);
     await page.setViewportSize({ width: 1440, height: 1000 });
     for (const dialog of [false, true]) {
       if (dialog) await page.getByRole('button', { name: '+ Добавить задачу', exact: true }).click();
@@ -120,6 +132,8 @@ test('both themes and dialogs meet selected WCAG checks on desktop and mobile', 
     }
     await page.setViewportSize({ width: 390, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const mobileAudit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(mobileAudit.violations).toEqual([]);
   }
 });
 
@@ -205,4 +219,84 @@ test('browser without Web Locks permits reading and prevents unsafe saving', asy
   await expect(page.getByRole('button', { name: '+ Добавить задачу', exact: true })).toBeDisabled();
   await expect(page.getByRole('status')).toContainText('Web Locks');
   expect(await page.evaluate(() => localStorage.getItem('projectflow.alpha.workspace.v1'))).toBeNull();
+});
+
+test('gray theme, kanban and compact density persist without workspace writes or plan calls', async ({ page }) => {
+  await page.goto('/alpha/');
+  await settled(page);
+  const previous = await page.evaluate(() => localStorage.getItem('projectflow.alpha.workspace.v1'));
+  let requests = 0;
+  page.on('request', request => { if (request.url().endsWith('/alpha/plan')) requests++; });
+  await applySettings(page, 'gray', 'kanban', 'compact');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'gray');
+  await expect(page.locator('html')).toHaveAttribute('data-density', 'compact');
+  await expect(page.locator('.kanban-column')).toHaveCount(4);
+  expect(requests).toBe(0);
+  expect(await page.evaluate(() => localStorage.getItem('projectflow.alpha.workspace.v1'))).toBe(previous);
+  await page.reload();
+  await settled(page);
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'gray');
+  await expect(page.locator('html')).toHaveAttribute('data-density', 'compact');
+  await expect(page.getByRole('button', { name: 'Канбан', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.column-NOT_STARTED .task-card')).toHaveCount(4);
+});
+
+test('kanban actions keep dependency guards and update project summary', async ({ page }) => {
+  await page.goto('/alpha/');
+  await settled(page);
+  await applySettings(page, 'gray', 'kanban');
+  const first = card(page, 'Подготовить содержание');
+  const dependent = card(page, 'Собрать главную страницу');
+  await expect(dependent.getByRole('button', { name: 'Начать', exact: true })).toBeDisabled();
+  await first.getByRole('button', { name: 'Начать', exact: true }).click();
+  await settled(page);
+  await expect(page.locator('.column-IN_PROGRESS .task-card')).toHaveCount(1);
+  await expect(page.locator('#summary-active')).toHaveText('1');
+  await first.getByRole('button', { name: 'Завершить', exact: true }).click();
+  await settled(page);
+  await expect(page.locator('.column-COMPLETED .task-card')).toHaveCount(1);
+  await expect(page.locator('#summary-completed')).toHaveText('1');
+  await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '25');
+  await expect(dependent.getByRole('button', { name: 'Начать', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Список', exact: true }).click();
+  await expect(page.locator('.kanban-column')).toHaveCount(0);
+  await expect(card(page, 'Подготовить содержание')).toContainText('Завершена');
+});
+
+test('task search works in list and kanban without changing workspace or recalculating the plan', async ({ page }) => {
+  await page.goto('/alpha/');
+  await settled(page);
+  const previous = await page.evaluate(() => localStorage.getItem('projectflow.alpha.workspace.v1'));
+  let requests = 0;
+  page.on('request', request => { if (request.url().endsWith('/alpha/plan')) requests++; });
+  await page.getByRole('searchbox', { name: 'Поиск задач', exact: true }).fill(' СОДЕРЖАНИЕ ');
+  await expect(page.locator('.task-card')).toHaveCount(1);
+  await expect(page.locator('#summary-total')).toHaveText('4');
+  await page.getByRole('button', { name: 'Канбан', exact: true }).click();
+  await expect(page.locator('.task-card')).toHaveCount(1);
+  await page.getByRole('searchbox', { name: 'Поиск задач', exact: true }).fill('Нет такой задачи');
+  await expect(page.locator('.task-card')).toHaveCount(0);
+  await expect(page.locator('.kanban-column')).toHaveCount(4);
+  expect(requests).toBe(0);
+  expect(await page.evaluate(() => localStorage.getItem('projectflow.alpha.workspace.v1'))).toBe(previous);
+});
+
+test('settings dialog supports keyboard close and preserves choices on storage failure', async ({ page }) => {
+  await page.goto('/alpha/');
+  await settled(page);
+  const trigger = page.getByRole('button', { name: 'Настройки интерфейса', exact: true });
+  await trigger.click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toBeHidden();
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('radio', { name: 'Серая', exact: true }).check();
+  const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  expect(audit.violations).toEqual([]);
+  await page.evaluate(() => { Storage.prototype.setItem = () => { throw new Error('quota'); }; });
+  await dialog.getByRole('button', { name: 'Применить настройки', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('сохранить настройки');
+  await expect(dialog.getByRole('radio', { name: 'Серая', exact: true })).toBeChecked();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 });
