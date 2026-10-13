@@ -211,7 +211,7 @@ Run `./mvnw clean verify` and `npm run check:alpha` / `npm run test:alpha`.
 For the development loop, use `./mvnw -Pfast-tests test` (Windows: `./mvnw.cmd -Pfast-tests test`).
 It runs the 56 JDK/domain/value/token/architecture tests without starting Spring or databases.
 Use `-Dtest=ClassName` for a focused regression. The fast profile is optional and is not a
-release verification: default `clean verify` still runs all 108 tests, including HTTP,
+release verification: default `clean verify` still runs all 110 tests, including HTTP,
 authorization, migrations and concurrency, with the unchanged Checkstyle/JaCoCo gates.
 CI runs the full suite with both H2 and PostgreSQL.
 The planning tests include an independent exhaustive oracle: 80 seeded six-task DAGs
