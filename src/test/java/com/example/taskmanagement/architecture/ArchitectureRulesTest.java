@@ -36,9 +36,9 @@ class ArchitectureRulesTest {
             Map.entry("alpha", Set.of("planning")));
 
     @Test
-    void planningCoreDependsOnlyOnItselfAndJdk() {
-        classes().that().resideInAPackage(ROOT + ".planning.core..")
-                .should().onlyDependOnClassesThat().resideInAnyPackage("java..", ROOT + ".planning.core..")
+    void planningDependsOnlyOnItselfAndJdk() {
+        classes().that().resideInAPackage(ROOT + ".planning..")
+                .should().onlyDependOnClassesThat().resideInAnyPackage("java..", ROOT + ".planning..")
                 .check(APPLICATION);
     }
 
@@ -55,8 +55,14 @@ class ArchitectureRulesTest {
             @Override
             public void check(JavaClass source, ConditionEvents events) {
                 String sourceModule = moduleOf(source);
-                if (!MODULE_DEPENDENCIES.containsKey(sourceModule)) {
+                if (source.getPackageName().equals(ROOT) || sourceModule.equals("config")
+                        || sourceModule.equals("bootstrap")) {
                     return; // Root application and bootstrap/config wire the modules.
+                }
+                if (!MODULE_DEPENDENCIES.containsKey(sourceModule)) {
+                    events.add(SimpleConditionEvent.violated(source,
+                            source.getName() + " belongs to an undeclared module"));
+                    return;
                 }
                 for (var dependency : source.getDirectDependenciesFromSelf()) {
                     var target = dependency.getTargetClass();
