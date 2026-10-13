@@ -64,7 +64,8 @@ try {
     Assert-HttpStatus '/actuator/health' 200
     $health = Invoke-RestMethod -Uri ('http://127.0.0.1:' + $AppPort + '/actuator/health')
     if ($health.status -ne 'UP') { throw 'Container health is not UP' }
-    foreach ($path in @('/alpha/', '/alpha/app.js', '/alpha/plan')) {
+    foreach ($path in @('/alpha/', '/alpha/app.js', '/alpha/plan', '/v3/api-docs',
+        '/swagger-ui/index.html', '/webjars/swagger-ui/index.html')) {
         Assert-HttpStatus $path 404
     }
     $uid = Invoke-Compose @('exec', '-T', 'app', 'id', '-u')

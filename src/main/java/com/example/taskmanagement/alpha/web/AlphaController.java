@@ -3,7 +3,6 @@ package com.example.taskmanagement.alpha.web;
 import com.example.taskmanagement.planning.core.DependencyEdge;
 import com.example.taskmanagement.planning.core.ExecutionFacts;
 import com.example.taskmanagement.planning.core.GraphSnapshot;
-import com.example.taskmanagement.planning.core.GraphValidationException;
 import com.example.taskmanagement.planning.core.PriorityTopologicalSorter;
 import com.example.taskmanagement.planning.core.ReadinessCalculator;
 import com.example.taskmanagement.planning.core.TaskNode;
@@ -15,6 +14,11 @@ import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
@@ -22,11 +26,11 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
 
 /** Local alpha adapter: serves the prototype and calculates supplied graphs without database mutations. */
 @Controller
@@ -63,6 +67,22 @@ public class AlphaController {
 
     @PostMapping(value = "/plan", consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    @Operation(summary = "Calculate dependency order and actual readiness",
+            description = "Pure calculation over the supplied graph; no tasks are written to PostgreSQL. "
+                    + "Only completedIds satisfy dependencies; candidateIds are not-started tasks.")
+    @ApiResponse(responseCode = "200", description = "Order, available task IDs and nullable next task",
+            content = @Content(schema = @Schema(implementation = PlanResponse.class)))
+    @ApiResponse(responseCode = "400", description = "Malformed input, constraint violation or invalid graph",
+            content = @Content(mediaType = "application/problem+json",
+                    schema = @Schema(ref = "#/components/schemas/ApiError")))
+    @ApiResponse(responseCode = "409", description = "Cycle; unresolved IDs can include blocked descendants",
+            content = @Content(mediaType = "application/problem+json",
+                    schema = @Schema(ref = "#/components/schemas/ApiError"),
+                    examples = @ExampleObject(value = """
+                            {"type":"about:blank","title":"Conflict","status":409,
+                             "detail":"Graph contains a cycle","code":"CYCLIC_DEPENDENCY","taskIds":[1,2]}
+                            """)))
     public ResponseEntity<PlanResponse> plan(@Valid @RequestBody PlanRequest request) {
         var nodes = request.tasks().stream().map(task -> new TaskNode(task.id(), task.priority().weight,
                 task.dueDate(), task.estimatedMinutes())).toList();
@@ -76,12 +96,6 @@ public class AlphaController {
                 .stream().map(TaskNode::id).toList();
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
                 .body(new PlanResponse(order, available, available.isEmpty() ? null : available.getFirst()));
-    }
-
-    @ExceptionHandler(GraphValidationException.class)
-    public ResponseEntity<PlanError> invalidGraph(GraphValidationException exception) {
-        int status = exception.reason() == GraphValidationException.Reason.CYCLIC_DEPENDENCY ? 409 : 400;
-        return ResponseEntity.status(status).body(new PlanError(exception.reason().name(), exception.taskIds()));
     }
 
     private static ResponseEntity<Resource> asset(String filename, MediaType mediaType) {
@@ -116,6 +130,4 @@ public class AlphaController {
     public record PlanResponse(List<Long> executionOrder, List<Long> availableIds, Long nextId) {
     }
 
-    public record PlanError(String code, List<Long> taskIds) {
-    }
 }
