@@ -12,9 +12,11 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.context.annotation.Import;
 
 @WebMvcTest(AlphaController.class)
 @ActiveProfiles("alpha")
+@Import(AlphaSliceSecurity.class)
 class AlphaControllerTest {
 
     private static final String CHAIN = """

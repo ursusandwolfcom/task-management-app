@@ -33,6 +33,7 @@ target/
 
 # Local project instructions
 /docs/
+/.session/
 
 # Local frontend verification dependencies
 node_modules/
