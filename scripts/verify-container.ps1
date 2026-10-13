@@ -22,7 +22,7 @@ function Invoke-Compose([string[]]$ComposeArguments) {
     $ErrorActionPreference = 'Continue'
     $composeOptions = @('compose', '--file', 'compose.yaml', '--env-file', '.env.sample',
         '--project-name', $projectName, '--profile', 'app')
-    & docker @composeOptions @ComposeArguments
+    & docker @composeOptions @ComposeArguments 2>&1 | ForEach-Object { $_.ToString() }
     if ($LASTEXITCODE -ne 0) {
         throw ('Container command failed: ' + ($ComposeArguments -join ' '))
     }
