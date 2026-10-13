@@ -74,6 +74,39 @@ This also avoids JDBC startup failures with legacy timezone names such as `Europ
 The health endpoint also checks database connectivity without exposing credentials
 or detailed diagnostics.
 
+### Regression testing
+
+Run `./mvnw clean verify` and `npm run check:alpha` / `npm run test:alpha`.
+The planning tests include an independent exhaustive oracle: 80 seeded six-task DAGs
+are compared against every valid permutation, and readiness is checked on 250 seeded
+execution-fact sets. Lifecycle tests cover every state/command pair and repeated retries.
+HTTP tests exercise malformed JSON/dates, null fields, safe integer and 1000-task boundaries,
+graph diagnostics, unsupported methods/media types and OpenAPI profile isolation.
+H2 databases use separate names per Spring test context; PostgreSQL verification overrides
+the test URL as described below and checks the real database instead.
+
+Browser storage tests reject impossible Gregorian dates without changing the stored record,
+and ID allocation reports exhausted safe integer space rather than producing rounded IDs.
+Normal static resource mappings are disabled, so Swagger WebJar files cannot bypass the
+alpha profile; alpha's explicit asset whitelist and Swagger's profile handlers serve their assets.
+
+For the browser suite, start PostgreSQL, build the JAR with `./mvnw clean verify`, then run:
+
+```powershell
+npm.cmd ci --ignore-scripts
+npx.cmd playwright install chromium
+npm.cmd run test:browser
+```
+
+Playwright starts and stops its own alpha server on loopback port 18082, uses isolated
+browser storage, and leaves a separately running preview on port 8080 alone.
+Set `ALPHA_TEST_PORT` to change the test port. To use an installed Google Chrome instead
+of downloading Chromium, set `$env:PLAYWRIGHT_CHANNEL = 'chrome'` before running the suite.
+The eight scenarios cover ordering/theme persistence, execution readiness, cycle rejection,
+network/quota failures, exhausted IDs, corrupt storage, XSS, Swagger and selected WCAG A/AA
+checks in both themes. Failure traces are written to `target/playwright-results`.
+CI installs Chromium and runs this suite against PostgreSQL.
+
 ### Coverage gate
 
 `clean verify` instruments tests with JaCoCo and requires at least 60% line coverage
@@ -182,6 +215,21 @@ as a required status check in the protection settings for the base branch.
 The original assignment requirements follow below.
 
 ### Local alpha interface
+
+With the alpha profile enabled, open `http://localhost:8080/swagger-ui/index.html`
+for interactive API documentation or `/v3/api-docs` for the generated OpenAPI JSON.
+Only the implemented `POST /alpha/plan` calculation is documented. Page/assets,
+future authentication and CRUD endpoints are not presented as available APIs.
+Swagger and its specification are disabled without alpha, including normal container startup.
+The [springdoc 3.1.1 release](https://github.com/springdoc/springdoc-openapi/releases/tag/v3.1.1)
+is pinned and verified with this project's Boot 4.1.1 / Java 21.
+
+HTTP errors use `application/problem+json` with `type`, `title`, `status`, `detail`,
+`instance` and stable `code`. Graph errors additionally retain `taskIds` for the alpha
+client. Malformed JSON/types/dates produce `MALFORMED_REQUEST`; bean validation produces
+`VALIDATION_ERROR`; cycles produce HTTP 409 / `CYCLIC_DEPENDENCY`. Cycle IDs can include
+blocked descendants and do not represent only a cycle witness. Internal parser details
+and rejected field values are not included in validation responses.
 
 The early application interface is available at `http://localhost:8080/alpha/`
 when explicitly started with the `alpha` profile. It provides projects, task creation
