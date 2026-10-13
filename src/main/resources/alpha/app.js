@@ -5,7 +5,7 @@
 /** @typedef {import('./types').Plan} Plan */
 /** @typedef {import('./types').Preferences} Preferences */
 /** @typedef {import('./ui').TaskFilter} TaskFilter */
-import { calculatePlan, defaultPreferences, exampleWorkspace, isTaskSort, isTheme, isTaskView, isDensity,
+import { addDemoProjects, calculatePlan, defaultPreferences, exampleWorkspace, isTaskSort, isTheme, isTaskView, isDensity,
   loadPreferences, loadWorkspace,
   nextId, savePreferences, saveWorkspace, selectedProject, STORAGE_KEY } from './store.js';
 import { element, notify, openTaskDialog, render } from './ui.js';
@@ -132,6 +132,11 @@ element('#new-project').addEventListener('click', () => {
 });
 element('#new-task').addEventListener('click', () => openTaskDialog(selectedProject(workspace), undefined));
 element('#refresh-plan').addEventListener('click', () => { void refresh(); });
+element('#load-demo').addEventListener('click', async () => {
+  if (busy || storageWarning || externalChange) return;
+  try { await commit(addDemoProjects(workspace)); }
+  catch (error) { notify(message(error)); }
+});
 
 for (const button of document.querySelectorAll('[data-close]')) button.addEventListener('click', () => {
   if (button instanceof HTMLElement && button.dataset.close) {

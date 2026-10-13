@@ -18,15 +18,24 @@
 <body>
   <a class="skip-link" href="#main">Перейти к задачам</a>
   <div class="app-shell">
-    <aside class="sidebar" aria-label="Проекты">
+    <header class="app-topbar">
       <a class="brand" href="/alpha/"><span class="brand-mark" aria-hidden="true">P</span>
         <span>ProjectFlow<span class="brand-subtitle">Управление проектами</span></span></a>
+      <div class="workspace-controls" role="group" aria-label="Управление интерфейсом">
+        <div id="task-view" class="segmented-control" role="group" aria-label="Представление задач">
+          <button type="button" data-view="list" aria-pressed="true">Список</button>
+          <button type="button" data-view="kanban" aria-pressed="false">Канбан</button>
+        </div>
+        <button id="theme-toggle" class="theme-shortcut" type="button">Светлая тема</button>
+        <button id="open-settings" class="button button-outline" type="button">Настройки интерфейса</button>
+      </div>
+    </header>
+    <aside class="sidebar" aria-label="Проекты">
       <div class="sidebar-heading"><h2>Мои проекты</h2><span id="project-total" class="nav-count">1</span></div>
       <nav id="project-list" aria-label="Выбрать проект"></nav>
       <button id="new-project" class="button button-outline full-width" type="button">+ Создать проект</button>
+      <button id="load-demo" class="button button-outline full-width" type="button">Открыть демо-сценарии</button>
       <div class="sidebar-footer">
-        <button id="open-settings" class="button button-outline full-width" type="button">Настройки интерфейса</button>
-        <button id="theme-toggle" class="theme-shortcut" type="button">Светлая тема</button>
         <div class="local-space"><span class="status-dot" aria-hidden="true"></span>Локальное пространство
           <span class="alpha-tag">alpha</span></div>
         <p class="storage-note" id="storage-note">Проекты и задачи хранятся в вашем браузере.</p>
@@ -39,6 +48,14 @@
         <button id="new-task" class="button button-primary" type="button">+ Добавить задачу</button>
       </header>
       <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+      <section id="demo-guide" class="demo-guide" aria-labelledby="demo-guide-title" hidden>
+        <p class="eyebrow">Демонстрационный сценарий</p><h2 id="demo-guide-title">Что показать заказчику</h2>
+        <p id="demo-guide-text"></p>
+        <details><summary>Возможности текущей версии</summary>
+          <p>Сервер рассчитывает порядок по зависимостям, приоритетам и срокам, готовность и следующий шаг. Создание цикла отклоняется при сохранении задачи.</p>
+          <p>Статусы и проекты этого демо хранятся в браузере. Вход, права доступа и PostgreSQL CRUD проектов реализованы отдельно в API. Серверное хранение задач, расписание, Гант и критический путь ещё не подключены к интерфейсу.</p>
+        </details>
+      </section>
       <section class="project-summary" aria-label="Сводка проекта">
         <div class="summary-card"><span class="summary-label">Всего задач</span><strong id="summary-total">0</strong>
           <span class="summary-detail">Объём проекта</span></div>
@@ -56,10 +73,6 @@
           <div class="panel-heading"><div><h2>Задачи проекта</h2><p class="muted">Приоритеты, сроки и ход выполнения</p></div>
             <div class="panel-tools"><label class="sr-only" for="task-search">Поиск задач</label>
               <input id="task-search" type="search" placeholder="Найти задачу…" autocomplete="off">
-            <div id="task-view" class="segmented-control" role="group" aria-label="Представление задач">
-              <button type="button" data-view="list" aria-pressed="true">Список</button>
-              <button type="button" data-view="kanban" aria-pressed="false">Канбан</button>
-            </div>
             </div>
           </div>
           <div class="toolbar">

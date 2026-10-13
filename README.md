@@ -406,7 +406,8 @@ start/complete/fail/retry actions for the prototype.
 New tasks appear at the top by default. The task-order selector supports newest first,
 oldest first and the execution order returned by the Java core. Display sorting leaves
 the stored task creation order and dependency calculation unchanged. Dark theme is the
-default; the sidebar shortcut cycles through dark, light and gray themes. Open
+default; the upper-right toolbar groups List/Kanban, the theme shortcut and settings.
+Gray uses charcoal surfaces (RGB channels at most 40%) and beige/ivory foregrounds. Open
 **Interface settings** to choose the theme, List/Kanban view and comfortable/compact
 density. All preferences persist in this browser separately from project/task data;
 existing preference records retain their theme/order and use defaults for new fields.
@@ -415,6 +416,17 @@ The project overview displays total, ready, active and completed task counts plu
 progress. Search filters task names locally in both views. The Kanban board groups the existing
 prototype task states; use the card actions to change state with the same dependency guards.
 Search, display settings and sorting never rewrite workspace data or recalculate the graph.
+
+Fresh browsers include three business demo projects alongside the introductory project:
+client portal (parallel dependencies and all four states), service recovery (retry and
+blocked successors), and priority queue (priority, due date and ID tie-breaks).
+Choose **Открыть демо-сценарии** to add missing scenarios to an existing workspace
+and open the client portal. Loading them again preserves edits and avoids duplicates.
+Each demo project includes a presentation guide. All graph results come from `/alpha/plan`;
+demo data and prototype statuses stay in browser storage. Dates are illustrative;
+estimates do not yet calculate schedules, Gantt or the critical path.
+See [the customer demo walkthrough](DEMO.md) for presentation steps and the separate
+identity/project API demonstration.
 
 ```powershell
 .\mvnw.cmd spring-boot:run '-Dspring-boot.run.profiles=alpha'

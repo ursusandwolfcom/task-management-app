@@ -167,7 +167,7 @@ test('another tab task survives stale project selection and form submission', as
   await expect(dialog.getByLabel('Название задачи', { exact: true })).toHaveValue('Unsaved in B');
   await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
   const saved = await page.evaluate(() => localStorage.getItem('projectflow.alpha.workspace.v1'));
-  await stale.locator('#project-list button[data-project]').click();
+  await stale.locator('#project-list button[data-project]').first().click();
   await settled(stale);
   expect(await stale.evaluate(() => localStorage.getItem('projectflow.alpha.workspace.v1'))).toBe(saved);
   await page.reload();
@@ -299,4 +299,92 @@ test('settings dialog supports keyboard close and preserves choices on storage f
   await expect(dialog.getByRole('alert')).toContainText('сохранить настройки');
   await expect(dialog.getByRole('radio', { name: 'Серая', exact: true })).toBeChecked();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+});
+
+test('view and theme controls share the upper-right toolbar and gray surfaces stay dark', async ({ page }) => {
+  await page.goto('/alpha/');
+  await settled(page);
+  await applySettings(page, 'gray', 'kanban');
+  for (const id of ['task-view', 'theme-toggle', 'open-settings']) {
+    await expect(page.locator(`.app-topbar .workspace-controls #${id}`)).toHaveCount(1);
+  }
+  await page.locator('#open-settings').click();
+  const colors = await page.locator('.app-topbar, .sidebar, .summary-card, .task-card, .kanban-column, dialog, dialog select, .button, .badge')
+    .evaluateAll(elements => elements.filter(element => element.checkVisibility()).map(element => {
+      const style = getComputedStyle(element);
+      return { background: style.backgroundColor, foreground: style.color };
+    }));
+  for (const color of colors) {
+    if (color.background !== 'rgba(0, 0, 0, 0)') {
+      expect(color.background.match(/\d+/g).slice(0, 3).map(Number).every(channel => channel <= 102)).toBe(true);
+    }
+    expect(color.foreground).not.toBe('rgb(255, 255, 255)');
+  }
+});
+
+test('demo reload preserves user data, edits and all scenarios use the actual Java plan', async ({ page, context, request }) => {
+  const workspace = { version: 1, revision: 0, selectedProjectId: 10,
+    projects: [{ id: 10, name: 'Проект заказчика', description: 'Сохранить', tasks: [] }] };
+  await context.addInitScript(value => {
+    if (!localStorage.getItem('projectflow.alpha.workspace.v1')) {
+      localStorage.setItem('projectflow.alpha.workspace.v1', JSON.stringify(value));
+    }
+  }, workspace);
+  await page.goto('/alpha/');
+  await settled(page);
+  const original = await page.evaluate(() => localStorage.getItem('projectflow.alpha.workspace.v1'));
+  await page.route('**/alpha/plan', route => route.abort());
+  await page.getByRole('button', { name: 'Открыть демо-сценарии', exact: true }).click();
+  await settled(page);
+  await expect(page.getByRole('status')).toContainText('недоступно');
+  expect(await page.evaluate(() => localStorage.getItem('projectflow.alpha.workspace.v1'))).toBe(original);
+  await page.unroute('**/alpha/plan');
+  await page.getByRole('button', { name: 'Открыть демо-сценарии', exact: true }).click();
+  await settled(page);
+  await expect(page.locator('#project-name')).toHaveText('Демо · Клиентский портал');
+  await expect(page.locator('#demo-guide')).toBeVisible();
+  await applySettings(page, 'gray', 'kanban');
+  for (const state of ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'FAILED']) {
+    expect(await page.locator(`.column-${state} .task-card`).count()).toBeGreaterThan(0);
+  }
+  await card(page, 'Реализовать личный кабинет').getByRole('button', { name: 'Начать', exact: true }).click();
+  await settled(page);
+  await card(page, 'Реализовать личный кабинет').getByRole('button', { name: 'Завершить', exact: true }).click();
+  await settled(page);
+  await expect(card(page, 'Проверить безопасность').getByRole('button', { name: 'Начать', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Открыть демо-сценарии', exact: true }).click();
+  await settled(page);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('projectflow.alpha.workspace.v1')));
+  expect(saved.projects).toHaveLength(4);
+  expect(saved.projects[0]).toEqual(workspace.projects[0]);
+  expect(saved.projects.find(project => project.demoKey === 'portal').tasks[2].status).toBe('COMPLETED');
+  for (const project of saved.projects.filter(project => project.demoKey)) {
+    const result = await request.post('/alpha/plan', { data: {
+      tasks: project.tasks.map(({ id, priority, dueDate, estimatedMinutes }) => ({ id, priority, dueDate, estimatedMinutes })),
+      dependencies: project.tasks.flatMap(task => task.dependencies.map(predecessorId => ({ predecessorId, successorId: task.id }))),
+      completedIds: project.tasks.filter(task => task.status === 'COMPLETED').map(task => task.id),
+      candidateIds: project.tasks.filter(task => task.status === 'NOT_STARTED').map(task => task.id)
+    } });
+    expect(result.ok()).toBe(true);
+    const plan = await result.json();
+    expect(plan.executionOrder).toHaveLength(project.tasks.length);
+    if (project.demoKey === 'priorities') expect(plan.executionOrder).toEqual([4, 2, 3, 7, 1, 5, 6]);
+    if (project.demoKey === 'recovery') expect(plan.availableIds).toEqual([6]);
+  }
+  await page.getByRole('button', { name: 'Демо · Восстановление сервиса', exact: true }).click();
+  await settled(page);
+  const recovery = card(page, 'Восстановить платёжный шлюз');
+  await expect(card(page, 'Проверить обработку заказов').getByRole('button', { name: 'Начать', exact: true })).toBeDisabled();
+  await recovery.getByRole('button', { name: 'Повторить', exact: true }).click();
+  await settled(page);
+  await recovery.getByRole('button', { name: 'Начать', exact: true }).click();
+  await settled(page);
+  await recovery.getByRole('button', { name: 'Завершить', exact: true }).click();
+  await settled(page);
+  await expect(card(page, 'Проверить обработку заказов').getByRole('button', { name: 'Начать', exact: true })).toBeEnabled();
+  const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  expect(audit.violations).toEqual([]);
+  await page.reload();
+  await settled(page);
+  await expect(card(page, 'Восстановить платёжный шлюз')).toContainText('Завершена');
 });

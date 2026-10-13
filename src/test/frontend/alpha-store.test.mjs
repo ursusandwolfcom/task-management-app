@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { exampleWorkspace, loadWorkspace, saveWorkspace, selectedProject, nextId } from '../../main/resources/alpha/store.js';
 import { defaultPreferences, loadPreferences, savePreferences, sortedTasks } from '../../main/resources/alpha/store.js';
+import { addDemoProjects } from '../../main/resources/alpha/store.js';
 
 function serialLocks() {
   let tail = Promise.resolve();
@@ -29,6 +30,26 @@ function memoryStorage() {
     snapshot: () => [...values.entries()]
   };
 }
+
+test('demo scenarios populate fresh storage and are added once without replacing user projects or edits', async () => {
+  const storage = memoryStorage();
+  const fresh = loadWorkspace(storage);
+  assert.equal(fresh.projects.filter(project => project.demoKey).length, 3);
+  assert.equal(storage.getItem('projectflow.alpha.workspace.v1'), null);
+  const user = exampleWorkspace();
+  user.projects[0].id = user.selectedProjectId = 20;
+  const original = structuredClone(user);
+  const candidate = addDemoProjects(user);
+  assert.deepEqual(user, original);
+  assert.deepEqual(candidate.projects[0], user.projects[0]);
+  assert.equal(new Set(candidate.projects.map(project => project.id)).size, 4);
+  const portal = selectedProject(candidate);
+  portal.tasks[2].name = 'Customer edit';
+  await persist(storage, candidate);
+  const repeated = addDemoProjects(loadWorkspace(storage));
+  assert.deepEqual(repeated, candidate);
+  assert.equal(selectedProject(repeated).tasks[2].name, 'Customer edit');
+});
 
 test('persists projects, minute estimates, execution state and dependency links across reload', async () => {
   const storage = memoryStorage();

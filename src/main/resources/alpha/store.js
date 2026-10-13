@@ -1,4 +1,5 @@
 // @ts-check
+import { demoProjects, demoGuides } from './demo.js';
 /** @typedef {import('./types').Workspace} Workspace */
 /** @typedef {import('./types').Project} Project */
 /** @typedef {import('./types').Task} Task */
@@ -97,6 +98,7 @@ function isTask(value) {
 function isProject(value) {
   if (!isObject(value) || !isId(value.id) || typeof value.name !== 'string' || !value.name.trim()
       || value.name.length > 120 || typeof value.description !== 'string' || value.description.length > 1000
+      || (value.demoKey !== undefined && (typeof value.demoKey !== 'string' || !Object.hasOwn(demoGuides, value.demoKey)))
       || !Array.isArray(value.tasks) || value.tasks.length > 1000 || !value.tasks.every(isTask)) return false;
   const ids = new Set(value.tasks.map(task => task.id));
   return ids.size === value.tasks.length && value.tasks.every(task =>
@@ -106,7 +108,7 @@ function isProject(value) {
 /** @param {Storage} storage @returns {Workspace} */
 export function loadWorkspace(storage) {
   const saved = storage.getItem(STORAGE_KEY);
-  if (saved === null) return exampleWorkspace();
+  if (saved === null) return addDemoProjects(exampleWorkspace(), false);
   /** @type {unknown} */
   let value;
   try { value = JSON.parse(saved); }
@@ -156,6 +158,20 @@ export function nextId(items) {
   const id = Math.max(0, ...items.map(item => item.id)) + 1;
   if (!Number.isSafeInteger(id)) throw new Error('Не удалось создать идентификатор: диапазон значений исчерпан.');
   return id;
+}
+
+/** Add missing scenarios without replacing projects or resetting edited demo tasks.
+ * @param {Workspace} workspace @param {boolean} [selectDemo] @returns {Workspace} */
+export function addDemoProjects(workspace, selectDemo = true) {
+  const candidate = structuredClone(workspace);
+  for (const project of demoProjects(1)) {
+    if (!candidate.projects.some(existing => existing.demoKey === project.demoKey)) {
+      project.id = nextId(candidate.projects);
+      candidate.projects.push(project);
+    }
+  }
+  if (selectDemo) candidate.selectedProjectId = candidate.projects.find(project => project.demoKey === 'portal')?.id ?? candidate.selectedProjectId;
+  return candidate;
 }
 
 /** @param {Project} project @param {AbortSignal} [signal] @returns {Promise<Plan>} */

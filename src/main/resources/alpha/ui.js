@@ -6,6 +6,7 @@
 /** @typedef {import('./types').Preferences} Preferences */
 /** @typedef {'all' | 'ready' | 'active' | 'completed'} TaskFilter */
 import { selectedProject, sortedTasks } from './store.js';
+import { demoGuides } from './demo.js';
 
 /** @template {HTMLElement} T @param {string} selector @returns {T} */
 export function element(selector) {
@@ -72,8 +73,12 @@ export function render(workspace, plan, filter, busy, preferences, readOnly = fa
   }
   element('#project-name').textContent = project.name;
   element('#project-description').textContent = project.description;
+  const guide = project.demoKey && Object.hasOwn(demoGuides, project.demoKey)
+    ? demoGuides[/** @type {keyof typeof demoGuides} */ (project.demoKey)] : '';
+  element('#demo-guide').hidden = !guide;
+  element('#demo-guide-text').textContent = guide || '';
   element('#storage-note').textContent = 'Alpha-прототип. Проекты и задачи хранятся только в этом браузере.';
-  for (const selector of ['#new-project', '#new-task', '#refresh-plan']) {
+  for (const selector of ['#new-project', '#new-task', '#refresh-plan', '#load-demo']) {
     /** @type {HTMLButtonElement} */ (element(selector)).disabled = blocked;
   }
   const list = element('#task-list');
