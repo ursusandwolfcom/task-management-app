@@ -39,6 +39,7 @@ class AlphaControllerTest {
         mvc.perform(get("/alpha/app.js")).andExpect(status().isOk());
         mvc.perform(get("/alpha/store.js")).andExpect(status().isOk());
         mvc.perform(get("/alpha/ui.js")).andExpect(status().isOk());
+        mvc.perform(get("/alpha/demo.js")).andExpect(status().isOk());
         mvc.perform(get("/alpha/application.properties")).andExpect(status().isNotFound());
         mvc.perform(get("/alpha/.env")).andExpect(status().isNotFound());
         mvc.perform(get("/alpha/types.d.ts")).andExpect(status().isNotFound());

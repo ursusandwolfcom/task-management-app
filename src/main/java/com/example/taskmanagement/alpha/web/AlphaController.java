@@ -65,6 +65,11 @@ public class AlphaController {
         return asset("ui.js", MediaType.parseMediaType("text/javascript"));
     }
 
+    @GetMapping(value = "/demo.js", produces = "text/javascript")
+    public ResponseEntity<Resource> demoScript() {
+        return asset("demo.js", MediaType.parseMediaType("text/javascript"));
+    }
+
     @PostMapping(value = "/plan", consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
