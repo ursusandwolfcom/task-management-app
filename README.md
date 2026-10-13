@@ -160,6 +160,10 @@ project. ADMIN has access to all projects. Other users receive the same 404 /
 Creation and PUT use `name` (nonblank, at most 200 characters after trimming),
 `description` (at most 10000 characters, defaults to empty), required `startDate` and
 `endDate` (ISO dates, end cannot precede start), and `timezone` (IANA ID, default `UTC`).
+Both dates must be within PostgreSQL's finite DATE range, inclusive:
+`-4713-11-24` through `+5874897-12-31` in ISO proleptic years (year zero is 1 BC).
+POST, PUT and PATCH reject dates outside that range with HTTP 400 `VALIDATION_ERROR`
+without changing the project or its revisions.
 PUT also requires `version`; PATCH requires `version` and any metadata fields to change.
 Use an empty string to clear the description in PATCH. Lists accept `page` 0..1000000
 and `size` 1..100 (defaults 0 and 20), returning `content`, `page`, `size`, `totalElements`
@@ -422,6 +426,13 @@ these prototype projects/tasks in PostgreSQL or connect this UI to user accounts
 The separate protected project API is persisted; task CRUD, persisted execution history,
 calendars and resource guards remain planned features. This
 prototype does not replace their acceptance criteria.
+
+Saving requires Web Locks support in a secure browser context (loopback qualifies).
+Workspace writes use an exclusive lock and an expected revision across tabs. A stale tab
+reports a conflict and preserves the saved data and open form input; reload it to use the
+latest workspace. Selecting the current project does not write workspace data. Existing
+records without a revision are upgraded on their first successful save. Older alpha pages
+opened before this update must be reloaded before editing, because they lack the lock protocol.
 
 The page, its assets and `/alpha/plan` are disabled without the `alpha` profile. No
 local docs or secrets are served. Frontend assets need no runtime CDN or bundler.

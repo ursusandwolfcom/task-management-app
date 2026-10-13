@@ -14,6 +14,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.LocalDate;
 import java.util.Objects;
+import org.hibernate.annotations.JdbcType;
 
 @Entity
 @Table(name = "projects", schema = "task_management")
@@ -26,8 +27,11 @@ public class ProjectEntity {
     @Column(nullable = false, length = 10000)
     private String description;
     @Column(name = "start_date", nullable = false)
+    // Direct JDBC LocalDate mapping preserves proleptic years, including BC and year zero.
+    @JdbcType(FiniteDateJdbcType.class)
     private LocalDate startDate;
     @Column(name = "end_date", nullable = false)
+    @JdbcType(FiniteDateJdbcType.class)
     private LocalDate endDate;
     @Column(nullable = false, length = 64)
     private String timezone;

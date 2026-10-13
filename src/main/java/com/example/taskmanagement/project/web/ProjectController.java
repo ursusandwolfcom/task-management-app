@@ -7,6 +7,7 @@ import com.example.taskmanagement.project.api.ProjectOperations.ProjectPage;
 import com.example.taskmanagement.project.api.ProjectPatch;
 import com.example.taskmanagement.project.api.ProjectView;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
@@ -34,7 +35,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/projects")
 @SecurityRequirement(name = "bearerAuth")
 public class ProjectController {
-    public record ChangeRequest(String name, String description, LocalDate startDate, LocalDate endDate,
+    public record ChangeRequest(String name, String description,
+            @Schema(description = "PostgreSQL DATE range: -4713-11-24 through +5874897-12-31 (ISO years)")
+            LocalDate startDate,
+            @Schema(description = "Same PostgreSQL DATE range as startDate; must be on or after startDate")
+            LocalDate endDate,
             String timezone, @NotNull @PositiveOrZero Long version) {
     }
 

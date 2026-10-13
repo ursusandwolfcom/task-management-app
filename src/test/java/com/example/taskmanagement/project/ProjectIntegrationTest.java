@@ -212,6 +212,45 @@ class ProjectIntegrationTest {
     }
 
     @Test
+    void outOfStorageRangeDatesReturnValidationErrorsWithoutChangingRowsOrRevisions() throws Exception {
+        var project = create();
+        String token = bearer(owner);
+        for (String date : List.of("-4713-11-23", "+5874898-01-01", "+6000000-01-01")) {
+            String body = json.writeValueAsString(Map.of("name", "Boundary", "startDate", date,
+                    "endDate", date, "timezone", "UTC", "version", project.version()));
+            mvc.perform(post("/api/projects").header("Authorization", token)
+                    .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+            mvc.perform(put("/api/projects/" + project.id()).header("Authorization", token)
+                    .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+            for (String field : List.of("startDate", "endDate")) {
+                mvc.perform(patch("/api/projects/" + project.id()).header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(
+                                Map.of(field, date, "version", project.version()))))
+                        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+            }
+            assertThat(projects.read(owner.id(), project.id())).isEqualTo(project);
+            assertThat(projects.list(owner.id(), 0, 20).totalElements()).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void storageDateBoundariesPersistAndRoundTripExactly() throws Exception {
+        String token = bearer(owner);
+        for (String date : List.of("-4713-11-24", "0000-01-01", "+5874897-12-31")) {
+            var response = json.readTree(mvc.perform(post("/api/projects").header("Authorization", token)
+                    .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
+                            "name", "Boundary", "startDate", date, "endDate", date, "timezone", "UTC"))))
+                    .andExpect(status().isCreated()).andExpect(jsonPath("$.startDate").value(date))
+                    .andExpect(jsonPath("$.endDate").value(date)).andReturn().getResponse().getContentAsString());
+            var stored = projects.read(owner.id(), response.path("id").asLong());
+            assertThat(stored.startDate()).isEqualTo(LocalDate.parse(date));
+            assertThat(stored.endDate()).isEqualTo(LocalDate.parse(date));
+        }
+    }
+
+    @Test
     void duplicateAndMissingMembersDoNotChangeProjectAndOwnerCannotBeRemoved() throws Exception {
         var project = create();
         var updated = projects.addMember(owner.id(), project.id(), member.id(), project.version());
