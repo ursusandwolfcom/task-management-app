@@ -119,3 +119,27 @@ test('preferences quota failure preserves existing preference and workspace reco
   assert.throws(() => savePreferences(failing, defaultPreferences()), /сохранить настройку/);
   assert.deepEqual(storage.snapshot(), previous);
 });
+
+test('stored due dates must be real Gregorian dates and invalid records remain untouched', () => {
+  for (const dueDate of ['2026-02-29', '1900-02-29', '2026-04-31', '2026-00-12', '2026-13-01', '2026-01-00']) {
+    const storage = memoryStorage();
+    const workspace = exampleWorkspace();
+    workspace.projects[0].tasks[0].dueDate = dueDate;
+    saveWorkspace(storage, workspace);
+    const previous = storage.snapshot();
+    assert.throws(() => loadWorkspace(storage), dueDate);
+    assert.deepEqual(storage.snapshot(), previous);
+  }
+  for (const dueDate of ['2024-02-29', '2000-02-29', '2026-12-31']) {
+    const storage = memoryStorage();
+    const workspace = exampleWorkspace();
+    workspace.projects[0].tasks[0].dueDate = dueDate;
+    saveWorkspace(storage, workspace);
+    assert.equal(loadWorkspace(storage).projects[0].tasks[0].dueDate, dueDate);
+  }
+});
+
+test('ID allocation rejects exhausted safe integer space instead of producing rounded identifiers', () => {
+  assert.equal(nextId([{ id: Number.MAX_SAFE_INTEGER - 1 }]), Number.MAX_SAFE_INTEGER);
+  assert.throws(() => nextId([{ id: Number.MAX_SAFE_INTEGER }]), /идентификатор/);
+});

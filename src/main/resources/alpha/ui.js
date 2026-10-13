@@ -41,8 +41,9 @@ export function notify(message) {
 }
 
 /** @param {Workspace} workspace @param {Plan | null} plan @param {TaskFilter} filter
- * @param {boolean} busy @param {Preferences} preferences */
-export function render(workspace, plan, filter, busy, preferences) {
+ * @param {boolean} busy @param {Preferences} preferences @param {boolean} [readOnly] */
+export function render(workspace, plan, filter, busy, preferences, readOnly = false) {
+  const blocked = busy || readOnly;
   document.documentElement.dataset.theme = preferences.theme;
   element('#theme-toggle').textContent = preferences.theme === 'dark' ? 'Светлая тема' : 'Тёмная тема';
   const sortControl = /** @type {HTMLSelectElement} */ (element('#task-sort'));
@@ -55,7 +56,7 @@ export function render(workspace, plan, filter, busy, preferences) {
     const button = /** @type {HTMLButtonElement} */ (make('button', item.name, 'project-link'));
     button.type = 'button';
     button.dataset.project = String(item.id);
-    button.disabled = busy;
+    button.disabled = blocked;
     if (item.id === project.id) button.setAttribute('aria-current', 'page');
     nav.append(button);
   }
@@ -63,7 +64,7 @@ export function render(workspace, plan, filter, busy, preferences) {
   element('#project-description').textContent = project.description;
   element('#storage-note').textContent = 'Альфа-версия. Проекты и задачи сохраняются только в этом браузере.';
   for (const selector of ['#new-project', '#new-task', '#refresh-plan']) {
-    /** @type {HTMLButtonElement} */ (element(selector)).disabled = busy;
+    /** @type {HTMLButtonElement} */ (element(selector)).disabled = blocked;
   }
   const list = element('#task-list');
   list.setAttribute('aria-busy', String(busy));
@@ -73,7 +74,7 @@ export function render(workspace, plan, filter, busy, preferences) {
     || (filter === 'ready' && available.has(task.id)) || (filter === 'active' && task.status === 'IN_PROGRESS')
     || (filter === 'completed' && task.status === 'COMPLETED'));
   element('#task-count').textContent = `${visible.length} из ${project.tasks.length}`;
-  for (const task of visible) list.append(taskCard(task, project, available.has(task.id), busy, plan !== null));
+  for (const task of visible) list.append(taskCard(task, project, available.has(task.id), blocked, plan !== null));
   if (!visible.length) list.append(make('p', project.tasks.length ? 'Задач с этим статусом пока нет.'
     : 'Здесь появятся задачи проекта. Добавьте первую задачу.', 'empty-state'));
   const order = element('#execution-order');

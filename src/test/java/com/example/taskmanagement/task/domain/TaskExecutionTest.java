@@ -113,4 +113,22 @@ class TaskExecutionTest {
         var finished = new ExecutionAttempt(1, START, null, null).finish(END, TaskStatus.FAILED);
         assertThrows(IllegalStateException.class, () -> finished.finish(END, TaskStatus.COMPLETED));
     }
+
+    @Test
+    void repeatedRetriesKeepEveryAttemptAndCancellationWhileWaitingAddsNoFakeAttempt() {
+        var execution = TaskExecution.notStarted();
+        for (int number = 1; number <= 5; number++) {
+            Instant start = START.plusSeconds(number * 10L);
+            execution = execution.start(start, true).fail(start.plusSeconds(1)).retry();
+            assertEquals(number, execution.attempts().size());
+            assertEquals(new ExecutionAttempt(number, start, start.plusSeconds(1), TaskStatus.FAILED),
+                    execution.attempts().getLast());
+        }
+        var cancelled = execution.cancel(START.plusSeconds(60));
+        assertEquals(TaskStatus.CANCELLED, cancelled.status());
+        assertEquals(execution.attempts(), cancelled.attempts());
+        assertThrows(IllegalStateException.class, () -> cancelled.start(END, true));
+        assertThrows(IllegalStateException.class, cancelled::retry);
+        assertEquals(TaskStatus.NOT_STARTED, execution.status());
+    }
 }

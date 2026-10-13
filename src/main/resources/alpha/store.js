@@ -62,13 +62,21 @@ export function exampleWorkspace() {
 function isObject(value) { return typeof value === 'object' && value !== null; }
 /** @param {unknown} value @returns {value is number} */
 function isId(value) { return typeof value === 'number' && Number.isSafeInteger(value) && value > 0; }
+/** @param {unknown} value */
+function isDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return month >= 1 && month <= 12 && day >= 1 && day <= days[month - 1];
+}
 /** @param {unknown} value @returns {value is Task} */
 function isTask(value) {
   return isObject(value) && isId(value.id) && typeof value.name === 'string' && value.name.trim().length > 0
     && value.name.length <= 160 && typeof value.priority === 'string' && PRIORITIES.includes(value.priority)
     && typeof value.status === 'string' && STATUSES.includes(value.status)
     && (value.estimatedMinutes === null || isId(value.estimatedMinutes))
-    && (value.dueDate === null || (typeof value.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.dueDate)))
+    && (value.dueDate === null || isDate(value.dueDate))
     && Array.isArray(value.dependencies) && value.dependencies.every(isId)
     && new Set(value.dependencies).size === value.dependencies.length;
 }
@@ -113,7 +121,11 @@ export function selectedProject(workspace) {
 }
 
 /** @param {{id: number}[]} items */
-export function nextId(items) { return Math.max(0, ...items.map(item => item.id)) + 1; }
+export function nextId(items) {
+  const id = Math.max(0, ...items.map(item => item.id)) + 1;
+  if (!Number.isSafeInteger(id)) throw new Error('Не удалось создать идентификатор: диапазон значений исчерпан.');
+  return id;
+}
 
 /** @param {Project} project @param {AbortSignal} [signal] @returns {Promise<Plan>} */
 export async function calculatePlan(project, signal) {
