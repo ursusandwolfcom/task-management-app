@@ -46,6 +46,26 @@ public class OpenApiConfiguration {
     }
 
     @Bean
+    public GroupedOpenApi sessionOpenApi() {
+        return GroupedOpenApi.builder().group("session").pathsToMatch("/api/session/**")
+                .addOpenApiCustomizer(api -> {
+                    api.getPaths().entrySet().removeIf(entry -> !entry.getKey().startsWith("/api/session/"));
+                    api.info(new Info().title("ProjectFlow browser session API").version("0.0.1")
+                            .description("Secure HttpOnly host-only cookies; no credentials in JSON responses. "
+                                    + "Get /api/session/csrf before login and after login/logout. "
+                                    + "Mutations require the returned X-XSRF-TOKEN header. "
+                                    + "Refresh rotates once without extending the session deadline."));
+                    addProtectedErrors(api);
+                    api.getPaths().values().forEach(path -> {
+                        if (path.getPost() != null) {
+                            path.getPost().setSecurity(List.of(new io.swagger.v3.oas.models.security
+                                    .SecurityRequirement().addList("csrfAuth")));
+                        }
+                    });
+                }).build();
+    }
+
+    @Bean
     public GroupedOpenApi identityOpenApi() {
         return GroupedOpenApi.builder().group("identity").pathsToMatch("/api/auth/**", "/api/users/**")
                 .addOpenApiCustomizer(api -> {
@@ -53,7 +73,8 @@ public class OpenApiConfiguration {
                             && !entry.getKey().startsWith("/api/users/"));
                     api.info(new Info().title("ProjectFlow identity API").version("0.0.1")
                             .description("Registration, rotating refresh sessions, own profile and ADMIN role updates. "
-                                    + "Bearer JWT required except register/login/refresh; alpha storage is separate."));
+                                    + "Bearer JWT or browser cookie required except register/login/refresh; "
+                                    + "cookie mutations require CSRF; alpha storage is separate."));
                     addProtectedErrors(api);
                 }).build();
     }
@@ -76,7 +97,19 @@ public class OpenApiConfiguration {
     private static void addProtectedErrors(OpenAPI api) {
         api.getComponents().addSecuritySchemes("bearerAuth", new SecurityScheme()
                 .type(SecurityScheme.Type.HTTP).scheme("bearer").bearerFormat("JWT"));
+        api.getComponents().addSecuritySchemes("cookieAuth", new SecurityScheme().type(SecurityScheme.Type.APIKEY)
+                .in(SecurityScheme.In.COOKIE).name("__Host-pf-access"));
+        api.getComponents().addSecuritySchemes("csrfAuth", new SecurityScheme().type(SecurityScheme.Type.APIKEY)
+                .in(SecurityScheme.In.HEADER).name("X-XSRF-TOKEN"));
         api.getPaths().values().forEach(path -> path.readOperations().forEach(operation -> {
+            if (operation.getSecurity() != null && operation.getSecurity().stream()
+                    .anyMatch(requirement -> requirement.containsKey("bearerAuth"))) {
+                var cookie = new io.swagger.v3.oas.models.security.SecurityRequirement().addList("cookieAuth");
+                if (operation != path.getGet()) {
+                    cookie.addList("csrfAuth");
+                }
+                operation.addSecurityItem(cookie);
+            }
             for (String status : List.of("400", "401", "403", "404", "409")) {
                 operation.getResponses().addApiResponse(status, new io.swagger.v3.oas.models.responses
                         .ApiResponse().description("Access, version or request error; inspect the stable code")
