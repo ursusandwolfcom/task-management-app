@@ -12,3 +12,6 @@ export interface Task {
 export interface Project { id: number; name: string; description: string; tasks: Task[]; }
 export interface Workspace { version: 1; selectedProjectId: number; projects: Project[]; }
 export interface Plan { executionOrder: number[]; availableIds: number[]; nextId: number | null; }
+export type TaskSort = 'newest' | 'oldest' | 'execution';
+export type Theme = 'dark' | 'light';
+export interface Preferences { taskSort: TaskSort; theme: Theme; }

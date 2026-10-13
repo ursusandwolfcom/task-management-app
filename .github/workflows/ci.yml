@@ -12,7 +12,7 @@ jobs:
   verify:
     name: Build, tests and Checkstyle
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:17
@@ -93,3 +93,17 @@ jobs:
             wait "$app_pid" || true
             trap - EXIT
           done
+
+      - name: Verify application container and Compose restart
+        shell: pwsh
+        run: ./scripts/verify-container.ps1
+
+      - name: Install Chromium for browser regressions
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify alpha UI regressions and accessibility
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/task_management_ci
+          SPRING_DATASOURCE_USERNAME: task_management
+          SPRING_DATASOURCE_PASSWORD: ci_test_password
+        run: npm run test:browser

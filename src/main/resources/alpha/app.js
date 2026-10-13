@@ -3,8 +3,10 @@
 /** @typedef {import('./types').Task} Task */
 /** @typedef {import('./types').Priority} Priority */
 /** @typedef {import('./types').Plan} Plan */
+/** @typedef {import('./types').Preferences} Preferences */
 /** @typedef {import('./ui').TaskFilter} TaskFilter */
-import { calculatePlan, exampleWorkspace, loadWorkspace, nextId, saveWorkspace, selectedProject } from './store.js';
+import { calculatePlan, defaultPreferences, exampleWorkspace, isTaskSort, loadPreferences, loadWorkspace,
+  nextId, savePreferences, saveWorkspace, selectedProject } from './store.js';
 import { element, notify, openTaskDialog, render } from './ui.js';
 
 /** @type {Workspace} */
@@ -12,6 +14,8 @@ let workspace;
 let storageWarning = '';
 try { workspace = loadWorkspace(localStorage); }
 catch (error) { workspace = exampleWorkspace(); storageWarning = message(error); }
+let preferences = defaultPreferences();
+try { preferences = loadPreferences(localStorage); } catch { /* Keep usable defaults if storage access is blocked. */ }
 /** @type {Plan | null} */
 let plan = null;
 /** @type {TaskFilter} */
@@ -20,7 +24,24 @@ let busy = false;
 
 /** @param {unknown} error */
 function message(error) { return error instanceof Error ? error.message : 'Не удалось выполнить действие.'; }
-function draw() { render(workspace, plan, filter, busy || Boolean(storageWarning)); }
+function draw() { render(workspace, plan, filter, busy, preferences, Boolean(storageWarning)); }
+/** @param {Preferences} candidate */
+function changePreferences(candidate) {
+  try {
+    savePreferences(localStorage, candidate);
+    preferences = candidate;
+    notify(storageWarning);
+  } catch (error) { notify(message(error)); }
+  draw();
+}
+
+element('#task-sort').addEventListener('change', event => {
+  if (!(event.target instanceof HTMLSelectElement) || !isTaskSort(event.target.value)) return;
+  changePreferences({ ...preferences, taskSort: event.target.value });
+});
+element('#theme-toggle').addEventListener('click', () => {
+  changePreferences({ ...preferences, theme: preferences.theme === 'dark' ? 'light' : 'dark' });
+});
 /** @param {boolean} value */
 function setBusy(value) {
   busy = value;
@@ -106,7 +127,9 @@ element('#project-form').addEventListener('submit', async event => {
   const name = String(data.get('name') ?? '').trim();
   if (!name) { formError('#project-form-error', new Error('Укажите название проекта.')); return; }
   const candidate = structuredClone(workspace);
-  const id = nextId(candidate.projects);
+  let id;
+  try { id = nextId(candidate.projects); }
+  catch (error) { formError('#project-form-error', error); return; }
   candidate.projects.push({ id, name, description: String(data.get('description') ?? '').trim(), tasks: [] });
   candidate.selectedProjectId = id;
   try {
@@ -132,8 +155,11 @@ element('#task-form').addEventListener('submit', async event => {
   if (existing && existing.status !== 'NOT_STARTED') {
     formError('#task-form-error', new Error('Изменение уже начатой задачи недоступно в альфа-версии.')); return;
   }
+  let id;
+  try { id = existing?.id ?? nextId(project.tasks); }
+  catch (error) { formError('#task-form-error', error); return; }
   /** @type {Task} */
-  const task = { id: existing?.id ?? nextId(project.tasks), name,
+  const task = { id, name,
     priority: /** @type {Priority} */ (String(data.get('priority'))), estimatedMinutes: minutes,
     dueDate: String(data.get('dueDate') ?? '') || null,
     status: existing?.status ?? 'NOT_STARTED', dependencies: data.getAll('dependency').map(value => Number(value)) };

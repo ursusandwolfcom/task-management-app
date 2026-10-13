@@ -4,9 +4,12 @@
   "type": "module",
   "scripts": {
     "check:alpha": "tsc -p alpha-jsconfig.json",
-    "test:alpha": "node --test src/test/frontend/*.test.mjs"
+    "test:alpha": "node --test src/test/frontend/*.test.mjs",
+    "test:browser": "playwright test"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.64.0",
     "typescript": "7.0.2"
   }
 }
