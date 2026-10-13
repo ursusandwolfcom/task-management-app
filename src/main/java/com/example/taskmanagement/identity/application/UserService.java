@@ -66,11 +66,8 @@ public class UserService implements IdentityOperations {
     @Override
     public UserView bootstrapAdmin(RegisterUser command) {
         // A single DB row serializes first-admin creation across processes and both supported databases.
-        jdbc.queryForObject("select id from task_management.identity_bootstrap_lock where id = 1 for update",
-                Integer.class);
-        Integer count = jdbc.queryForObject("select count(*) from task_management.users where role = 'ADMIN'",
-                Integer.class);
-        if (count != null && count > 0) {
+        lockAdminChanges();
+        if (adminCount() > 0) {
             throw error(IdentityException.Reason.ADMIN_ALREADY_EXISTS);
         }
         return create(command, UserRole.ADMIN);
@@ -156,6 +153,8 @@ public class UserService implements IdentityOperations {
         if (profile(actorId).role() != UserRole.ADMIN) {
             throw error(IdentityException.Reason.FORBIDDEN);
         }
+        // Lock before user rows, as bootstrap does, to serialize the last-admin invariant across processes.
+        lockAdminChanges();
         // Consistent lock order avoids two admins deadlocking when changing each other's roles.
         var first = lockedUser(Math.min(actorId, userId));
         var second = actorId == userId ? first : lockedUser(Math.max(actorId, userId));
@@ -165,6 +164,9 @@ public class UserService implements IdentityOperations {
             throw error(IdentityException.Reason.FORBIDDEN);
         }
         requireVersion(target, version);
+        if (target.view().role() == UserRole.ADMIN && role == UserRole.USER && adminCount() <= 1) {
+            throw error(IdentityException.Reason.LAST_ADMIN);
+        }
         target.changeRole(role);
         return users.saveAndFlush(target).view();
     }
@@ -189,6 +191,15 @@ public class UserService implements IdentityOperations {
         }
         session.revoke();
         sessions.saveAndFlush(session);
+    }
+
+    private void lockAdminChanges() {
+        jdbc.queryForObject("select id from task_management.identity_bootstrap_lock where id = 1 for update",
+                Integer.class);
+    }
+
+    private int adminCount() {
+        return jdbc.queryForObject("select count(*) from task_management.users where role = 'ADMIN'", Integer.class);
     }
 
     private UserEntity lockedUser(long id) {

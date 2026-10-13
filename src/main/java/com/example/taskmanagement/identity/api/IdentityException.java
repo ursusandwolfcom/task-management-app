@@ -4,7 +4,7 @@ package com.example.taskmanagement.identity.api;
 public final class IdentityException extends RuntimeException {
     public enum Reason {
         INVALID_CREDENTIALS, INVALID_SESSION, DUPLICATE_IDENTITY, USER_NOT_FOUND,
-        FORBIDDEN, VERSION_CONFLICT, ADMIN_ALREADY_EXISTS
+        FORBIDDEN, VERSION_CONFLICT, ADMIN_ALREADY_EXISTS, LAST_ADMIN
     }
 
     private final Reason reason;

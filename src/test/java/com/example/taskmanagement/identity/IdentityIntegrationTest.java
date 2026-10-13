@@ -288,6 +288,7 @@ class IdentityIntegrationTest {
                         .notBefore(Instant.now().minusSeconds(60)).expiresAt(Instant.now().minusSeconds(1)).build(),
                 JwtClaimsSet.from(originalClaims).issuer("other").build(),
                 JwtClaimsSet.from(originalClaims).audience(List.of("other")).build(),
+                JwtClaimsSet.from(originalClaims).claims(claims -> claims.remove("aud")).build(),
                 JwtClaimsSet.from(originalClaims).claim("sid", "not-a-uuid").build(),
                 JwtClaimsSet.from(originalClaims).claim("cv", "not-a-number").build(),
                 JwtClaimsSet.from(originalClaims).claim("cv", 0.5).build(),
@@ -305,6 +306,40 @@ class IdentityIntegrationTest {
             mvc.perform(get("/api/users/me").header("Authorization", "Bearer " + token))
                     .andExpect(status().isUnauthorized());
         }
+    }
+
+    @Test
+    void lastAdminCannotBeDemotedButRoleNoOpIsAllowed() throws Exception {
+        var admin = identity.bootstrapAdmin(command("admin", "admin@example.com"));
+        var tokens = login("admin");
+        mvc.perform(put("/api/users/" + admin.id() + "/role").header("Authorization", bearer(tokens))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"ADMIN\",\"version\":0}"))
+                .andExpect(status().isOk());
+        mvc.perform(put("/api/users/" + admin.id() + "/role").header("Authorization", bearer(tokens))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"USER\",\"version\":0}"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("LAST_ADMIN"));
+        assertThat(identity.profile(admin.id()).role()).isEqualTo(UserRole.ADMIN);
+        assertThat(identity.profile(admin.id()).version()).isEqualTo(admin.version());
+    }
+
+    @Test
+    void concurrentAdminDemotionsPreserveOneAdmin() throws Exception {
+        var first = identity.bootstrapAdmin(command("admin_one", "one@example.com"));
+        var second = identity.register(command("admin_two", "two@example.com"));
+        var promoted = identity.changeRole(first.id(), second.id(), UserRole.ADMIN, second.version());
+        var barrier = new CyclicBarrier(2);
+        var results = race(() -> {
+            barrier.await(10, TimeUnit.SECONDS);
+            return identity.changeRole(first.id(), first.id(), UserRole.USER, first.version());
+        }, () -> {
+            barrier.await(10, TimeUnit.SECONDS);
+            return identity.changeRole(promoted.id(), promoted.id(), UserRole.USER, promoted.version());
+        });
+        assertThat(results.stream().filter(IdentityException.class::isInstance).count()).isEqualTo(1);
+        assertThat(results.stream().filter(IdentityException.class::isInstance)
+                .map(IdentityException.class::cast).map(Throwable::getMessage)).containsExactly("LAST_ADMIN");
+        assertThat(jdbc.queryForObject("select count(*) from task_management.users where role = 'ADMIN'",
+                Integer.class)).isEqualTo(1);
     }
 
     @Test

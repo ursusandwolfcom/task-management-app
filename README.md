@@ -110,7 +110,8 @@ Changing the signing key invalidates every access token; refresh sessions remain
 Token responses use `Cache-Control: no-store`; clients must protect tokens as credentials.
 
 Invalid fields/JSON return 400, invalid credentials/session 401, forbidden role operations
-403, missing user 404, duplicate username/email or stale version 409. Errors use
+403, missing user 404, duplicate username/email or stale version 409. Demoting the last
+ADMIN returns 409 / `LAST_ADMIN`, including concurrent role changes. Errors use
 `application/problem+json` with a stable `code`, without credential values.
 Unknown JSON properties cannot assign role or another user's identity.
 
