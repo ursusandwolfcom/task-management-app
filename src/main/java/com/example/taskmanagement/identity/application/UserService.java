@@ -140,6 +140,12 @@ public class UserService implements IdentityOperations {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public UserRole currentRole(long userId) {
+        return users.currentRole(userId).orElseThrow(() -> error(IdentityException.Reason.USER_NOT_FOUND));
+    }
+
+    @Override
     public UserView updateProfile(long userId, ProfileChange command) {
         var user = lockedUser(userId);
         requireVersion(user, command.version());

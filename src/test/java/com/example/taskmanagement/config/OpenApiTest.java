@@ -62,8 +62,22 @@ class OpenApiTest {
                 .andExpect(jsonPath("$.paths['/api/users/me/password'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/users/me/password'].post.responses['204']").exists())
                 .andExpect(jsonPath("$.paths['/alpha/plan']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/projects']").doesNotExist())
                 .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"))
                 .andExpect(jsonPath("$.components.schemas.UserView.properties.passwordHash").doesNotExist());
         mvc.perform(get("/api/users/me")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void projectsHaveSeparateProtectedSpecAndDocumentOwnershipAndDeletion() throws Exception {
+        mvc.perform(get("/v3/api-docs/projects")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.info.title").value("ProjectFlow projects API"))
+                .andExpect(jsonPath("$.paths['/api/projects'].post.responses['201']").exists())
+                .andExpect(jsonPath("$.paths['/api/projects/{id}'].delete.responses['204']").exists())
+                .andExpect(jsonPath("$.paths['/api/projects/{id}/owner'].put").exists())
+                .andExpect(jsonPath("$.paths['/api/projects/{id}/members/{userId}'].put").exists())
+                .andExpect(jsonPath("$.paths['/api/projects'].get.security[0].bearerAuth").exists())
+                .andExpect(jsonPath("$.paths['/api/auth/login']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/alpha/plan']").doesNotExist());
     }
 }
