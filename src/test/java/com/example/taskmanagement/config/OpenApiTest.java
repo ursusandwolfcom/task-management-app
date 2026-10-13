@@ -46,6 +46,21 @@ class OpenApiTest {
         mvc.perform(get("/swagger-ui/index.html")).andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML));
         mvc.perform(get("/v3/api-docs/swagger-config")).andExpect(status().isOk())
-                .andExpect(jsonPath("$.url").value("/v3/api-docs"));
+                .andExpect(jsonPath("$.urls[?(@.name == 'alpha')].url").value("/v3/api-docs"))
+                .andExpect(jsonPath("$.urls[?(@.name == 'identity')].url").value("/v3/api-docs/identity"));
+    }
+
+    @Test
+    void identitySpecContainsRealEndpointsAndBearerContractWithoutCredentialsInProfile() throws Exception {
+        mvc.perform(get("/v3/api-docs/identity")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.info.title").value("ProjectFlow identity API"))
+                .andExpect(jsonPath("$.paths['/api/auth/register'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/auth/refresh'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/users/me'].get.security[0].bearerAuth").exists())
+                .andExpect(jsonPath("$.paths['/api/users/me/password'].post").exists())
+                .andExpect(jsonPath("$.paths['/alpha/plan']").doesNotExist())
+                .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"))
+                .andExpect(jsonPath("$.components.schemas.UserView.properties.passwordHash").doesNotExist());
+        mvc.perform(get("/api/users/me")).andExpect(status().isUnauthorized());
     }
 }

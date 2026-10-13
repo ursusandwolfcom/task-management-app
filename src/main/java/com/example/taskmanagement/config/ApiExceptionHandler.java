@@ -1,6 +1,9 @@
 package com.example.taskmanagement.config;
 
 import com.example.taskmanagement.planning.core.GraphValidationException;
+import com.example.taskmanagement.identity.api.IdentityException;
+import jakarta.validation.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -16,6 +19,34 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 /** Shared HTTP representation; pure graph and lifecycle modules remain unaware of HTTP. */
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
+
+    @ExceptionHandler(IdentityException.class)
+    public ResponseEntity<ProblemDetail> identityProblem(IdentityException exception) {
+        HttpStatus status = switch (exception.reason()) {
+            case INVALID_CREDENTIALS, INVALID_SESSION -> HttpStatus.UNAUTHORIZED;
+            case FORBIDDEN -> HttpStatus.FORBIDDEN;
+            case USER_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case DUPLICATE_IDENTITY, VERSION_CONFLICT, ADMIN_ALREADY_EXISTS -> HttpStatus.CONFLICT;
+        };
+        return ResponseEntity.status(status).header("Cache-Control", "no-store")
+                .body(problem(status, exception.reason().name(), "The identity operation could not be completed."));
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ProblemDetail> invalidIdentityCommand(ConstraintViolationException exception) {
+        return ResponseEntity.badRequest().header("Cache-Control", "no-store")
+                .body(problem(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Request fields are invalid."));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ProblemDetail> identityConstraint(DataIntegrityViolationException exception) {
+        String diagnostic = exception.getMostSpecificCause().getMessage();
+        boolean duplicate = diagnostic != null && (diagnostic.contains("users_username_unique")
+                || diagnostic.contains("users_email_unique"));
+        HttpStatus status = duplicate ? HttpStatus.CONFLICT : HttpStatus.INTERNAL_SERVER_ERROR;
+        return ResponseEntity.status(status).header("Cache-Control", "no-store").body(problem(status,
+                duplicate ? "DUPLICATE_IDENTITY" : "INTERNAL_ERROR", "The operation could not be completed."));
+    }
 
     @ExceptionHandler(GraphValidationException.class)
     public ResponseEntity<ProblemDetail> graphProblem(GraphValidationException exception) {
