@@ -3,10 +3,43 @@
 /** @typedef {import('./types').Project} Project */
 /** @typedef {import('./types').Task} Task */
 /** @typedef {import('./types').Plan} Plan */
+/** @typedef {import('./types').Preferences} Preferences */
+/** @typedef {import('./types').TaskSort} TaskSort */
 
 const STORAGE_KEY = 'projectflow.alpha.workspace.v1';
+const PREFERENCES_KEY = 'projectflow.alpha.preferences.v1';
 const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 const STATUSES = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'FAILED'];
+
+/** @returns {Preferences} */
+export function defaultPreferences() { return { taskSort: 'newest', theme: 'dark' }; }
+/** @param {unknown} value @returns {value is TaskSort} */
+export function isTaskSort(value) { return value === 'newest' || value === 'oldest' || value === 'execution'; }
+/** @param {Storage} storage @returns {Preferences} */
+export function loadPreferences(storage) {
+  const defaults = defaultPreferences();
+  try {
+    /** @type {unknown} */
+    const saved = JSON.parse(storage.getItem(PREFERENCES_KEY) ?? 'null');
+    if (!isObject(saved) || saved.version !== 1) return defaults;
+    return { taskSort: isTaskSort(saved.taskSort) ? saved.taskSort : defaults.taskSort,
+      theme: saved.theme === 'dark' || saved.theme === 'light' ? saved.theme : defaults.theme };
+  } catch { return defaults; }
+}
+/** @param {Storage} storage @param {Preferences} preferences */
+export function savePreferences(storage, preferences) {
+  try { storage.setItem(PREFERENCES_KEY, JSON.stringify({ version: 1, ...preferences })); }
+  catch { throw new Error('Не удалось сохранить настройку. Проверьте доступ к хранилищу браузера.'); }
+}
+/** Display order only; insertion order represents creation in the browser prototype.
+ * @param {Task[]} tasks @param {TaskSort} sort @param {Plan | null} plan @returns {Task[]} */
+export function sortedTasks(tasks, sort, plan) {
+  const copy = [...tasks];
+  if (sort === 'oldest') return copy;
+  if (sort === 'newest' || plan === null) return copy.reverse();
+  const ranks = new Map(plan.executionOrder.map((id, index) => [id, index]));
+  return copy.sort((left, right) => (ranks.get(left.id) ?? Infinity) - (ranks.get(right.id) ?? Infinity));
+}
 
 /** @returns {Workspace} */
 export function exampleWorkspace() {
@@ -29,13 +62,21 @@ export function exampleWorkspace() {
 function isObject(value) { return typeof value === 'object' && value !== null; }
 /** @param {unknown} value @returns {value is number} */
 function isId(value) { return typeof value === 'number' && Number.isSafeInteger(value) && value > 0; }
+/** @param {unknown} value */
+function isDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return month >= 1 && month <= 12 && day >= 1 && day <= days[month - 1];
+}
 /** @param {unknown} value @returns {value is Task} */
 function isTask(value) {
   return isObject(value) && isId(value.id) && typeof value.name === 'string' && value.name.trim().length > 0
     && value.name.length <= 160 && typeof value.priority === 'string' && PRIORITIES.includes(value.priority)
     && typeof value.status === 'string' && STATUSES.includes(value.status)
     && (value.estimatedMinutes === null || isId(value.estimatedMinutes))
-    && (value.dueDate === null || (typeof value.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.dueDate)))
+    && (value.dueDate === null || isDate(value.dueDate))
     && Array.isArray(value.dependencies) && value.dependencies.every(isId)
     && new Set(value.dependencies).size === value.dependencies.length;
 }
@@ -80,7 +121,11 @@ export function selectedProject(workspace) {
 }
 
 /** @param {{id: number}[]} items */
-export function nextId(items) { return Math.max(0, ...items.map(item => item.id)) + 1; }
+export function nextId(items) {
+  const id = Math.max(0, ...items.map(item => item.id)) + 1;
+  if (!Number.isSafeInteger(id)) throw new Error('Не удалось создать идентификатор: диапазон значений исчерпан.');
+  return id;
+}
 
 /** @param {Project} project @param {AbortSignal} [signal] @returns {Promise<Plan>} */
 export async function calculatePlan(project, signal) {

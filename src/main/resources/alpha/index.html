@@ -1,8 +1,14 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    try {
+      const saved = JSON.parse(localStorage.getItem('projectflow.alpha.preferences.v1') ?? 'null');
+      if (saved?.version === 1 && saved.theme === 'light') document.documentElement.dataset.theme = 'light';
+    } catch { /* Use the default dark theme when preferences are unavailable. */ }
+  </script>
   <title>ProjectFlow — проекты и задачи</title>
   <link rel="stylesheet" href="/alpha/styles.css">
   <script type="module" src="/alpha/app.js"></script>
@@ -15,6 +21,7 @@
       <div class="sidebar-heading"><h2>Проекты</h2><span class="alpha-tag">альфа</span></div>
       <nav id="project-list" aria-label="Выбрать проект"></nav>
       <button id="new-project" class="button button-outline full-width" type="button">+ Создать проект</button>
+      <button id="theme-toggle" class="button button-outline full-width" type="button">Светлая тема</button>
       <p class="storage-note" id="storage-note">Предварительный интерфейс приложения</p>
     </aside>
     <main id="main" tabindex="-1">
@@ -33,8 +40,16 @@
               <button type="button" data-filter="active" aria-pressed="false">В работе</button>
               <button type="button" data-filter="completed" aria-pressed="false">Завершены</button>
             </div>
+            <div class="task-sort"><label for="task-sort">Порядок задач</label>
+              <select id="task-sort">
+                <option value="newest">Новые сверху</option>
+                <option value="oldest">Старые сверху</option>
+                <option value="execution">Порядок выполнения</option>
+              </select>
+            </div>
             <span id="task-count" class="muted"></span>
           </div>
+          <p id="task-sort-note" class="sort-note muted" hidden>Порядок выполнения пока недоступен — новые задачи сверху.</p>
           <div id="task-list" aria-busy="true"><p class="empty-state">Загружаем рабочее пространство…</p></div>
         </div>
         <aside class="order-panel" aria-label="Порядок выполнения">

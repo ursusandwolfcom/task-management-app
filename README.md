@@ -1,5 +1,15 @@
 # Task Management System
 
+## Task lifecycle
+
+The pure `task.domain` lifecycle supports start, complete, fail, cancel and retry.
+Cancel is allowed from NOT_STARTED, IN_PROGRESS and FAILED; COMPLETED and CANCELLED
+are terminal. `TaskExecution` retains immutable execution attempts with UTC timestamps:
+retry preserves the failed attempt and the next start creates another. Start requires
+actual predecessor completion supplied by the caller. Domain persistence, transactional
+resource/access guards and execution HTTP endpoints are planned for later stages.
+The browser alpha remains a separate prototype.
+
 ## Local development
 
 The application uses Java 21, Spring Boot 4.1.1, and Maven Wrapper.
@@ -64,6 +74,100 @@ This also avoids JDBC startup failures with legacy timezone names such as `Europ
 The health endpoint also checks database connectivity without exposing credentials
 or detailed diagnostics.
 
+### Regression testing
+
+Run `./mvnw clean verify` and `npm run check:alpha` / `npm run test:alpha`.
+The planning tests include an independent exhaustive oracle: 80 seeded six-task DAGs
+are compared against every valid permutation, and readiness is checked on 250 seeded
+execution-fact sets. Lifecycle tests cover every state/command pair and repeated retries.
+HTTP tests exercise malformed JSON/dates, null fields, safe integer and 1000-task boundaries,
+graph diagnostics, unsupported methods/media types and OpenAPI profile isolation.
+H2 databases use separate names per Spring test context; PostgreSQL verification overrides
+the test URL as described below and checks the real database instead.
+
+Browser storage tests reject impossible Gregorian dates without changing the stored record,
+and ID allocation reports exhausted safe integer space rather than producing rounded IDs.
+Normal static resource mappings are disabled, so Swagger WebJar files cannot bypass the
+alpha profile; alpha's explicit asset whitelist and Swagger's profile handlers serve their assets.
+
+For the browser suite, start PostgreSQL, build the JAR with `./mvnw clean verify`, then run:
+
+```powershell
+npm.cmd ci --ignore-scripts
+npx.cmd playwright install chromium
+npm.cmd run test:browser
+```
+
+Playwright starts and stops its own alpha server on loopback port 18082, uses isolated
+browser storage, and leaves a separately running preview on port 8080 alone.
+Set `ALPHA_TEST_PORT` to change the test port. To use an installed Google Chrome instead
+of downloading Chromium, set `$env:PLAYWRIGHT_CHANNEL = 'chrome'` before running the suite.
+The eight scenarios cover ordering/theme persistence, execution readiness, cycle rejection,
+network/quota failures, exhausted IDs, corrupt storage, XSS, Swagger and selected WCAG A/AA
+checks in both themes. Failure traces are written to `target/playwright-results`.
+CI installs Chromium and runs this suite against PostgreSQL.
+
+### Coverage gate
+
+`clean verify` instruments tests with JaCoCo and requires at least 60% line coverage
+across all application Java classes, including the alpha adapter. There are no class
+exclusions. Open `target/site/jacoco/index.html` for the HTML report; XML and CSV reports
+are generated in the same directory. Both H2 and PostgreSQL CI builds enforce the gate.
+
+To verify that the gate rejects insufficient coverage, temporarily demand 100%:
+`./mvnw -Dcoverage.minimum=1.00 verify`. A coverage violation must fail the build;
+run the normal `clean verify` afterward. Do not use the override to lower the shared threshold.
+The plugin configuration follows the [JaCoCo check documentation](https://www.jacoco.org/jacoco/trunk/doc/check-mojo.html).
+
+### Architecture gate
+
+ArchUnit runs with the normal tests and imports application classes only. It enforces
+JDK-only dependencies for `planning.core` and `task.domain`, package acyclicity, and
+allowed intermodule dependencies through public `api` packages. The graph core is the
+explicit exception: callers use `planning.core`. Root application/config classes may
+wire modules; business modules cannot depend back on bootstrap or other modules' internals.
+The alpha adapter may call only the planning module and shared contracts.
+The tests use the core [ArchUnit API](https://www.archunit.org/userguide/html/000_Index.html)
+with the existing JUnit runner, without another test engine.
+
+### Application container
+
+Start the application and PostgreSQL together:
+
+```powershell
+docker compose --profile app up --build -d --wait
+```
+
+Open `http://localhost:8080/actuator/health`. `APP_PORT` in `.env` changes the host
+application port; PostgreSQL remains reachable inside Compose as `postgres:5432`
+even when its host `POSTGRES_PORT` changes. Starting Compose without the `app` profile
+starts only PostgreSQL, for running Java from the IDE. Stop just the application with
+`docker compose --profile app stop app`, or the stack with `docker compose --profile app down`.
+Neither command removes the database volume.
+
+The Dockerfile runs Maven Wrapper `clean verify` in a Java 21 JDK build stage, then
+copies only the application JAR into a JRE runtime stage. The Temurin bases are pinned
+by digest; update their digests deliberately and repeat the checks when upgrading.
+The runtime runs as UID 10001 in UTC, checks Actuator health, and starts after the
+database becomes healthy. Both host ports bind to loopback. The alpha profile is off.
+The build context allowlist excludes `.env`, local docs, Git, session files and host
+build outputs; database credentials are supplied only at container startup.
+This uses Docker's [multi-stage builds](https://docs.docker.com/build/building/multi-stage/)
+and [healthy dependency ordering](https://docs.docker.com/compose/how-tos/startup-order/).
+
+Run the repeatable container check from PowerShell (or `pwsh` on Linux/macOS):
+
+```powershell
+./scripts/verify-container.ps1
+```
+
+It creates an isolated Compose project with disposable PostgreSQL storage on ports
+18081/15432, builds the image, checks health, alpha isolation, UID/UTC and migration
+history, and restarts the application. It removes only that check's containers,
+network and volume afterward; the development database is untouched. Use `-AppPort`
+and `-DatabasePort` if those check ports are occupied. CI runs the same script.
+Build/restart logs are stored under `target/container-check/`.
+
 Local tests use an in-memory H2 database in PostgreSQL compatibility mode and do
 not require Docker. The startup test verifies that Liquibase created the schema
 and recorded the migration. This does not cover all PostgreSQL-specific behavior.
@@ -112,10 +216,31 @@ The original assignment requirements follow below.
 
 ### Local alpha interface
 
+With the alpha profile enabled, open `http://localhost:8080/swagger-ui/index.html`
+for interactive API documentation or `/v3/api-docs` for the generated OpenAPI JSON.
+Only the implemented `POST /alpha/plan` calculation is documented. Page/assets,
+future authentication and CRUD endpoints are not presented as available APIs.
+Swagger and its specification are disabled without alpha, including normal container startup.
+The [springdoc 3.1.1 release](https://github.com/springdoc/springdoc-openapi/releases/tag/v3.1.1)
+is pinned and verified with this project's Boot 4.1.1 / Java 21.
+
+HTTP errors use `application/problem+json` with `type`, `title`, `status`, `detail`,
+`instance` and stable `code`. Graph errors additionally retain `taskIds` for the alpha
+client. Malformed JSON/types/dates produce `MALFORMED_REQUEST`; bean validation produces
+`VALIDATION_ERROR`; cycles produce HTTP 409 / `CYCLIC_DEPENDENCY`. Cycle IDs can include
+blocked descendants and do not represent only a cycle witness. Internal parser details
+and rejected field values are not included in validation responses.
+
 The early application interface is available at `http://localhost:8080/alpha/`
 when explicitly started with the `alpha` profile. It provides projects, task creation
 and editing, priorities, minute estimates, due dates, dependencies, filters, and
 start/complete/fail/retry actions for the prototype.
+
+New tasks appear at the top by default. The task-order selector supports newest first,
+oldest first and the execution order returned by the Java core. Display sorting leaves
+the stored task creation order and dependency calculation unchanged. Dark theme is the
+default; use the sidebar button to switch to light. Both preferences persist in this
+browser separately from project/task data. Existing browser workspaces need no migration.
 
 ```powershell
 .\mvnw.cmd spring-boot:run '-Dspring-boot.run.profiles=alpha'
