@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
@@ -19,6 +20,7 @@ import org.springframework.context.annotation.Import;
 
 @WebMvcTest(AlphaController.class)
 @ActiveProfiles("alpha")
+@Tag("integration")
 @Import(AlphaSliceSecurity.class)
 class ApiContractTest {
 

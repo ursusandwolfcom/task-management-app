@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
@@ -16,6 +17,7 @@ import org.springframework.context.annotation.Import;
 
 @WebMvcTest(AlphaController.class)
 @ActiveProfiles("alpha")
+@Tag("integration")
 @Import(AlphaSliceSecurity.class)
 class AlphaControllerTest {
 

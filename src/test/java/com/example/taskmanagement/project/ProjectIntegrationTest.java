@@ -2,6 +2,7 @@ package com.example.taskmanagement.project;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static com.example.taskmanagement.support.ConcurrentCalls.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -21,6 +22,8 @@ import com.example.taskmanagement.project.api.ProjectException;
 import com.example.taskmanagement.project.api.ProjectOperations;
 import com.example.taskmanagement.project.api.ProjectView;
 import com.example.taskmanagement.security.application.TokenService;
+import com.example.taskmanagement.support.ConcurrentCalls;
+import com.example.taskmanagement.support.DatabaseFixtures;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +34,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -47,6 +51,7 @@ import tools.jackson.databind.ObjectMapper;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Tag("integration")
 class ProjectIntegrationTest {
     private static final String PASSWORD = "project-test-passphrase";
     @Autowired
@@ -72,15 +77,7 @@ class ProjectIntegrationTest {
 
     @BeforeEach
     void fixtures() {
-        String database = jdbc.queryForObject("select current_catalog", String.class);
-        if (database == null || !(database.startsWith("task_management_test_")
-                || database.equals("task_management_ci"))) {
-            throw new IllegalStateException("Project tests require a dedicated database.");
-        }
-        jdbc.update("delete from task_management.project_members");
-        jdbc.update("delete from task_management.projects");
-        jdbc.update("delete from task_management.identity_sessions");
-        jdbc.update("delete from task_management.users");
+        DatabaseFixtures.clearIdentity(jdbc);
         owner = register("owner");
         member = register("member");
         outsider = register("outsider");
@@ -391,32 +388,11 @@ class ProjectIntegrationTest {
         return new TransactionTemplate(transactionManager);
     }
 
-    private static void await(CountDownLatch latch) {
-        try {
-            if (!latch.await(10, TimeUnit.SECONDS)) {
-                throw new IllegalStateException("Coordination test timed out.");
-            }
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException(exception);
-        }
-    }
-
     private static List<Object> race(Callable<Object> first, Callable<Object> second) throws Exception {
-        try (var executor = Executors.newFixedThreadPool(2)) {
-            var one = executor.submit(capture(first));
-            var two = executor.submit(capture(second));
-            return List.of(one.get(20, TimeUnit.SECONDS), two.get(20, TimeUnit.SECONDS));
-        }
+        return ConcurrentCalls.race(20, List.of(ProjectException.class), first, second);
     }
 
     private static Callable<Object> capture(Callable<Object> action) {
-        return () -> {
-            try {
-                return action.call();
-            } catch (ProjectException exception) {
-                return exception;
-            }
-        };
+        return ConcurrentCalls.capture(action, List.of(ProjectException.class));
     }
 }

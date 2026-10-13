@@ -3,6 +3,8 @@ services:
     profiles: [app]
     build:
       context: .
+      args:
+        ARTIFACT_STAGE: ${ARTIFACT_STAGE:-build}
     image: task-management-app:local
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-task_management}

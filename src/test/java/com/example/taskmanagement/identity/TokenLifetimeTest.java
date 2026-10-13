@@ -13,12 +13,24 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class TokenLifetimeTest {
     private static final Instant NOW = Instant.parse("2026-10-13T12:00:00Z");
     private final TokenService tokens = new TokenService(
             "dGVzdC1vbmx5LWtleS1mb3ItczA0LW5vdC1mb3ItcHJvZHVjdGlvbg==", Clock.fixed(NOW, ZoneOffset.UTC));
+
+    @Test
+    void signingKeyFailsClosedAndSecretRecordsRedactToString() {
+        for (String key : List.of("", "not base64", "c2hvcnQ=")) {
+            assertThatThrownBy(() -> TokenService.signingKey(key)).isInstanceOf(IllegalArgumentException.class);
+        }
+        var grant = grant(NOW.plusSeconds(30));
+        assertThat(grant.toString()).doesNotContain(grant.refreshToken());
+        var issued = tokens.issue(grant);
+        assertThat(issued.toString()).doesNotContain(issued.accessToken(), issued.refreshToken());
+    }
 
     @Test
     void accessExpiryNeverExtendsTheRefreshSession() throws Exception {
