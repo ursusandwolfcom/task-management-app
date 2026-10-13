@@ -86,6 +86,17 @@ To verify that the gate rejects insufficient coverage, temporarily demand 100%:
 run the normal `clean verify` afterward. Do not use the override to lower the shared threshold.
 The plugin configuration follows the [JaCoCo check documentation](https://www.jacoco.org/jacoco/trunk/doc/check-mojo.html).
 
+### Architecture gate
+
+ArchUnit runs with the normal tests and imports application classes only. It enforces
+JDK-only dependencies for `planning.core` and `task.domain`, package acyclicity, and
+allowed intermodule dependencies through public `api` packages. The graph core is the
+explicit exception: callers use `planning.core`. Root application/config classes may
+wire modules; business modules cannot depend back on bootstrap or other modules' internals.
+The alpha adapter may call only the planning module and shared contracts.
+The tests use the core [ArchUnit API](https://www.archunit.org/userguide/html/000_Index.html)
+with the existing JUnit runner, without another test engine.
+
 Local tests use an in-memory H2 database in PostgreSQL compatibility mode and do
 not require Docker. The startup test verifies that Liquibase created the schema
 and recorded the migration. This does not cover all PostgreSQL-specific behavior.
