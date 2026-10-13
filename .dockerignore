@@ -1,0 +1,12 @@
+# Only application build inputs are sent to Docker. Local secrets, Git, docs,
+# session backups, Node dependencies and host build outputs are excluded.
+**
+!Dockerfile
+!pom.xml
+!mvnw
+!.mvn/
+!.mvn/**
+!config/
+!config/**
+!src/
+!src/**

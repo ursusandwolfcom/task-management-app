@@ -97,6 +97,44 @@ The alpha adapter may call only the planning module and shared contracts.
 The tests use the core [ArchUnit API](https://www.archunit.org/userguide/html/000_Index.html)
 with the existing JUnit runner, without another test engine.
 
+### Application container
+
+Start the application and PostgreSQL together:
+
+```powershell
+docker compose --profile app up --build -d --wait
+```
+
+Open `http://localhost:8080/actuator/health`. `APP_PORT` in `.env` changes the host
+application port; PostgreSQL remains reachable inside Compose as `postgres:5432`
+even when its host `POSTGRES_PORT` changes. Starting Compose without the `app` profile
+starts only PostgreSQL, for running Java from the IDE. Stop just the application with
+`docker compose --profile app stop app`, or the stack with `docker compose --profile app down`.
+Neither command removes the database volume.
+
+The Dockerfile runs Maven Wrapper `clean verify` in a Java 21 JDK build stage, then
+copies only the application JAR into a JRE runtime stage. The Temurin bases are pinned
+by digest; update their digests deliberately and repeat the checks when upgrading.
+The runtime runs as UID 10001 in UTC, checks Actuator health, and starts after the
+database becomes healthy. Both host ports bind to loopback. The alpha profile is off.
+The build context allowlist excludes `.env`, local docs, Git, session files and host
+build outputs; database credentials are supplied only at container startup.
+This uses Docker's [multi-stage builds](https://docs.docker.com/build/building/multi-stage/)
+and [healthy dependency ordering](https://docs.docker.com/compose/how-tos/startup-order/).
+
+Run the repeatable container check from PowerShell (or `pwsh` on Linux/macOS):
+
+```powershell
+./scripts/verify-container.ps1
+```
+
+It creates an isolated Compose project with disposable PostgreSQL storage on ports
+18081/15432, builds the image, checks health, alpha isolation, UID/UTC and migration
+history, and restarts the application. It removes only that check's containers,
+network and volume afterward; the development database is untouched. Use `-AppPort`
+and `-DatabasePort` if those check ports are occupied. CI runs the same script.
+Build/restart logs are stored under `target/container-check/`.
+
 Local tests use an in-memory H2 database in PostgreSQL compatibility mode and do
 not require Docker. The startup test verifies that Liquibase created the schema
 and recorded the migration. This does not cover all PostgreSQL-specific behavior.

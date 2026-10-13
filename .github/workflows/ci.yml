@@ -12,7 +12,7 @@ jobs:
   verify:
     name: Build, tests and Checkstyle
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:17
@@ -93,3 +93,7 @@ jobs:
             wait "$app_pid" || true
             trap - EXIT
           done
+
+      - name: Verify application container and Compose restart
+        shell: pwsh
+        run: ./scripts/verify-container.ps1
