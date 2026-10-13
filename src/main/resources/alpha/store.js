@@ -14,6 +14,8 @@ export const STORAGE_KEY = 'projectflow.alpha.workspace.v1';
 const PREFERENCES_KEY = 'projectflow.alpha.preferences.v1';
 const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 const STATUSES = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'FAILED'];
+export const THEMES = Object.freeze(/** @type {Theme[]} */ (
+  ['dark', 'light', 'gray', 'ivory', 'pearl', 'graphite', 'taupe', 'forest']));
 
 /** @returns {Preferences} */
 export function defaultPreferences() {
@@ -22,7 +24,9 @@ export function defaultPreferences() {
 /** @param {unknown} value @returns {value is TaskSort} */
 export function isTaskSort(value) { return value === 'newest' || value === 'oldest' || value === 'execution'; }
 /** @param {unknown} value @returns {value is Theme} */
-export function isTheme(value) { return value === 'dark' || value === 'light' || value === 'gray'; }
+export function isTheme(value) { return THEMES.some(theme => theme === value); }
+/** @param {Theme} theme @returns {Theme} */
+export function nextTheme(theme) { return THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]; }
 /** @param {unknown} value @returns {value is TaskView} */
 export function isTaskView(value) { return value === 'list' || value === 'kanban'; }
 /** @param {unknown} value @returns {value is Density} */
@@ -113,6 +117,11 @@ export function loadWorkspace(storage) {
   let value;
   try { value = JSON.parse(saved); }
   catch { throw new Error('Сохранённые данные не удалось прочитать. Исходная запись сохранена без изменений.'); }
+  return validatedWorkspace(value);
+}
+
+/** @param {unknown} value @returns {Workspace} */
+function validatedWorkspace(value) {
   if (!isObject(value) || value.version !== 1 || !isId(value.selectedProjectId)
       || (value.revision !== undefined && (!Number.isSafeInteger(value.revision)
         || typeof value.revision !== 'number' || value.revision < 0))
@@ -125,24 +134,116 @@ export function loadWorkspace(storage) {
     selectedProjectId: value.selectedProjectId, projects: value.projects };
 }
 
-/** The read/check/write sequence runs under the same exclusive lock in every tab.
+/** IndexedDB is shared across renderers; localStorage caches can lag even under a Web Lock.
+ * Existing local records are imported on first access. The mirror remains for legacy readers.
+ * @param {Storage} storage @param {LockManager | undefined} [locks]
+ * @param {IDBFactory | undefined} [database] @returns {Promise<Workspace>} */
+export async function loadCoordinatedWorkspace(storage, locks = globalThis.navigator?.locks, database = globalThis.indexedDB) {
+  if (!locks) return loadWorkspace(storage);
+  if (!database) throw new Error('Общее хранилище браузера недоступно. Сохранение отключено; существующие данные сохранены.');
+  return locks.request(STORAGE_KEY, () => workspaceTransaction(database, (store, record) => {
+    const legacy = loadWorkspace(storage);
+    if (record && legacy.revision > record.revision) {
+      throw new Error('Локальная запись новее общего хранилища. Исходная запись сохранена; сохранение отключено. Перезагрузите страницу.');
+    }
+    const current = record ?? legacy;
+    if (current !== record) store.put(current, STORAGE_KEY);
+    return current;
+  }));
+}
+
+/** @param {IDBFactory} database @returns {Promise<IDBDatabase>} */
+function openWorkspaceDatabase(database) {
+  return new Promise((resolve, reject) => {
+    const request = database.open('projectflow.alpha.workspace.v1', 1);
+    let blocked = false;
+    request.onupgradeneeded = () => request.result.createObjectStore('workspace');
+    request.onblocked = () => {
+      blocked = true;
+      reject(new Error('Общее хранилище занято. Закройте другие вкладки и перезагрузите страницу.'));
+    };
+    request.onerror = () => reject(new Error('Не удалось открыть общее хранилище браузера. Данные сохранены без изменений.'));
+    request.onsuccess = () => {
+      if (blocked) { request.result.close(); return; }
+      request.result.onversionchange = () => request.result.close();
+      resolve(request.result);
+    };
+  });
+}
+
+/** Keep the revision check and canonical write in one cross-renderer transaction.
+ * @param {IDBFactory} database
+ * @param {(store: IDBObjectStore, current: Workspace | undefined) => Workspace} action
+ * @param {() => void} [rollbackMirror] @returns {Promise<Workspace>} */
+async function workspaceTransaction(database, action, rollbackMirror = () => {}) {
+  const connection = await openWorkspaceDatabase(database);
+  try {
+    return await new Promise((resolve, reject) => {
+      const transaction = connection.transaction('workspace', 'readwrite');
+      const store = transaction.objectStore('workspace');
+      /** @type {Workspace | undefined} */
+      let result;
+      /** @type {unknown} */
+      let failure;
+      const request = store.get(STORAGE_KEY);
+      request.onsuccess = () => {
+        try { result = action(store, request.result === undefined ? undefined : validatedWorkspace(request.result)); }
+        catch (error) { failure = error; transaction.abort(); }
+      };
+      transaction.oncomplete = () => {
+        if (result) resolve(result);
+        else reject(new Error('Не удалось прочитать общее хранилище браузера.'));
+      };
+      transaction.onabort = () => {
+        try { rollbackMirror(); } catch { /* Canonical data remains intact if the mirror becomes unavailable. */ }
+        reject(failure ?? new Error('Не удалось сохранить изменения в общем хранилище браузера.'));
+      };
+    });
+  } finally { connection.close(); }
+}
+
+/** The read/check/write sequence runs under an exclusive lock and an IndexedDB transaction.
  * Legacy records have revision zero and are upgraded only on a successful save.
  * @param {Storage} storage @param {Workspace} workspace
- * @param {LockManager | undefined} [locks] @returns {Promise<Workspace>} */
-export async function saveWorkspace(storage, workspace, locks = globalThis.navigator?.locks) {
+ * @param {LockManager | undefined} [locks] @param {IDBFactory | undefined} [database]
+ * @returns {Promise<Workspace>} */
+export async function saveWorkspace(storage, workspace, locks = globalThis.navigator?.locks, database = globalThis.indexedDB) {
   if (!locks) throw new Error('Для сохранения нужен браузер с поддержкой Web Locks. Обновите браузер.');
+  if (!database && typeof window !== 'undefined') {
+    throw new Error('Общее хранилище браузера недоступно. Изменения не сохранены.');
+  }
   return locks.request(STORAGE_KEY, () => {
-    const current = loadWorkspace(storage);
-    if (current.revision !== workspace.revision) {
-      throw new Error('Данные изменены в другой вкладке. Изменения не сохранены. Перезагрузите страницу.');
-    }
-    if (!Number.isSafeInteger(workspace.revision) || workspace.revision >= Number.MAX_SAFE_INTEGER) {
-      throw new Error('Не удалось сохранить изменения: диапазон ревизий исчерпан.');
-    }
-    const saved = { ...workspace, revision: workspace.revision + 1 };
-    try { storage.setItem(STORAGE_KEY, JSON.stringify(saved)); }
-    catch { throw new Error('Не удалось сохранить изменения. Разрешите хранение данных для этого сайта.'); }
-    return saved;
+    let mirrorWritten = false;
+    /** @type {Workspace | undefined} */
+    let previous;
+    const previousMirror = storage.getItem(STORAGE_KEY);
+    /** @param {IDBObjectStore | undefined} store @param {Workspace | undefined} record */
+    const write = (store, record) => {
+      const legacy = loadWorkspace(storage);
+      const current = record ?? legacy;
+      if (record && legacy.revision > record.revision) {
+        throw new Error('Данные изменены в другой вкладке. Изменения не сохранены. Перезагрузите страницу.');
+      }
+      if (current.revision !== workspace.revision) {
+        throw new Error('Данные изменены в другой вкладке. Изменения не сохранены. Перезагрузите страницу.');
+      }
+      if (!Number.isSafeInteger(workspace.revision) || workspace.revision >= Number.MAX_SAFE_INTEGER) {
+        throw new Error('Не удалось сохранить изменения: диапазон ревизий исчерпан.');
+      }
+      previous = current;
+      const saved = { ...workspace, revision: workspace.revision + 1 };
+      try { storage.setItem(STORAGE_KEY, JSON.stringify(saved)); }
+      catch { throw new Error('Не удалось сохранить изменения. Разрешите хранение данных для этого сайта.'); }
+      mirrorWritten = true;
+      store?.put(saved, STORAGE_KEY);
+      return saved;
+    };
+    if (!database) return write(undefined, undefined); // Non-browser storage unit checks.
+    return workspaceTransaction(database, write, () => {
+      if (!mirrorWritten) return;
+      if (previousMirror === null && previous?.revision === 0) storage.removeItem(STORAGE_KEY);
+      else if (previous) storage.setItem(STORAGE_KEY, JSON.stringify(previous));
+    });
   });
 }
 

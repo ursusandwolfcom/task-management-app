@@ -1,5 +1,9 @@
 import { test as base, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { THEMES } from '../../../main/resources/alpha/store.js';
+
+const themeLabels = { dark: 'Тёмная', light: 'Светлая', gray: 'Серая', ivory: 'Слоновая кость',
+  pearl: 'Жемчужная', graphite: 'Графит', taupe: 'Тауп', forest: 'Тёмный лес' };
 
 const test = base.extend({
   pageErrors: [async ({ page }, use) => {
@@ -27,8 +31,7 @@ async function createTask(page, name, dependency) {
 async function applySettings(page, theme, taskView = 'list', density = 'comfortable') {
   await page.getByRole('button', { name: 'Настройки интерфейса', exact: true }).click();
   const dialog = page.getByRole('dialog');
-  const labels = { dark: 'Тёмная', light: 'Светлая', gray: 'Серая' };
-  await dialog.getByRole('radio', { name: labels[theme], exact: true }).check();
+  await dialog.getByRole('radio', { name: themeLabels[theme], exact: true }).check();
   await dialog.getByLabel('Представление задач', { exact: true }).selectOption(taskView);
   await dialog.getByLabel('Плотность интерфейса', { exact: true }).selectOption(density);
   await dialog.getByRole('button', { name: 'Применить настройки', exact: true }).click();
@@ -91,6 +94,10 @@ test('quota and network failures preserve stored data and form input', async ({ 
   await dialog.getByRole('button', { name: 'Сохранить задачу', exact: true }).click();
   await expect(dialog.getByRole('alert')).toContainText('сохранить');
   expect(await page.evaluate(() => localStorage.getItem('projectflow.alpha.workspace.v1'))).toBe(previous);
+  await page.reload();
+  await settled(page);
+  await createTask(page, 'Recovered after quota');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('projectflow.alpha.workspace.v1')).revision)).toBe(1);
 });
 
 for (const kind of ['task', 'project', 'date']) {
@@ -117,11 +124,13 @@ for (const kind of ['task', 'project', 'date']) {
   });
 }
 
-test('three themes, both views and dialogs meet WCAG checks on desktop and mobile', async ({ page }) => {
-  test.setTimeout(90000);
+test('eight themes, both views and dialogs meet WCAG checks on populated desktop and mobile', async ({ page }) => {
+  test.setTimeout(180000);
   await page.goto('/alpha/');
   await settled(page);
-  for (const theme of ['dark', 'light', 'gray']) for (const taskView of ['list', 'kanban']) {
+  await page.locator('#load-demo').click();
+  await settled(page);
+  for (const theme of THEMES) for (const taskView of ['list', 'kanban']) {
     await applySettings(page, theme, taskView);
     await page.setViewportSize({ width: 1440, height: 1000 });
     for (const dialog of [false, true]) {
@@ -134,6 +143,35 @@ test('three themes, both views and dialogs meet WCAG checks on desktop and mobil
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const mobileAudit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
     expect(mobileAudit.violations).toEqual([]);
+  }
+});
+
+test('all eight theme choices survive reload without workspace writes or graph calculation', async ({ page }) => {
+  test.setTimeout(60000);
+  await page.goto('/alpha/');
+  await settled(page);
+  const workspace = await page.evaluate(() => localStorage.getItem('projectflow.alpha.workspace.v1'));
+  for (const theme of THEMES) {
+    let requests = 0;
+    const onRequest = request => { if (request.url().endsWith('/alpha/plan')) requests++; };
+    page.on('request', onRequest);
+    await applySettings(page, theme, 'kanban', 'compact');
+    expect(requests).toBe(0);
+    page.off('request', onRequest);
+    expect(await page.evaluate(() => localStorage.getItem('projectflow.alpha.workspace.v1'))).toBe(workspace);
+    await page.reload();
+    await settled(page);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    await expect(page.locator('html')).toHaveAttribute('data-density', 'compact');
+    await expect(page.locator('.kanban-column')).toHaveCount(4);
+    await page.locator('#open-settings').click();
+    await expect(page.getByRole('radio', { name: themeLabels[theme], exact: true })).toBeChecked();
+    await page.getByRole('dialog').getByRole('button', { name: 'Отмена', exact: true }).click();
+  }
+  await applySettings(page, 'dark');
+  for (const theme of THEMES.slice(1).concat(THEMES[0])) {
+    await page.locator('#theme-toggle').click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
   }
 });
 
@@ -179,7 +217,7 @@ test('another tab task survives stale project selection and form submission', as
   await createTask(stale, 'B after reload');
 });
 
-test('simultaneous tab submissions retain one write and explicitly reject the other', async ({ page, context }) => {
+for (const staleCache of [false, true]) test(`simultaneous tab submissions retain one write and reject the other (stale cache: ${staleCache})`, async ({ page, context }) => {
   await page.goto('/alpha/');
   await settled(page);
   const other = await context.newPage();
@@ -199,16 +237,82 @@ test('simultaneous tab submissions retain one write and explicitly reject the ot
     await tab.getByRole('button', { name: '+ Добавить задачу', exact: true }).click();
     await tab.getByRole('dialog').getByLabel('Название задачи', { exact: true }).fill(`Concurrent ${index}`);
   }
+  if (staleCache) await Promise.all(tabs.map(tab => tab.evaluate(() => {
+    const original = Storage.prototype.getItem;
+    const cached = localStorage.getItem('projectflow.alpha.workspace.v1');
+    window.alphaOriginalGetItem = original;
+    Storage.prototype.getItem = function (key) {
+      return key === 'projectflow.alpha.workspace.v1' ? cached : original.call(this, key);
+    };
+  })));
   await Promise.all(tabs.map(tab => tab.getByRole('dialog')
     .getByRole('button', { name: 'Сохранить задачу', exact: true }).click()));
   await Promise.all(tabs.map(settled));
+  if (staleCache) await Promise.all(tabs.map(tab => tab.evaluate(() => {
+    Storage.prototype.getItem = window.alphaOriginalGetItem;
+    delete window.alphaOriginalGetItem;
+  })));
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('projectflow.alpha.workspace.v1')).revision)).toBe(1);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('projectflow.alpha.workspace.v1'))
     .projects[0].tasks.filter(task => task.name.startsWith('Concurrent ')).length)).toBe(1);
   const losers = [];
   for (const tab of tabs) if (await tab.getByRole('dialog').isVisible()) losers.push(tab);
-  expect(losers).toHaveLength(1);
+  const dialogStates = await Promise.all(tabs.map(tab => tab.locator('#task-dialog').evaluate(dialog => ({
+    open: dialog.open, visible: dialog.checkVisibility(),
+    busy: document.querySelector('#task-list').getAttribute('aria-busy'),
+    error: document.querySelector('#task-form-error').textContent
+  }))));
+  expect(losers, JSON.stringify(dialogStates)).toHaveLength(1);
   await expect(losers[0].getByRole('dialog').getByRole('alert')).toContainText('другой вкладке');
+});
+
+test('unavailable IndexedDB preserves existing legacy workspace and permits reading only', async ({ page, context }) => {
+  const workspace = { version: 1, revision: 3, selectedProjectId: 9,
+    projects: [{ id: 9, name: 'Существующий проект', description: '', tasks: [] }] };
+  await context.addInitScript(value => {
+    localStorage.setItem('projectflow.alpha.workspace.v1', JSON.stringify(value));
+    Object.defineProperty(window, 'indexedDB', { value: undefined });
+  }, workspace);
+  await page.goto('/alpha/');
+  await settled(page);
+  await expect(page.locator('#project-name')).toHaveText('Существующий проект');
+  await expect(page.locator('#new-task')).toBeDisabled();
+  await expect(page.getByRole('status')).toContainText('Общее хранилище браузера недоступно');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('projectflow.alpha.workspace.v1')))).toEqual(workspace);
+});
+
+test('aborted canonical transaction rolls back the mirror and retains the form for retry', async ({ page }) => {
+  await page.goto('/alpha/');
+  await settled(page);
+  const previous = await page.evaluate(() => localStorage.getItem('projectflow.alpha.workspace.v1'));
+  await page.evaluate(() => {
+    const put = IDBObjectStore.prototype.put;
+    window.alphaOriginalPut = put;
+    IDBObjectStore.prototype.put = function (...args) {
+      const result = put.apply(this, args);
+      queueMicrotask(() => this.transaction.abort());
+      return result;
+    };
+  });
+  await page.locator('#new-task').click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Название задачи', { exact: true }).fill('Retry after aborted transaction');
+  await dialog.getByRole('button', { name: 'Сохранить задачу', exact: true }).click();
+  await settled(page);
+  await expect(dialog.getByRole('alert')).toContainText('сохранить');
+  await expect(dialog.getByLabel('Название задачи', { exact: true })).toHaveValue('Retry after aborted transaction');
+  expect(await page.evaluate(() => localStorage.getItem('projectflow.alpha.workspace.v1'))).toBe(previous);
+  await page.evaluate(() => {
+    IDBObjectStore.prototype.put = window.alphaOriginalPut;
+    delete window.alphaOriginalPut;
+  });
+  await dialog.getByRole('button', { name: 'Сохранить задачу', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await settled(page);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('projectflow.alpha.workspace.v1')).revision)).toBe(1);
+  await page.reload();
+  await settled(page);
+  await expect(card(page, 'Retry after aborted transaction')).toBeVisible();
 });
 
 test('browser without Web Locks permits reading and prevents unsafe saving', async ({ page, context }) => {

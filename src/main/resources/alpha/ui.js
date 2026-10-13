@@ -5,7 +5,7 @@
 /** @typedef {import('./types').Plan} Plan */
 /** @typedef {import('./types').Preferences} Preferences */
 /** @typedef {'all' | 'ready' | 'active' | 'completed'} TaskFilter */
-import { selectedProject, sortedTasks } from './store.js';
+import { nextTheme, selectedProject, sortedTasks } from './store.js';
 import { demoGuides } from './demo.js';
 
 /** @template {HTMLElement} T @param {string} selector @returns {T} */
@@ -47,8 +47,9 @@ export function render(workspace, plan, filter, busy, preferences, readOnly = fa
   const blocked = busy || readOnly;
   document.documentElement.dataset.theme = preferences.theme;
   document.documentElement.dataset.density = preferences.density;
-  const themeLabels = { dark: 'Светлая тема', light: 'Серая тема', gray: 'Тёмная тема' };
-  element('#theme-toggle').textContent = themeLabels[preferences.theme];
+  const themeLabels = { dark: 'Тёмная тема', light: 'Светлая тема', gray: 'Серая тема',
+    ivory: 'Слоновая кость', pearl: 'Жемчужная тема', graphite: 'Графит', taupe: 'Тауп', forest: 'Тёмный лес' };
+  element('#theme-toggle').textContent = themeLabels[nextTheme(preferences.theme)];
   for (const button of document.querySelectorAll('#task-view button')) {
     if (!(button instanceof HTMLButtonElement)) continue;
     button.setAttribute('aria-pressed', String(button.dataset.view === preferences.taskView));

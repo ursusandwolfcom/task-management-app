@@ -6,7 +6,7 @@
   <script>
     try {
       const saved = JSON.parse(localStorage.getItem('projectflow.alpha.preferences.v1') ?? 'null');
-      if (saved?.version === 1 && ['light', 'gray'].includes(saved.theme)) {
+      if (saved?.version === 1 && ['dark', 'light', 'gray', 'ivory', 'pearl', 'graphite', 'taupe', 'forest'].includes(saved.theme)) {
         document.documentElement.dataset.theme = saved.theme;
       }
     } catch { /* Use the default dark theme when preferences are unavailable. */ }
@@ -116,6 +116,16 @@
           <span class="theme-swatch swatch-light" aria-hidden="true"></span><span>Светлая</span></label>
         <label class="theme-option"><input type="radio" name="theme" value="gray">
           <span class="theme-swatch swatch-gray" aria-hidden="true"></span><span>Серая</span></label>
+        <label class="theme-option"><input type="radio" name="theme" value="ivory">
+          <span class="theme-swatch swatch-ivory" aria-hidden="true"></span><span>Слоновая кость</span></label>
+        <label class="theme-option"><input type="radio" name="theme" value="pearl">
+          <span class="theme-swatch swatch-pearl" aria-hidden="true"></span><span>Жемчужная</span></label>
+        <label class="theme-option"><input type="radio" name="theme" value="graphite">
+          <span class="theme-swatch swatch-graphite" aria-hidden="true"></span><span>Графит</span></label>
+        <label class="theme-option"><input type="radio" name="theme" value="taupe">
+          <span class="theme-swatch swatch-taupe" aria-hidden="true"></span><span>Тауп</span></label>
+        <label class="theme-option"><input type="radio" name="theme" value="forest">
+          <span class="theme-swatch swatch-forest" aria-hidden="true"></span><span>Тёмный лес</span></label>
       </div></fieldset>
       <label for="settings-view">Представление задач</label><select id="settings-view" name="taskView">
         <option value="list">Список</option><option value="kanban">Канбан-доска</option></select>

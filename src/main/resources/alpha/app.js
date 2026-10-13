@@ -6,8 +6,8 @@
 /** @typedef {import('./types').Preferences} Preferences */
 /** @typedef {import('./ui').TaskFilter} TaskFilter */
 import { addDemoProjects, calculatePlan, defaultPreferences, exampleWorkspace, isTaskSort, isTheme, isTaskView, isDensity,
-  loadPreferences, loadWorkspace,
-  nextId, savePreferences, saveWorkspace, selectedProject, STORAGE_KEY } from './store.js';
+  loadCoordinatedWorkspace, loadPreferences, loadWorkspace,
+  nextId, nextTheme, savePreferences, saveWorkspace, selectedProject, STORAGE_KEY } from './store.js';
 import { element, notify, openTaskDialog, render } from './ui.js';
 
 /** @type {Workspace} */
@@ -15,6 +15,10 @@ let workspace;
 let storageWarning = '';
 try { workspace = loadWorkspace(localStorage); }
 catch (error) { workspace = exampleWorkspace(); storageWarning = message(error); }
+if (!storageWarning) {
+  try { workspace = await loadCoordinatedWorkspace(localStorage); }
+  catch (error) { storageWarning = message(error); }
+}
 let preferences = defaultPreferences();
 try { preferences = loadPreferences(localStorage); } catch { /* Keep usable defaults if storage access is blocked. */ }
 /** @type {Plan | null} */
@@ -58,8 +62,7 @@ element('#task-search').addEventListener('input', event => {
   draw();
 });
 element('#theme-toggle').addEventListener('click', () => {
-  const theme = preferences.theme === 'dark' ? 'light' : preferences.theme === 'light' ? 'gray' : 'dark';
-  changePreferences({ ...preferences, theme });
+  changePreferences({ ...preferences, theme: nextTheme(preferences.theme) });
 });
 element('#task-view').addEventListener('click', event => {
   if (!(event.target instanceof HTMLButtonElement) || !isTaskView(event.target.dataset.view)) return;

@@ -3,6 +3,7 @@ import test from 'node:test';
 import { exampleWorkspace, loadWorkspace, saveWorkspace, selectedProject, nextId } from '../../main/resources/alpha/store.js';
 import { defaultPreferences, loadPreferences, savePreferences, sortedTasks } from '../../main/resources/alpha/store.js';
 import { addDemoProjects } from '../../main/resources/alpha/store.js';
+import { THEMES, isTheme, nextTheme } from '../../main/resources/alpha/store.js';
 
 function serialLocks() {
   let tail = Promise.resolve();
@@ -126,7 +127,7 @@ test('theme and task order default to dark/newest and persist independently of w
   const workspace = exampleWorkspace();
   await persist(storage, workspace);
   assert.deepEqual(loadPreferences(storage), defaultPreferences());
-  for (const taskSort of ['newest', 'oldest', 'execution']) for (const theme of ['dark', 'light', 'gray'])
+  for (const taskSort of ['newest', 'oldest', 'execution']) for (const theme of THEMES)
     for (const taskView of ['list', 'kanban']) for (const density of ['comfortable', 'compact']) {
     const preferences = { taskSort, theme, taskView, density };
     savePreferences(storage, preferences);
@@ -136,6 +137,19 @@ test('theme and task order default to dark/newest and persist independently of w
   const defaults = defaultPreferences();
   defaults.theme = 'light';
   assert.equal(defaultPreferences().theme, 'dark');
+});
+
+test('theme shortcut visits all eight palettes once and rejects unsupported values', () => {
+  let theme = 'dark';
+  const visited = [];
+  for (let index = 0; index < THEMES.length; index++) {
+    visited.push(theme);
+    assert.equal(isTheme(theme), true);
+    theme = nextTheme(theme);
+  }
+  assert.deepEqual(visited, THEMES);
+  assert.equal(theme, 'dark');
+  for (const invalid of ['unknown', null, {}, 3]) assert.equal(isTheme(invalid), false);
 });
 
 test('legacy preferences retain theme/order and new fields use defaults without rewriting storage', () => {
