@@ -1,9 +1,31 @@
 param(
     [int]$AppPort = 18081,
-    [int]$DatabasePort = 15432
+    [int]$DatabasePort = 15432,
+    [string]$VerifiedRevision,
+    [string]$VerifiedJarSha256
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
+$artifactStage = 'build'
+if ($VerifiedRevision -or $VerifiedJarSha256) {
+    if ($VerifiedRevision -notmatch '^[a-f0-9]{40}$' -or $VerifiedJarSha256 -notmatch '^[a-fA-F0-9]{64}$') {
+        throw 'Verified artifact mode requires a full tested revision and SHA-256 hash.'
+    }
+    $currentRevision = git -C $projectRoot rev-parse HEAD
+    if ($LASTEXITCODE -ne 0 -or $currentRevision -ne $VerifiedRevision) {
+        throw 'Verified artifact revision does not match the current checkout.'
+    }
+    $pendingChanges = git -C $projectRoot status --porcelain
+    if ($LASTEXITCODE -ne 0 -or $pendingChanges) {
+        throw 'Verified artifact mode requires a clean source checkout.'
+    }
+    $verifiedJar = Join-Path $projectRoot 'target/task-management-app-0.0.1-SNAPSHOT.jar'
+    if (-not (Test-Path -LiteralPath $verifiedJar) -or
+            (Get-FileHash -LiteralPath $verifiedJar -Algorithm SHA256).Hash -ne $VerifiedJarSha256) {
+        throw 'Verified artifact hash does not match the application JAR.'
+    }
+    $artifactStage = 'verified'
+}
 $projectName = 'task-management-check-' + [Guid]::NewGuid().ToString('N')
 $keyBytes = New-Object byte[] 32
 $keyRng = [Security.Cryptography.RandomNumberGenerator]::Create()
@@ -16,6 +38,7 @@ $environmentOverrides = @{
     POSTGRES_PASSWORD = [Guid]::NewGuid().ToString('N')
     JWT_SIGNING_KEY_BASE64 = [Convert]::ToBase64String($keyBytes)
     COMPOSE_PROFILES = 'app'
+    ARTIFACT_STAGE = $artifactStage
     BOOTSTRAP_ADMIN_USERNAME = 'container_admin'
     BOOTSTRAP_ADMIN_EMAIL = 'container-admin@example.com'
     BOOTSTRAP_ADMIN_PASSWORD = [Guid]::NewGuid().ToString('N')
@@ -95,7 +118,11 @@ try {
         $savedEnvironment[$key] = [Environment]::GetEnvironmentVariable($key, 'Process')
         [Environment]::SetEnvironmentVariable($key, $environmentOverrides[$key], 'Process')
     }
-    Write-Output 'Building the Java 21 application image with clean verify and quality gates...'
+    if ($artifactStage -eq 'verified') {
+        Write-Output ('Packaging the already verified JAR for revision ' + $VerifiedRevision + '...')
+    } else {
+        Write-Output 'Building the Java 21 application image with clean verify and quality gates...'
+    }
     $buildLog = Join-Path $logDirectory 'build.log'
     try {
         Invoke-Compose @('build', 'app') *> $buildLog
@@ -114,6 +141,12 @@ try {
     }
     $uid = Invoke-Compose @('exec', '-T', 'app', 'id', '-u')
     if (($uid | Out-String).Trim() -ne '10001') { throw 'Application container must run as UID 10001' }
+    if ($artifactStage -eq 'verified') {
+        $containerHash = Invoke-Compose @('exec', '-T', 'app', 'sha256sum', '/app/app.jar')
+        $actualHash = (($containerHash | Out-String).Trim() -split '\s+')[0]
+        if ($actualHash -ne $VerifiedJarSha256) { throw 'Running container JAR differs from the verified artifact.' }
+        Write-Output 'Container artifact SHA-256 matches the already verified JAR.'
+    }
     $timezone = Invoke-Compose @('exec', '-T', 'app', 'date', '+%Z')
     if (($timezone | Out-String).Trim() -ne 'UTC') { throw 'Container timezone must be UTC' }
     Invoke-Compose @('exec', '-T', 'app', 'sh', '-c',

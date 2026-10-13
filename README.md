@@ -160,6 +160,10 @@ project. ADMIN has access to all projects. Other users receive the same 404 /
 Creation and PUT use `name` (nonblank, at most 200 characters after trimming),
 `description` (at most 10000 characters, defaults to empty), required `startDate` and
 `endDate` (ISO dates, end cannot precede start), and `timezone` (IANA ID, default `UTC`).
+Both dates must be within PostgreSQL's finite DATE range, inclusive:
+`-4713-11-24` through `+5874897-12-31` in ISO proleptic years (year zero is 1 BC).
+POST, PUT and PATCH reject dates outside that range with HTTP 400 `VALIDATION_ERROR`
+without changing the project or its revisions.
 PUT also requires `version`; PATCH requires `version` and any metadata fields to change.
 Use an empty string to clear the description in PATCH. Lists accept `page` 0..1000000
 and `size` 1..100 (defaults 0 and 20), returning `content`, `page`, `size`, `totalElements`
@@ -203,6 +207,13 @@ or detailed diagnostics.
 ### Regression testing
 
 Run `./mvnw clean verify` and `npm run check:alpha` / `npm run test:alpha`.
+
+For the development loop, use `./mvnw -Pfast-tests test` (Windows: `./mvnw.cmd -Pfast-tests test`).
+It runs the 56 JDK/domain/value/token/architecture tests without starting Spring or databases.
+Use `-Dtest=ClassName` for a focused regression. The fast profile is optional and is not a
+release verification: default `clean verify` still runs all 110 tests, including HTTP,
+authorization, migrations and concurrency, with the unchanged Checkstyle/JaCoCo gates.
+CI runs the full suite with both H2 and PostgreSQL.
 The planning tests include an independent exhaustive oracle: 80 seeded six-task DAGs
 are compared against every valid permutation, and readiness is checked on 250 seeded
 execution-fact sets. Lifecycle tests cover every state/command pair and repeated retries.
@@ -232,6 +243,10 @@ The eight scenarios cover ordering/theme persistence, execution readiness, cycle
 network/quota failures, exhausted IDs, corrupt storage, XSS, Swagger and selected WCAG A/AA
 checks in both themes. Failure traces are written to `target/playwright-results`.
 CI installs Chromium and runs this suite against PostgreSQL.
+
+Test database cleanup and concurrent-call helpers live in test-only `support` classes.
+Cleanup refuses non-test database names; concurrency helpers collect only explicitly
+expected exceptions and propagate unexpected infrastructure failures.
 
 ### Coverage gate
 
@@ -271,13 +286,13 @@ starts only PostgreSQL, for running Java from the IDE. Stop just the application
 `docker compose --profile app stop app`, or the stack with `docker compose --profile app down`.
 Neither command removes the database volume.
 
-The Dockerfile runs Maven Wrapper `clean verify` in a Java 21 JDK build stage, then
+By default, the Dockerfile runs Maven Wrapper `clean verify` in a Java 21 JDK build stage, then
 copies only the application JAR into a JRE runtime stage. The Temurin bases are pinned
 by digest; update their digests deliberately and repeat the checks when upgrading.
 The runtime runs as UID 10001 in UTC, checks Actuator health, and starts after the
 database becomes healthy. Both host ports bind to loopback. The alpha profile is off.
 The build context allowlist excludes `.env`, local docs, Git, session files and host
-build outputs; database credentials are supplied only at container startup.
+build outputs except the exact application JAR; database credentials are supplied only at container startup.
 This uses Docker's [multi-stage builds](https://docs.docker.com/build/building/multi-stage/)
 and [healthy dependency ordering](https://docs.docker.com/compose/how-tos/startup-order/).
 
@@ -294,6 +309,26 @@ It removes only that check's containers,
 network and volume afterward; the development database is untouched. Use `-AppPort`
 and `-DatabasePort` if those check ports are occupied. CI runs the same script.
 Build/restart logs are stored under `target/container-check/`.
+
+CI packages the JAR produced by the immediately preceding successful full H2/PostgreSQL
+verification instead of recompiling and rerunning the same tests inside Docker. The
+runtime stage and all container startup/security/migration/restart checks are shared
+with the default source-build path. On a clean checkout, the optional mode requires
+both the tested commit and the SHA-256 of that JAR; it checks them before building and
+checks the JAR hash again inside the running container. The caller must capture these
+values immediately after successful full verification of the same unchanged checkout:
+
+```powershell
+./mvnw.cmd clean verify
+if ($LASTEXITCODE -ne 0) { throw 'Full verification failed.' }
+$testedRevision = (git rev-parse HEAD).Trim()
+$testedJarHash = (Get-FileHash target/task-management-app-0.0.1-SNAPSHOT.jar -Algorithm SHA256).Hash
+./scripts/verify-container.ps1 -VerifiedRevision $testedRevision -VerifiedJarSha256 $testedJarHash
+```
+
+Default `docker compose build` and `verify-container.ps1` still build and verify from
+source. Newer CI commits cancel obsolete runs of the same event/ref; push and proposed-merge
+checks remain independent and both are required for the sprint workflow.
 
 Local tests use an in-memory H2 database in PostgreSQL compatibility mode and do
 not require Docker. The startup test verifies that Liquibase created the schema
@@ -391,6 +426,13 @@ these prototype projects/tasks in PostgreSQL or connect this UI to user accounts
 The separate protected project API is persisted; task CRUD, persisted execution history,
 calendars and resource guards remain planned features. This
 prototype does not replace their acceptance criteria.
+
+Saving requires Web Locks support in a secure browser context (loopback qualifies).
+Workspace writes use an exclusive lock and an expected revision across tabs. A stale tab
+reports a conflict and preserves the saved data and open form input; reload it to use the
+latest workspace. Selecting the current project does not write workspace data. Existing
+records without a revision are upgraded on their first successful save. Older alpha pages
+opened before this update must be reloaded before editing, because they lack the lock protocol.
 
 The page, its assets and `/alpha/plan` are disabled without the `alpha` profile. No
 local docs or secrets are served. Frontend assets need no runtime CDN or bundler.

@@ -29,8 +29,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             case VALIDATION_ERROR -> HttpStatus.BAD_REQUEST;
             case VERSION_CONFLICT, MEMBER_ALREADY_EXISTS, OWNER_REMOVAL_FORBIDDEN -> HttpStatus.CONFLICT;
         };
-        return ResponseEntity.status(status).header("Cache-Control", "no-store")
-                .body(problem(status, exception.reason().name(), "The project operation could not be completed."));
+        return uncachedProblem(status, exception.reason().name(), "The project operation could not be completed.");
     }
 
     @ExceptionHandler(IdentityException.class)
@@ -41,14 +40,12 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             case USER_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case DUPLICATE_IDENTITY, VERSION_CONFLICT, ADMIN_ALREADY_EXISTS, LAST_ADMIN -> HttpStatus.CONFLICT;
         };
-        return ResponseEntity.status(status).header("Cache-Control", "no-store")
-                .body(problem(status, exception.reason().name(), "The identity operation could not be completed."));
+        return uncachedProblem(status, exception.reason().name(), "The identity operation could not be completed.");
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ProblemDetail> invalidIdentityCommand(ConstraintViolationException exception) {
-        return ResponseEntity.badRequest().header("Cache-Control", "no-store")
-                .body(problem(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Request fields are invalid."));
+        return uncachedProblem(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Request fields are invalid.");
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
@@ -57,8 +54,8 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         boolean duplicate = diagnostic != null && (diagnostic.contains("users_username_unique")
                 || diagnostic.contains("users_email_unique"));
         HttpStatus status = duplicate ? HttpStatus.CONFLICT : HttpStatus.INTERNAL_SERVER_ERROR;
-        return ResponseEntity.status(status).header("Cache-Control", "no-store").body(problem(status,
-                duplicate ? "DUPLICATE_IDENTITY" : "INTERNAL_ERROR", "The operation could not be completed."));
+        return uncachedProblem(status, duplicate ? "DUPLICATE_IDENTITY" : "INTERNAL_ERROR",
+                "The operation could not be completed.");
     }
 
     @ExceptionHandler(GraphValidationException.class)
@@ -96,6 +93,10 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             response = problem(status, code, "The request could not be processed.");
         }
         return super.handleExceptionInternal(exception, response, headers, status, request);
+    }
+
+    private static ResponseEntity<ProblemDetail> uncachedProblem(HttpStatusCode status, String code, String detail) {
+        return ResponseEntity.status(status).header("Cache-Control", "no-store").body(problem(status, code, detail));
     }
 
     private static ProblemDetail problem(HttpStatusCode status, String code, String detail) {
