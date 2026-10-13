@@ -1,5 +1,15 @@
 # Task Management System
 
+## Task lifecycle
+
+The pure `task.domain` lifecycle supports start, complete, fail, cancel and retry.
+Cancel is allowed from NOT_STARTED, IN_PROGRESS and FAILED; COMPLETED and CANCELLED
+are terminal. `TaskExecution` retains immutable execution attempts with UTC timestamps:
+retry preserves the failed attempt and the next start creates another. Start requires
+actual predecessor completion supplied by the caller. Domain persistence, transactional
+resource/access guards and execution HTTP endpoints are planned for later stages.
+The browser alpha remains a separate prototype.
+
 ## Local development
 
 The application uses Java 21, Spring Boot 4.1.1, and Maven Wrapper.
