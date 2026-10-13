@@ -188,6 +188,12 @@ when explicitly started with the `alpha` profile. It provides projects, task cre
 and editing, priorities, minute estimates, due dates, dependencies, filters, and
 start/complete/fail/retry actions for the prototype.
 
+New tasks appear at the top by default. The task-order selector supports newest first,
+oldest first and the execution order returned by the Java core. Display sorting leaves
+the stored task creation order and dependency calculation unchanged. Dark theme is the
+default; use the sidebar button to switch to light. Both preferences persist in this
+browser separately from project/task data. Existing browser workspaces need no migration.
+
 ```powershell
 .\mvnw.cmd spring-boot:run '-Dspring-boot.run.profiles=alpha'
 ```

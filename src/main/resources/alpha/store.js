@@ -3,10 +3,43 @@
 /** @typedef {import('./types').Project} Project */
 /** @typedef {import('./types').Task} Task */
 /** @typedef {import('./types').Plan} Plan */
+/** @typedef {import('./types').Preferences} Preferences */
+/** @typedef {import('./types').TaskSort} TaskSort */
 
 const STORAGE_KEY = 'projectflow.alpha.workspace.v1';
+const PREFERENCES_KEY = 'projectflow.alpha.preferences.v1';
 const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 const STATUSES = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'FAILED'];
+
+/** @returns {Preferences} */
+export function defaultPreferences() { return { taskSort: 'newest', theme: 'dark' }; }
+/** @param {unknown} value @returns {value is TaskSort} */
+export function isTaskSort(value) { return value === 'newest' || value === 'oldest' || value === 'execution'; }
+/** @param {Storage} storage @returns {Preferences} */
+export function loadPreferences(storage) {
+  const defaults = defaultPreferences();
+  try {
+    /** @type {unknown} */
+    const saved = JSON.parse(storage.getItem(PREFERENCES_KEY) ?? 'null');
+    if (!isObject(saved) || saved.version !== 1) return defaults;
+    return { taskSort: isTaskSort(saved.taskSort) ? saved.taskSort : defaults.taskSort,
+      theme: saved.theme === 'dark' || saved.theme === 'light' ? saved.theme : defaults.theme };
+  } catch { return defaults; }
+}
+/** @param {Storage} storage @param {Preferences} preferences */
+export function savePreferences(storage, preferences) {
+  try { storage.setItem(PREFERENCES_KEY, JSON.stringify({ version: 1, ...preferences })); }
+  catch { throw new Error('Не удалось сохранить настройку. Проверьте доступ к хранилищу браузера.'); }
+}
+/** Display order only; insertion order represents creation in the browser prototype.
+ * @param {Task[]} tasks @param {TaskSort} sort @param {Plan | null} plan @returns {Task[]} */
+export function sortedTasks(tasks, sort, plan) {
+  const copy = [...tasks];
+  if (sort === 'oldest') return copy;
+  if (sort === 'newest' || plan === null) return copy.reverse();
+  const ranks = new Map(plan.executionOrder.map((id, index) => [id, index]));
+  return copy.sort((left, right) => (ranks.get(left.id) ?? Infinity) - (ranks.get(right.id) ?? Infinity));
+}
 
 /** @returns {Workspace} */
 export function exampleWorkspace() {

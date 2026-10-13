@@ -3,8 +3,9 @@
 /** @typedef {import('./types').Project} Project */
 /** @typedef {import('./types').Task} Task */
 /** @typedef {import('./types').Plan} Plan */
+/** @typedef {import('./types').Preferences} Preferences */
 /** @typedef {'all' | 'ready' | 'active' | 'completed'} TaskFilter */
-import { selectedProject } from './store.js';
+import { selectedProject, sortedTasks } from './store.js';
 
 /** @template {HTMLElement} T @param {string} selector @returns {T} */
 export function element(selector) {
@@ -39,8 +40,14 @@ export function notify(message) {
   notice.hidden = !message;
 }
 
-/** @param {Workspace} workspace @param {Plan | null} plan @param {TaskFilter} filter @param {boolean} busy */
-export function render(workspace, plan, filter, busy) {
+/** @param {Workspace} workspace @param {Plan | null} plan @param {TaskFilter} filter
+ * @param {boolean} busy @param {Preferences} preferences */
+export function render(workspace, plan, filter, busy, preferences) {
+  document.documentElement.dataset.theme = preferences.theme;
+  element('#theme-toggle').textContent = preferences.theme === 'dark' ? 'Светлая тема' : 'Тёмная тема';
+  const sortControl = /** @type {HTMLSelectElement} */ (element('#task-sort'));
+  sortControl.value = preferences.taskSort;
+  element('#task-sort-note').hidden = preferences.taskSort !== 'execution' || plan !== null;
   const project = selectedProject(workspace);
   const nav = element('#project-list');
   nav.replaceChildren();
@@ -62,7 +69,7 @@ export function render(workspace, plan, filter, busy) {
   list.setAttribute('aria-busy', String(busy));
   list.replaceChildren();
   const available = new Set(plan?.availableIds ?? []);
-  const visible = project.tasks.filter(task => filter === 'all'
+  const visible = sortedTasks(project.tasks, preferences.taskSort, plan).filter(task => filter === 'all'
     || (filter === 'ready' && available.has(task.id)) || (filter === 'active' && task.status === 'IN_PROGRESS')
     || (filter === 'completed' && task.status === 'COMPLETED'));
   element('#task-count').textContent = `${visible.length} из ${project.tasks.length}`;
