@@ -14,7 +14,7 @@ The browser alpha remains a separate prototype.
 
 The application uses Java 21, Spring Boot 4.1.1, and Maven Wrapper.
 Dependencies: Spring Web MVC, Validation, Actuator, Spring Data JPA, Liquibase,
-and the PostgreSQL JDBC driver.
+Spring Security OAuth2 Resource Server, and the PostgreSQL JDBC driver.
 
 1. Install JDK 21 and set `JAVA_HOME` to its installation directory.
 2. Open this directory as a Maven project in your IDE; select JDK 21 as the project SDK.
@@ -39,7 +39,19 @@ and the PostgreSQL JDBC driver.
    docker compose up -d --wait
    ```
 
-5. Start the application from the project directory:
+5. Configure a JWT signing key before starting the application. Generate it once,
+   save it securely as `JWT_SIGNING_KEY_BASE64` in the ignored `.env` or environment,
+   and retain it across restarts. No default key is provided. This example sets only
+   the current process environment and does not print the key:
+
+   ```powershell
+   $keyBytes = New-Object byte[] 32
+   $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+   try { $rng.GetBytes($keyBytes) } finally { $rng.Dispose() }
+   $env:JWT_SIGNING_KEY_BASE64 = [Convert]::ToBase64String($keyBytes)
+   ```
+
+   Start the application from the project directory:
 
    ```powershell
    .\mvnw.cmd spring-boot:run
@@ -59,6 +71,69 @@ PostgreSQL uses a persistent Docker volume and is exposed on localhost port 5432
 If the port is occupied, change `POSTGRES_PORT` in `.env`.
 `docker compose down` stops the database and preserves its data.
 Changing credentials in `.env` does not change users in an existing database volume.
+
+## Identity API
+
+The backend now persists users and sessions in PostgreSQL. The alpha UI continues
+to store its projects/tasks in the browser; it does not use these user accounts yet.
+All `/api/**` routes require a Bearer JWT except POST register, login and refresh.
+Health and the explicitly enabled local alpha remain public. No cookie authentication
+or permissive CORS policy is configured.
+
+| Endpoint | Behavior |
+|---|---|
+| `POST /api/auth/register` | Create USER, never ADMIN; username, email, password, firstName, lastName |
+| `POST /api/auth/login` | `identifier` accepts email or username, plus password; returns access/refresh tokens |
+| `POST /api/auth/refresh` | `refreshToken` is consumed once; returns a new token pair |
+| `POST /api/auth/logout` | Revoke current authenticated session, including its access token; 204 |
+| `GET /api/users/me` | Current user's safe profile, including version |
+| `PUT /api/users/me` | Replace username/email/firstName/lastName with expected version |
+| `PATCH /api/users/me` | Partial update with expected version; omitted/null fields retain their values |
+| `POST /api/users/me/password` | currentPassword/newPassword; revoke every session; 204 |
+| `PUT /api/users/{id}/role` | Current ADMIN changes USER/ADMIN with expected version |
+
+Username is 3–50 ASCII letters/digits/underscore/dot/hyphen; `@` is reserved for email
+login. Username/email are trimmed and stored in lowercase (`Locale.ROOT`) with unique
+database constraints; email is at most 254 characters. Names are trimmed, nonblank and
+at most 100 characters. Passwords are 12–128 characters, are not trimmed, and are hashed
+using Spring Security PBKDF2-HMAC-SHA256 with a random salt (310,000 iterations).
+Passwords/hashes and ORM entities are never returned in user profiles.
+
+JWTs use HS256, a configured key of at least 32 random bytes, issuer `projectflow`,
+audience `projectflow-api`, and a 15-minute lifetime capped by session expiry.
+Refresh sessions expire absolutely seven days after login; rotation does not extend
+that deadline. Only SHA-256 hashes of 256-bit random refresh tokens are stored.
+Reusing a consumed refresh token returns 401; it does not revoke the newly rotated token.
+Each request checks the live session, password generation and current role in the database,
+so logout/password changes and role demotion affect previously issued JWTs immediately.
+Changing the signing key invalidates every access token; refresh sessions remain in the DB.
+Token responses use `Cache-Control: no-store`; clients must protect tokens as credentials.
+
+Invalid fields/JSON return 400, invalid credentials/session 401, forbidden role operations
+403, missing user 404, duplicate username/email or stale version 409. Errors use
+`application/problem+json` with a stable `code`, without credential values.
+Unknown JSON properties cannot assign role or another user's identity.
+
+### First ADMIN
+
+Public registration always creates USER. To bootstrap the first ADMIN, supply
+`BOOTSTRAP_ADMIN_USERNAME`, `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD`,
+`BOOTSTRAP_ADMIN_FIRST_NAME`, and `BOOTSTRAP_ADMIN_LAST_NAME` through the environment,
+along with database settings and the signing key. Do not pass passwords in CLI arguments.
+Run this separate command with the web server disabled:
+
+```powershell
+java -jar target/task-management-app-0.0.1-SNAPSHOT.jar --spring.profiles.active=bootstrap --spring.main.web-application-type=none
+```
+
+The command closes its application context after creation. If an ADMIN already exists,
+it fails with `ADMIN_ALREADY_EXISTS` instead of changing credentials or roles. A database
+lock serializes concurrent bootstrap commands. Clear bootstrap credentials from the
+environment afterwards. Later ADMINs are assigned by an authenticated ADMIN endpoint.
+
+With the `alpha` profile, Swagger offers separate **alpha** and **identity** definitions.
+The identity specification is `/v3/api-docs/identity`; project/task CRUD is not implemented.
+Documentation stays disabled without the alpha profile.
 
 ### Database migrations and tests
 
@@ -163,7 +238,8 @@ Run the repeatable container check from PowerShell (or `pwsh` on Linux/macOS):
 
 It creates an isolated Compose project with disposable PostgreSQL storage on ports
 18081/15432, builds the image, checks health, alpha isolation, UID/UTC and migration
-history, and restarts the application. It removes only that check's containers,
+history, verifies ADMIN bootstrap/login and missing-key rejection, and restarts the application.
+It removes only that check's containers,
 network and volume afterward; the development database is untouched. Use `-AppPort`
 and `-DatabasePort` if those check ports are occupied. CI runs the same script.
 Build/restart logs are stored under `target/container-check/`.
@@ -178,11 +254,14 @@ twice and checks health, exercising Liquibase's existing migration history on re
 To run the tests against your local PostgreSQL from PowerShell, with the database running:
 
 ```powershell
-.\mvnw.cmd --batch-mode --no-transfer-progress '-Dspring.datasource.url=jdbc:postgresql://localhost:5432/task_management' '-Dspring.datasource.username=${POSTGRES_USER}' '-Dspring.datasource.password=${POSTGRES_PASSWORD}' test
+./scripts/verify-postgresql.ps1
 ```
 
-If you changed the database name or port, adjust the URL in the command.
-The username and password placeholders resolve from `.env` when Spring starts.
+The script creates a disposable `task_management_test_<random>` database in the local
+Compose PostgreSQL, runs `clean verify`, and removes only that database afterwards.
+Host/port/credentials resolve from `.env`. It never runs fixture cleanup in the development
+database. Identity tests reject database names other than `task_management_test_*` or
+the dedicated CI database `task_management_ci` before deleting any fixtures.
 
 ### Code style and CI
 
@@ -218,8 +297,8 @@ The original assignment requirements follow below.
 
 With the alpha profile enabled, open `http://localhost:8080/swagger-ui/index.html`
 for interactive API documentation or `/v3/api-docs` for the generated OpenAPI JSON.
-Only the implemented `POST /alpha/plan` calculation is documented. Page/assets,
-future authentication and CRUD endpoints are not presented as available APIs.
+The default **alpha** definition documents `POST /alpha/plan`; choose **identity**
+for registration, sessions, profiles and roles. Project/task CRUD is planned for later sprints.
 Swagger and its specification are disabled without alpha, including normal container startup.
 The [springdoc 3.1.1 release](https://github.com/springdoc/springdoc-openapi/releases/tag/v3.1.1)
 is pinned and verified with this project's Boot 4.1.1 / Java 21.
@@ -256,7 +335,7 @@ Start the PostgreSQL service as described above. The alpha server binds to loopb
 Projects and task states are stored only in this browser's local storage; clearing site
 data removes them. The server calculates execution order and readiness using the real
 JDK core and rejects cyclic changes before the browser saves them. It does not store
-these projects/tasks in PostgreSQL or authenticate users. Domain CRUD, permissions,
+these projects/tasks in PostgreSQL or connect this UI to user accounts. Domain CRUD, project permissions,
 execution history, calendars and resource guards remain planned features. This
 prototype does not replace their acceptance criteria.
 
