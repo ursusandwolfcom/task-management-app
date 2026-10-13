@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ProjectFlow — проекты и задачи</title>
+  <link rel="stylesheet" href="/alpha/styles.css">
+  <script type="module" src="/alpha/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Перейти к задачам</a>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Проекты">
+      <a class="brand" href="/alpha/"><span class="brand-mark" aria-hidden="true">P</span>ProjectFlow</a>
+      <div class="sidebar-heading"><h2>Проекты</h2><span class="alpha-tag">альфа</span></div>
+      <nav id="project-list" aria-label="Выбрать проект"></nav>
+      <button id="new-project" class="button button-outline full-width" type="button">+ Создать проект</button>
+      <p class="storage-note" id="storage-note">Предварительный интерфейс приложения</p>
+    </aside>
+    <main id="main" tabindex="-1">
+      <header class="project-header">
+        <div><p class="eyebrow">Рабочее пространство</p><h1 id="project-name">Проекты и задачи</h1>
+          <p id="project-description" class="muted"></p></div>
+        <button id="new-task" class="button button-primary" type="button">+ Добавить задачу</button>
+      </header>
+      <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+      <section class="workspace" aria-label="Задачи проекта">
+        <div class="task-panel">
+          <div class="toolbar">
+            <div role="group" aria-label="Фильтр задач" id="task-filters">
+              <button type="button" data-filter="all" aria-pressed="true">Все</button>
+              <button type="button" data-filter="ready" aria-pressed="false">Готовы к запуску</button>
+              <button type="button" data-filter="active" aria-pressed="false">В работе</button>
+              <button type="button" data-filter="completed" aria-pressed="false">Завершены</button>
+            </div>
+            <span id="task-count" class="muted"></span>
+          </div>
+          <div id="task-list" aria-busy="true"><p class="empty-state">Загружаем рабочее пространство…</p></div>
+        </div>
+        <aside class="order-panel" aria-label="Порядок выполнения">
+          <div class="section-heading"><h2>Порядок выполнения</h2><span class="small muted">По зависимостям</span></div>
+          <p class="order-description">Сначала предшественники, затем доступные задачи с большим приоритетом.</p>
+          <ol id="execution-order" class="execution-order"></ol>
+          <div class="next-task"><p class="eyebrow">Можно начать следующей</p><p id="next-task">—</p></div>
+          <button id="refresh-plan" class="button button-outline full-width" type="button">Обновить порядок</button>
+        </aside>
+      </section>
+    </main>
+  </div>
+  <dialog id="project-dialog" aria-labelledby="project-dialog-title">
+    <form id="project-form">
+      <div class="dialog-heading"><h2 id="project-dialog-title">Новый проект</h2>
+        <button type="button" class="icon-button" data-close="project-dialog" aria-label="Закрыть">×</button></div>
+      <label for="project-input">Название проекта</label>
+      <input id="project-input" name="name" required maxlength="120" autocomplete="off" placeholder="Например, запуск сайта">
+      <label for="project-description-input">Описание <span class="muted">· необязательно</span></label>
+      <textarea id="project-description-input" name="description" rows="3" maxlength="1000"></textarea>
+      <p id="project-form-error" class="form-error" role="alert" hidden></p>
+      <div class="dialog-actions"><button type="button" class="button button-outline" data-close="project-dialog">Отмена</button>
+        <button type="submit" class="button button-primary">Создать проект</button></div>
+    </form>
+  </dialog>
+  <dialog id="task-dialog" aria-labelledby="task-dialog-title">
+    <form id="task-form">
+      <div class="dialog-heading"><h2 id="task-dialog-title">Новая задача</h2>
+        <button type="button" class="icon-button" data-close="task-dialog" aria-label="Закрыть">×</button></div>
+      <input type="hidden" name="id">
+      <label for="task-name">Название задачи</label>
+      <input id="task-name" name="name" required maxlength="160" autocomplete="off" placeholder="Что нужно сделать?">
+      <div class="form-row">
+        <div><label for="task-priority">Приоритет</label><select id="task-priority" name="priority">
+          <option value="LOW">Низкий</option><option value="MEDIUM" selected>Средний</option>
+          <option value="HIGH">Высокий</option><option value="CRITICAL">Критический</option></select></div>
+        <div><label for="task-estimate">Оценка, минут</label>
+          <input id="task-estimate" name="estimate" type="number" min="1" step="1" placeholder="30"></div>
+      </div>
+      <label for="task-deadline">Срок <span class="muted">· необязательно</span></label>
+      <input id="task-deadline" name="dueDate" type="date">
+      <fieldset><legend>Зависит от задач</legend><p class="small muted">Выберите задачи, которые должны завершиться раньше.</p>
+        <div id="dependency-options" class="dependency-options"></div></fieldset>
+      <p id="task-form-error" class="form-error" role="alert" hidden></p>
+      <div class="dialog-actions"><button type="button" class="button button-outline" data-close="task-dialog">Отмена</button>
+        <button type="submit" class="button button-primary">Сохранить задачу</button></div>
+    </form>
+  </dialog>
+</body>
+</html>
