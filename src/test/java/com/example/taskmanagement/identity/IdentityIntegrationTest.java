@@ -70,6 +70,8 @@ class IdentityIntegrationTest {
                 || database.equals("task_management_ci"))) {
             throw new IllegalStateException("Identity tests require a dedicated task_management_test_* database.");
         }
+        jdbc.update("delete from task_management.project_members");
+        jdbc.update("delete from task_management.projects");
         jdbc.update("delete from task_management.identity_sessions");
         jdbc.update("delete from task_management.users");
     }

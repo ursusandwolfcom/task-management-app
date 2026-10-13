@@ -2,6 +2,7 @@ package com.example.taskmanagement.config;
 
 import com.example.taskmanagement.planning.core.GraphValidationException;
 import com.example.taskmanagement.identity.api.IdentityException;
+import com.example.taskmanagement.project.api.ProjectException;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
@@ -19,6 +20,18 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 /** Shared HTTP representation; pure graph and lifecycle modules remain unaware of HTTP. */
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
+
+    @ExceptionHandler(ProjectException.class)
+    public ResponseEntity<ProblemDetail> projectProblem(ProjectException exception) {
+        HttpStatus status = switch (exception.reason()) {
+            case PROJECT_NOT_FOUND, MEMBER_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case FORBIDDEN -> HttpStatus.FORBIDDEN;
+            case VALIDATION_ERROR -> HttpStatus.BAD_REQUEST;
+            case VERSION_CONFLICT, MEMBER_ALREADY_EXISTS, OWNER_REMOVAL_FORBIDDEN -> HttpStatus.CONFLICT;
+        };
+        return ResponseEntity.status(status).header("Cache-Control", "no-store")
+                .body(problem(status, exception.reason().name(), "The project operation could not be completed."));
+    }
 
     @ExceptionHandler(IdentityException.class)
     public ResponseEntity<ProblemDetail> identityProblem(IdentityException exception) {
