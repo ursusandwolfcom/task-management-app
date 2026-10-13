@@ -77,7 +77,9 @@ public class UserController {
     }
 
     @PutMapping("/{id}/role")
-    @Operation(summary = "ADMIN changes a global role using current database rights and expected version")
+    @Operation(summary = "ADMIN changes a global role using current database rights and expected version",
+            description = "Demoting the last ADMIN is rejected with HTTP 409 and code LAST_ADMIN, "
+                    + "including concurrent role changes.")
     public ResponseEntity<UserView> role(@AuthenticationPrincipal Jwt jwt, @Positive @PathVariable long id,
             @Valid @RequestBody RoleChange command) {
         return profile(identity.changeRole(userId(jwt), id, command.role(), command.version()));

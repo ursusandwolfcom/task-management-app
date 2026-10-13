@@ -26,7 +26,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             case INVALID_CREDENTIALS, INVALID_SESSION -> HttpStatus.UNAUTHORIZED;
             case FORBIDDEN -> HttpStatus.FORBIDDEN;
             case USER_NOT_FOUND -> HttpStatus.NOT_FOUND;
-            case DUPLICATE_IDENTITY, VERSION_CONFLICT, ADMIN_ALREADY_EXISTS -> HttpStatus.CONFLICT;
+            case DUPLICATE_IDENTITY, VERSION_CONFLICT, ADMIN_ALREADY_EXISTS, LAST_ADMIN -> HttpStatus.CONFLICT;
         };
         return ResponseEntity.status(status).header("Cache-Control", "no-store")
                 .body(problem(status, exception.reason().name(), "The identity operation could not be completed."));

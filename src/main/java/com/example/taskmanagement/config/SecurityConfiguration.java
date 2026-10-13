@@ -37,7 +37,8 @@ public class SecurityConfiguration {
     public NimbusJwtDecoder jwtDecoder(@Value("${identity.jwt-key-base64:}") String key) {
         var decoder = NimbusJwtDecoder.withSecretKey(TokenService.signingKey(key))
                 .macAlgorithm(MacAlgorithm.HS256).build();
-        OAuth2TokenValidator<Jwt> audience = jwt -> jwt.getAudience().contains("projectflow-api")
+        OAuth2TokenValidator<Jwt> audience = jwt -> jwt.getAudience() != null
+                && jwt.getAudience().contains("projectflow-api")
                 ? OAuth2TokenValidatorResult.success()
                 : OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token"));
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(new JwtTimestampValidator(Duration.ZERO),
