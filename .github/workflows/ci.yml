@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+# A newer SHA replaces only the same event/ref; push and proposed-merge checks stay independent.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     name: Build, tests and Checkstyle
@@ -99,7 +104,11 @@ jobs:
 
       - name: Verify application container and Compose restart
         shell: pwsh
-        run: ./scripts/verify-container.ps1
+        run: |
+          # The preceding full H2/PostgreSQL clean verify steps must both succeed first.
+          $testedRevision = (git rev-parse HEAD).Trim()
+          $testedJarHash = (Get-FileHash target/task-management-app-0.0.1-SNAPSHOT.jar -Algorithm SHA256).Hash
+          ./scripts/verify-container.ps1 -VerifiedRevision $testedRevision -VerifiedJarSha256 $testedJarHash
 
       - name: Install Chromium for browser regressions
         run: npx playwright install --with-deps chromium
