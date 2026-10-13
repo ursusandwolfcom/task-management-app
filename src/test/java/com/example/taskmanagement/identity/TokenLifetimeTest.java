@@ -36,6 +36,14 @@ class TokenLifetimeTest {
         }
     }
 
+    @Test
+    void lastFractionOfSessionCannotIssueAnAlreadyExpiredJwt() {
+        var nearExpiry = new TokenService("dGVzdC1vbmx5LWtleS1mb3ItczA0LW5vdC1mb3ItcHJvZHVjdGlvbg==",
+                Clock.fixed(NOW.plusMillis(900), ZoneOffset.UTC));
+        assertThatThrownBy(() -> nearExpiry.issue(grant(NOW.plusMillis(950))))
+                .isInstanceOf(IdentityException.class).hasMessage("INVALID_SESSION");
+    }
+
     private static SessionGrant grant(Instant expiresAt) {
         return new SessionGrant(new UserView(1, "user", "user@example.com", "First", "Last", UserRole.USER, 0),
                 UUID.randomUUID(), 0, "test-refresh-token", expiresAt);

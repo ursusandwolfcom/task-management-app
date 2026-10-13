@@ -6,6 +6,7 @@ import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.beans.factory.annotation.Value;
@@ -49,19 +50,22 @@ public class TokenService {
 
     public Tokens issue(SessionGrant grant) {
         Instant now = clock.instant();
-        if (!now.isBefore(grant.refreshExpiresAt())) {
+        // JWT NumericDate is encoded in whole seconds; reject a grant that cannot yield a live JWT.
+        Instant issuedAt = now.truncatedTo(ChronoUnit.SECONDS);
+        Instant sessionExpires = grant.refreshExpiresAt().truncatedTo(ChronoUnit.SECONDS);
+        Instant expires = issuedAt.plus(Duration.ofMinutes(15));
+        if (expires.isAfter(sessionExpires)) {
+            expires = sessionExpires;
+        }
+        if (!now.isBefore(expires)) {
             throw new IdentityException(IdentityException.Reason.INVALID_SESSION);
         }
-        Instant expires = now.plus(Duration.ofMinutes(15));
-        if (expires.isAfter(grant.refreshExpiresAt())) {
-            expires = grant.refreshExpiresAt();
-        }
         var claims = JwtClaimsSet.builder().issuer("projectflow").audience(java.util.List.of("projectflow-api"))
-                .subject(Long.toString(grant.user().id())).issuedAt(now).notBefore(now).expiresAt(expires)
+                .subject(Long.toString(grant.user().id())).issuedAt(issuedAt).notBefore(issuedAt).expiresAt(expires)
                 .claim("sid", grant.sessionId().toString()).claim("cv", grant.credentialVersion()).build();
         String token = encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
                 .getTokenValue();
-        return new Tokens(token, "Bearer", Duration.between(now, expires).toSeconds(),
+        return new Tokens(token, "Bearer", Duration.between(issuedAt, expires).toSeconds(),
                 grant.refreshToken(), grant.refreshExpiresAt());
     }
 }

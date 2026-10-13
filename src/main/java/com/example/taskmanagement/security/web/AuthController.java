@@ -72,6 +72,7 @@ public class AuthController {
 
     @PostMapping("/logout")
     @Operation(summary = "Revoke the current session and its access/refresh tokens")
+    @ApiResponse(responseCode = "204", description = "Session revoked")
     @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<Void> logout(@AuthenticationPrincipal Jwt jwt) {
         identity.logout(Long.parseLong(jwt.getSubject()), UUID.fromString(jwt.getClaimAsString("sid")));

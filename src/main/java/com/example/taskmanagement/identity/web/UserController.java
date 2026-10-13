@@ -5,6 +5,7 @@ import com.example.taskmanagement.identity.api.ProfileChange;
 import com.example.taskmanagement.identity.api.UserRole;
 import com.example.taskmanagement.identity.api.UserView;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -84,6 +85,7 @@ public class UserController {
 
     @PostMapping("/me/password")
     @Operation(summary = "Change password with current password; revoke every session immediately")
+    @ApiResponse(responseCode = "204", description = "Password changed and all sessions revoked")
     public ResponseEntity<Void> password(@AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody PasswordChange command) {
         identity.changePassword(userId(jwt), command.currentPassword(), command.newPassword());

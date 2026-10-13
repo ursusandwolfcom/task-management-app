@@ -55,9 +55,12 @@ class OpenApiTest {
         mvc.perform(get("/v3/api-docs/identity")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.info.title").value("ProjectFlow identity API"))
                 .andExpect(jsonPath("$.paths['/api/auth/register'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/auth/register'].post.responses['201']").exists())
+                .andExpect(jsonPath("$.paths['/api/auth/logout'].post.responses['204']").exists())
                 .andExpect(jsonPath("$.paths['/api/auth/refresh'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/users/me'].get.security[0].bearerAuth").exists())
                 .andExpect(jsonPath("$.paths['/api/users/me/password'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/users/me/password'].post.responses['204']").exists())
                 .andExpect(jsonPath("$.paths['/alpha/plan']").doesNotExist())
                 .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"))
                 .andExpect(jsonPath("$.components.schemas.UserView.properties.passwordHash").doesNotExist());
