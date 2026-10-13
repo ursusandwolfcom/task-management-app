@@ -30,6 +30,9 @@ public interface IdentityOperations {
 
     UserView profile(long userId);
 
+    /** Reads the current database role even if a caller has already loaded the user in its transaction. */
+    UserRole currentRole(long userId);
+
     UserView updateProfile(long userId, @NotNull @Valid ProfileChange command);
 
     UserView changeRole(long actorId, long userId, @NotNull UserRole role, @PositiveOrZero long version);

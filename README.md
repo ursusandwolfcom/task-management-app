@@ -132,9 +132,59 @@ it fails with `ADMIN_ALREADY_EXISTS` instead of changing credentials or roles. A
 lock serializes concurrent bootstrap commands. Clear bootstrap credentials from the
 environment afterwards. Later ADMINs are assigned by an authenticated ADMIN endpoint.
 
-With the `alpha` profile, Swagger offers separate **alpha** and **identity** definitions.
-The identity specification is `/v3/api-docs/identity`; project/task CRUD is not implemented.
+With the `alpha` profile, Swagger offers separate **alpha**, **identity** and **projects** definitions.
+The specifications are `/v3/api-docs/identity` and `/v3/api-docs/projects`; task CRUD is not implemented.
 Documentation stays disabled without the alpha profile.
+
+### Protected projects and members
+
+Projects are persisted in PostgreSQL and require a Bearer JWT. The creator becomes owner
+and member in one transaction. Members can read the project; its owner and global ADMIN
+can change metadata, manage members, transfer ownership and delete the currently empty
+project. ADMIN has access to all projects. Other users receive the same 404 /
+`PROJECT_NOT_FOUND` as for a missing project.
+
+| Endpoint | Behavior |
+|---|---|
+| `POST /api/projects` | Create INITIATED project and owner membership (201) |
+| `GET /api/projects` | List accessible projects, ID descending |
+| `GET /api/projects/{id}` | Read accessible project |
+| `PUT /api/projects/{id}` | Replace metadata with expected `version` |
+| `PATCH /api/projects/{id}` | Patch metadata with expected `version`; null/omitted fields retain values |
+| `GET /api/projects/{id}/members` | List member IDs and owner flags |
+| `PUT /api/projects/{id}/members/{userId}` | Add existing user, JSON `{ "version": 0 }` |
+| `DELETE /api/projects/{id}/members/{userId}?version=...` | Remove member; current owner cannot be removed |
+| `PUT /api/projects/{id}/owner` | Transfer to existing member, JSON `{ "userId": 2, "version": 1 }` |
+| `DELETE /api/projects/{id}?version=...` | Delete empty project through workflow (204); users remain |
+
+Creation and PUT use `name` (nonblank, at most 200 characters after trimming),
+`description` (at most 10000 characters, defaults to empty), required `startDate` and
+`endDate` (ISO dates, end cannot precede start), and `timezone` (IANA ID, default `UTC`).
+PUT also requires `version`; PATCH requires `version` and any metadata fields to change.
+Use an empty string to clear the description in PATCH. Lists accept `page` 0..1000000
+and `size` 1..100 (defaults 0 and 20), returning `content`, `page`, `size`, `totalElements`
+and `totalPages`. Members are sorted by user ID descending.
+
+Ownership transfer retains the previous owner as an ordinary member. Only the current
+owner or ADMIN may perform later management operations. A current-version transfer to
+the same owner is a no-op. Client-supplied owner, status and revision fields cannot
+bypass these rules. Status changes are reserved for later execution commands.
+
+All project writers acquire the same row lock before checking access and version;
+current ADMIN rights are read from the database even within an existing transaction.
+Metadata, membership and ownership changes increase `inputRevision` and `version`;
+date/timezone changes also increase `calendarRevision`. `ProjectCoordination` exposes
+the transactional lock and revision contract to future task/scheduling modules.
+
+Invalid data returns 400 / `VALIDATION_ERROR`; a member attempting owner operations
+receives 403 / `FORBIDDEN`. Missing membership returns 404 / `MEMBER_NOT_FOUND`;
+a missing target user returns 404 / `USER_NOT_FOUND`. Version conflicts, duplicate
+membership and removal of the current owner return 409 / `VERSION_CONFLICT`,
+`MEMBER_ALREADY_EXISTS` and `OWNER_REMOVAL_FORBIDDEN`. Responses use `Cache-Control: no-store`.
+
+Persisted tasks and files are not implemented yet. Deletion currently cascades only
+membership rows. Future task/file deletion and assignment guards belong to workflow;
+the alpha browser workspace remains separate from these projects and accounts.
 
 ### Database migrations and tests
 
@@ -299,7 +349,8 @@ The original assignment requirements follow below.
 With the alpha profile enabled, open `http://localhost:8080/swagger-ui/index.html`
 for interactive API documentation or `/v3/api-docs` for the generated OpenAPI JSON.
 The default **alpha** definition documents `POST /alpha/plan`; choose **identity**
-for registration, sessions, profiles and roles. Project/task CRUD is planned for later sprints.
+for registration, sessions, profiles and roles, or **projects** for persisted projects,
+members and ownership. Task CRUD is planned for later sprints.
 Swagger and its specification are disabled without alpha, including normal container startup.
 The [springdoc 3.1.1 release](https://github.com/springdoc/springdoc-openapi/releases/tag/v3.1.1)
 is pinned and verified with this project's Boot 4.1.1 / Java 21.
@@ -336,8 +387,9 @@ Start the PostgreSQL service as described above. The alpha server binds to loopb
 Projects and task states are stored only in this browser's local storage; clearing site
 data removes them. The server calculates execution order and readiness using the real
 JDK core and rejects cyclic changes before the browser saves them. It does not store
-these projects/tasks in PostgreSQL or connect this UI to user accounts. Domain CRUD, project permissions,
-execution history, calendars and resource guards remain planned features. This
+these prototype projects/tasks in PostgreSQL or connect this UI to user accounts.
+The separate protected project API is persisted; task CRUD, persisted execution history,
+calendars and resource guards remain planned features. This
 prototype does not replace their acceptance criteria.
 
 The page, its assets and `/alpha/plan` are disabled without the `alpha` profile. No
