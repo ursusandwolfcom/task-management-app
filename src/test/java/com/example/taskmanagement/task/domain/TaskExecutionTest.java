@@ -16,6 +16,32 @@ class TaskExecutionTest {
     private static final Instant END = START.plusSeconds(60);
 
     @Test
+    void restoresPersistedRetryAndCancellationWithoutChangingFailedFacts() {
+        var failed = new ExecutionAttempt(1, START, END, TaskStatus.FAILED);
+        var retry = TaskExecution.restore(TaskStatus.NOT_STARTED, List.of(failed));
+        var running = retry.start(END, true);
+        var restored = TaskExecution.restore(TaskStatus.IN_PROGRESS, running.attempts());
+        assertEquals(TaskStatus.COMPLETED, restored.complete(END.plusSeconds(60)).status());
+        var cancelled = TaskExecution.restore(TaskStatus.CANCELLED, List.of(failed));
+        assertEquals(List.of(failed), cancelled.attempts());
+        assertEquals(TaskStatus.CANCELLED, TaskExecution.restore(TaskStatus.CANCELLED, List.of()).status());
+    }
+
+    @Test
+    void rejectsInconsistentPersistedHistories() {
+        var completed = new ExecutionAttempt(1, START, END, TaskStatus.COMPLETED);
+        var running = new ExecutionAttempt(2, END, null, null);
+        assertThrows(IllegalArgumentException.class,
+                () -> TaskExecution.restore(TaskStatus.IN_PROGRESS, List.of(completed, running)));
+        assertThrows(IllegalArgumentException.class,
+                () -> TaskExecution.restore(TaskStatus.NOT_STARTED, List.of(completed)));
+        assertThrows(IllegalArgumentException.class,
+                () -> TaskExecution.restore(TaskStatus.IN_PROGRESS, List.of()));
+        assertThrows(IllegalArgumentException.class,
+                () -> TaskExecution.restore(TaskStatus.IN_PROGRESS, List.of(running)));
+    }
+
+    @Test
     void transitionMatrixMatchesConfirmedContract() {
         var allowed = Map.of(
                 TaskStatus.NOT_STARTED, Map.of(TaskLifecyclePolicy.Command.START, TaskStatus.IN_PROGRESS,

@@ -3,6 +3,7 @@ package com.example.taskmanagement.project.application;
 import com.example.taskmanagement.identity.api.IdentityOperations;
 import com.example.taskmanagement.identity.api.UserRole;
 import com.example.taskmanagement.project.api.ProjectCoordination;
+import com.example.taskmanagement.project.api.ProjectContentGuard;
 import com.example.taskmanagement.project.api.ProjectData;
 import com.example.taskmanagement.project.api.ProjectException;
 import com.example.taskmanagement.project.api.ProjectOperations;
@@ -14,6 +15,7 @@ import com.example.taskmanagement.project.persistence.ProjectMemberRepository;
 import com.example.taskmanagement.project.persistence.ProjectRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.validation.Validator;
+import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -30,14 +32,17 @@ public class ProjectService implements ProjectOperations, ProjectCoordination {
     private final IdentityOperations identity;
     private final EntityManager entityManager;
     private final Validator validator;
+    private final List<ProjectContentGuard> contentGuards;
 
     public ProjectService(ProjectRepository projects, ProjectMemberRepository members,
-            IdentityOperations identity, EntityManager entityManager, Validator validator) {
+            IdentityOperations identity, EntityManager entityManager, Validator validator,
+            List<ProjectContentGuard> contentGuards) {
         this.projects = projects;
         this.members = members;
         this.identity = identity;
         this.entityManager = entityManager;
         this.validator = validator;
+        this.contentGuards = List.copyOf(contentGuards);
     }
 
     @Override
@@ -114,6 +119,7 @@ public class ProjectService implements ProjectOperations, ProjectCoordination {
         }
         var member = members.findByProjectIdAndUserId(projectId, userId)
                 .orElseThrow(() -> error(ProjectException.Reason.MEMBER_NOT_FOUND));
+        contentGuards.forEach(guard -> guard.beforeRemoveMember(projectId, userId));
         members.delete(member);
         members.flush();
         project.inputChanged();
@@ -134,7 +140,7 @@ public class ProjectService implements ProjectOperations, ProjectCoordination {
     @Override
     public void deleteEmpty(long actorId, long projectId, long version) {
         var project = managed(actorId, projectId, version);
-        // Only membership rows cascade. Future tasks/files must explicitly block or coordinate deletion.
+        contentGuards.forEach(guard -> guard.beforeDelete(projectId));
         projects.delete(project);
         projects.flush();
     }
@@ -154,6 +160,12 @@ public class ProjectService implements ProjectOperations, ProjectCoordination {
         authorize(actorId, project, Permission.WRITE_TASKS);
         project.inputChanged();
         return projects.saveAndFlush(project).view();
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean isMember(long projectId, long userId) {
+        return members.existsByProjectIdAndUserId(projectId, userId);
     }
 
     private ProjectEntity managed(long actorId, long projectId, long version) {

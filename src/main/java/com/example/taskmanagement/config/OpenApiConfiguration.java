@@ -41,7 +41,7 @@ public class OpenApiConfiguration {
                 .description("Calculates supplied prototype graphs without persistence. No authentication "
                         + "is required for this prototype calculation. Identity API is documented separately "
                         + "at /v3/api-docs/identity; protected projects at /v3/api-docs/projects. "
-                        + "Task CRUD is planned."))
+                        + "Protected tasks are documented at /v3/api-docs/tasks."))
                 .components(new Components().addSchemas("ApiError", error));
     }
 
@@ -85,6 +85,7 @@ public class OpenApiConfiguration {
                 .addOpenApiCustomizer(api -> {
                     api.getPaths().entrySet().removeIf(entry -> !entry.getKey().equals("/api/projects")
                             && !entry.getKey().startsWith("/api/projects/"));
+                    api.getPaths().entrySet().removeIf(entry -> entry.getKey().endsWith("/tasks"));
                     api.info(new Info().title("ProjectFlow projects API").version("0.0.1")
                             .description("Persisted projects, membership and ownership transfer "
                                     + "with live access checks. "
@@ -92,6 +93,80 @@ public class OpenApiConfiguration {
                                     + "Alpha browser storage is separate."));
                     addProtectedErrors(api);
                 }).build();
+    }
+
+    @Bean
+    public GroupedOpenApi taskOpenApi() {
+        return GroupedOpenApi.builder().group("tasks").pathsToMatch("/api/tasks/**", "/api/projects/*/tasks")
+                .addOpenApiCustomizer(api -> {
+                    api.getPaths().entrySet().removeIf(entry -> !entry.getKey().startsWith("/api/tasks")
+                            && !entry.getKey().endsWith("/tasks"));
+                    api.info(new Info().title("ProjectFlow tasks API").version("0.0.1")
+                            .description("Persisted tasks and immutable execution history. "
+                                    + "Estimate is optional, 15..525600 physical minutes. "
+                                    + "Commands use actual predecessor completion, not resource reservations."));
+                    api.getPaths().forEach((route, path) -> {
+                        boolean collection = route.equals("/api/tasks") || route.endsWith("/tasks");
+                        if (path.getPost() != null) {
+                            setTaskBody(path.getPost(), collection
+                                    ? taskMetadata(true, false, route.equals("/api/tasks"))
+                                    : new ObjectSchema().addProperty("version", versionSchema())
+                                            .required(List.of("version")).additionalProperties(false));
+                            if (collection) {
+                                var response = path.getPost().getResponses().remove("200");
+                                if (response != null) {
+                                    path.getPost().getResponses().addApiResponse("201", response);
+                                }
+                            }
+                        }
+                        if (path.getPut() != null) {
+                            setTaskBody(path.getPut(), taskMetadata(false, false, false));
+                        }
+                        if (path.getPatch() != null) {
+                            setTaskBody(path.getPatch(), taskMetadata(false, true, false));
+                        }
+                    });
+                    addProtectedErrors(api);
+                }).build();
+    }
+
+    private static io.swagger.v3.oas.models.media.Schema<?> versionSchema() {
+        return new IntegerSchema().format("int64").minimum(java.math.BigDecimal.ZERO);
+    }
+
+    private static ObjectSchema taskMetadata(boolean create, boolean patch, boolean projectRequired) {
+        var schema = new ObjectSchema();
+        schema.addProperty("projectId", new IntegerSchema().format("int64").minimum(java.math.BigDecimal.ONE));
+        schema.addProperty("name", new StringSchema().minLength(1).maxLength(200));
+        schema.addProperty("description", new StringSchema().maxLength(10000).nullable(true));
+        schema.addProperty("priority", new StringSchema()._enum(List.of("LOW", "MEDIUM", "HIGH", "CRITICAL")));
+        schema.addProperty("estimatedMinutes", new IntegerSchema().minimum(java.math.BigDecimal.valueOf(15))
+                .maximum(java.math.BigDecimal.valueOf(525600)).nullable(true));
+        schema.addProperty("dueDate", new StringSchema().format("date").nullable(true)
+                .description("Finite PostgreSQL DATE, -4713-11-24 through +5874897-12-31"));
+        schema.addProperty("assigneeId", new IntegerSchema().format("int64")
+                .minimum(java.math.BigDecimal.ONE).nullable(true));
+        var required = new java.util.ArrayList<String>();
+        if (!create) {
+            schema.addProperty("version", versionSchema());
+            required.add("version");
+        }
+        if (!patch) {
+            required.addAll(List.of("name", "priority"));
+        }
+        if (projectRequired) {
+            required.add("projectId");
+        }
+        schema.required(required);
+        schema.additionalProperties(false);
+        return schema;
+    }
+
+    private static void setTaskBody(io.swagger.v3.oas.models.Operation operation,
+            io.swagger.v3.oas.models.media.Schema<?> schema) {
+        operation.setRequestBody(new io.swagger.v3.oas.models.parameters.RequestBody().required(true)
+                .content(new io.swagger.v3.oas.models.media.Content().addMediaType("application/json",
+                        new io.swagger.v3.oas.models.media.MediaType().schema(schema))));
     }
 
     private static void addProtectedErrors(OpenAPI api) {
