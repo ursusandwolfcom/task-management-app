@@ -1,4 +1,4 @@
-package com.example.taskmanagement.project.persistence;
+package com.example.taskmanagement.shared.persistence;
 
 import java.sql.CallableStatement;
 import java.sql.PreparedStatement;

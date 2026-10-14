@@ -24,6 +24,24 @@ class OpenApiTest {
     private MockMvc mvc;
 
     @Test
+    void taskSpecDocumentsPhysicalMinuteLimitsCommandsAndCookieProtection() throws Exception {
+        String estimate = "$.paths['/api/tasks'].post.requestBody.content['application/json'].schema"
+                + ".properties.estimatedMinutes";
+        mvc.perform(get("/v3/api-docs/tasks")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.info.title").value("ProjectFlow tasks API"))
+                .andExpect(jsonPath(estimate + ".minimum").value(15))
+                .andExpect(jsonPath(estimate + ".maximum").value(525600))
+                .andExpect(jsonPath("$.paths['/api/tasks'].post.responses['201']").exists())
+                .andExpect(jsonPath("$.paths['/api/projects/{projectId}/tasks'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/tasks/{id}/start'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/tasks/{id}/attempts'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/tasks/{id}'].delete.responses['204']").exists())
+                .andExpect(jsonPath("$.paths['/api/tasks'].post.security[1].cookieAuth").exists())
+                .andExpect(jsonPath("$.paths['/api/tasks'].post.security[1].csrfAuth").exists())
+                .andExpect(jsonPath("$.paths['/api/projects']").doesNotExist());
+    }
+
+    @Test
     void documentsOnlyExistingAlphaCalculationWithItsErrorSchema() throws Exception {
         mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))

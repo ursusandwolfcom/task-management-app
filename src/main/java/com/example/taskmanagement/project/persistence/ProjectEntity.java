@@ -3,6 +3,7 @@ package com.example.taskmanagement.project.persistence;
 import com.example.taskmanagement.project.api.ProjectData;
 import com.example.taskmanagement.project.api.ProjectStatus;
 import com.example.taskmanagement.project.api.ProjectView;
+import com.example.taskmanagement.shared.persistence.FiniteDateJdbcType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

@@ -13,6 +13,9 @@ public final class DatabaseFixtures {
                 || database.equals("task_management_ci"))) {
             throw new IllegalStateException("Integration tests require a dedicated task_management_test_* database.");
         }
+        jdbc.update("delete from task_management.task_dependencies");
+        jdbc.update("delete from task_management.task_execution_attempts");
+        jdbc.update("delete from task_management.tasks");
         jdbc.update("delete from task_management.project_members");
         jdbc.update("delete from task_management.projects");
         jdbc.update("delete from task_management.identity_sessions");
