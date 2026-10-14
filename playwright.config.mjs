@@ -23,7 +23,7 @@ export default defineConfig({
   webServer: {
     env: { JWT_SIGNING_KEY_BASE64: randomBytes(32).toString('base64') },
     command: 'java -jar target/task-management-app-0.0.1-SNAPSHOT.jar '
-      + `--spring.profiles.active=alpha --server.port=${port}`,
+      + `--spring.profiles.active=alpha,workspace --server.port=${port}`,
     url: `${baseURL}/actuator/health`,
     reuseExistingServer: false,
     timeout: 90000,

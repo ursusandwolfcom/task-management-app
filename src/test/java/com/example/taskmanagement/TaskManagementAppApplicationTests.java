@@ -58,4 +58,11 @@ class TaskManagementAppApplicationTests {
         }
     }
 
+    @Test
+    void workspaceAssetsAreDisabledWithoutWorkspaceProfile() throws Exception {
+        for (String path : new String[] {"/app/", "/app/assets/index.js", "/app/assets/index.css"}) {
+            mvc.perform(get(path)).andExpect(status().isNotFound());
+        }
+    }
+
 }

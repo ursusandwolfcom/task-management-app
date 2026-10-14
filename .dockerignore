@@ -13,3 +13,14 @@
 !target/
 target/**
 !target/task-management-app-0.0.1-SNAPSHOT.jar
+!package.json
+!package-lock.json
+!workspace-vite.config.mjs
+!frontend/
+!frontend/**
+frontend/dist/**
+**/node_modules/**
+**/.env
+**/.env.*
+!scripts/
+!scripts/build-workspace.mjs

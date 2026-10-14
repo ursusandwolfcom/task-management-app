@@ -58,6 +58,8 @@ jobs:
           npm ci --ignore-scripts
           npm run check:alpha
           npm run test:alpha
+          npm run check:workspace
+          npm run test:workspace
 
       - name: Verify with H2
         run: bash ./mvnw --batch-mode --no-transfer-progress clean verify
