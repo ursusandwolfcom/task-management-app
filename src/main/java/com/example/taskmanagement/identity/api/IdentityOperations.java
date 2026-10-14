@@ -41,4 +41,7 @@ public interface IdentityOperations {
             @NotBlank @Size(min = 12, max = 128) String newPassword);
 
     void logout(long userId, UUID sessionId);
+
+    /** Idempotently revokes the session identified by a refresh credential, even after access expiry. */
+    void logoutRefresh(@NotBlank @Size(min = 43, max = 43) String token);
 }
