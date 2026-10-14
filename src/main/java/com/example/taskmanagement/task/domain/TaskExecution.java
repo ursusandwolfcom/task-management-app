@@ -20,6 +20,42 @@ public final class TaskExecution {
         return new TaskExecution(TaskStatus.NOT_STARTED, List.of());
     }
 
+    /** Restores persisted facts, rejecting histories that could not arise through lifecycle commands. */
+    public static TaskExecution restore(TaskStatus status, List<ExecutionAttempt> attempts) {
+        Objects.requireNonNull(status, "status");
+        var history = List.copyOf(attempts);
+        for (int index = 0; index < history.size(); index++) {
+            var attempt = history.get(index);
+            if (attempt.number() != index + 1) {
+                throw new IllegalArgumentException("Attempt numbers must be consecutive");
+            }
+            if (index > 0) {
+                var previous = history.get(index - 1);
+                if (previous.outcome() != TaskStatus.FAILED || attempt.actualStart().isBefore(previous.actualEnd())) {
+                    throw new IllegalArgumentException("Only a failed attempt can be retried");
+                }
+            }
+        }
+        if (history.isEmpty()) {
+            if (status != TaskStatus.NOT_STARTED && status != TaskStatus.CANCELLED) {
+                throw new IllegalArgumentException("Execution status requires an attempt");
+            }
+        } else {
+            var outcome = history.getLast().outcome();
+            boolean valid = switch (status) {
+                case NOT_STARTED -> outcome == TaskStatus.FAILED;
+                case IN_PROGRESS -> outcome == null;
+                case COMPLETED -> outcome == TaskStatus.COMPLETED;
+                case FAILED -> outcome == TaskStatus.FAILED;
+                case CANCELLED -> outcome == TaskStatus.CANCELLED || outcome == TaskStatus.FAILED;
+            };
+            if (!valid) {
+                throw new IllegalArgumentException("Status and last attempt disagree");
+            }
+        }
+        return new TaskExecution(status, history);
+    }
+
     public TaskStatus status() {
         return status;
     }
