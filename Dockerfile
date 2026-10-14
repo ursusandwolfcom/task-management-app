@@ -1,11 +1,20 @@
 ARG ARTIFACT_STAGE=build
+FROM node:24.20.0-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS frontend
+WORKDIR /build
+COPY package.json package-lock.json workspace-vite.config.mjs ./
+COPY frontend frontend
+COPY scripts/build-workspace.mjs scripts/build-workspace.mjs
+RUN npm ci --ignore-scripts && npm run build:workspace && npm run test:workspace
+
 FROM eclipse-temurin:21-jdk-jammy@sha256:e0c60c487345d1dc9d0fc7b6f0496f3cc941e5132e09296cc17a6decc71b902b AS build
 WORKDIR /build
 COPY .mvn .mvn
 COPY mvnw pom.xml ./
 COPY config config
 COPY src src
-RUN chmod +x mvnw && ./mvnw --batch-mode --no-transfer-progress clean verify \
+COPY --from=frontend /build/frontend/dist frontend/dist
+# The Node stage already performed strict type/build/unit checks for these exact UI inputs.
+RUN chmod +x mvnw && ./mvnw --batch-mode --no-transfer-progress -Dworkspace.prebuilt=true clean verify \
     && mkdir /artifact && cp target/task-management-app-0.0.1-SNAPSHOT.jar /artifact/app.jar
 
 # Opt-in path for a caller that has already verified this exact JAR and revision.

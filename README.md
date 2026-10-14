@@ -12,7 +12,7 @@ The browser alpha remains a separate prototype.
 
 ## Local development
 
-The application uses Java 21, Spring Boot 4.1.1, and Maven Wrapper.
+The application uses Java 21, Spring Boot 4.1.1, Maven Wrapper and Node.js 24 for the React/TypeScript workspace build.
 Dependencies: Spring Web MVC, Validation, Actuator, Spring Data JPA, Liquibase,
 Spring Security OAuth2 Resource Server, and the PostgreSQL JDBC driver.
 
@@ -21,6 +21,7 @@ Spring Security OAuth2 Resource Server, and the PostgreSQL JDBC driver.
 3. Build and run the tests in PowerShell:
 
    ```powershell
+   npm.cmd ci --ignore-scripts
    .\mvnw.cmd clean verify
    ```
 
@@ -147,8 +148,39 @@ These protections use Spring Security's [standard cookie CSRF repository and mas
 Coordinate refresh requests between tabs: only one use of a refresh token succeeds.
 A rejected/replayed refresh returns 401 without deleting cookies, preserving a concurrent
 winner's new credentials. Do not automatically replay a business write after a network error.
-Account forms and server project screens are the next M1 iteration; the alpha UI still uses
-its separate local projects and does not log in automatically.
+The workspace at `/app/` provides account forms and server project screens. The alpha UI
+still uses its separate local projects and does not log in automatically.
+
+### Browser workspace
+
+After configuring PostgreSQL and the JWT key, run:
+
+```powershell
+npm.cmd ci --ignore-scripts
+.\mvnw.cmd clean verify
+java -jar target/task-management-app-0.0.1-SNAPSHOT.jar --spring.profiles.active=workspace
+```
+
+Open `http://127.0.0.1:8080/app/`. The explicit `workspace` profile binds to loopback;
+the normal startup serves neither workspace nor alpha assets. Maven performs strict
+TypeScript checks and a Vite production build before packaging compiled assets in the JAR.
+React/Vite are build dependencies; Node is not required by the packaged Java runtime.
+
+The UI supports registration/login/logout, profile/password changes, paginated server
+projects, creation/metadata edits/deletion of empty projects, membership and ownership.
+Share the ID shown in your profile with a project owner; the current API adds members by ID.
+Project and profile conflicts retain the draft and show the current version separately:
+loading it does not silently replace your form or version. Session-expired drafts remain
+only in the current tab's memory and can be resumed by the same account. Explicit logout,
+password change or switching accounts clears the previous account's workspace.
+
+Web Locks coordinate login/refresh/logout and authenticated requests across tabs. Each
+operation rechecks the current account after obtaining the lock. Business writes are
+never replayed automatically; an uncertain network result asks the user to inspect data
+before explicitly retrying. Credentials remain in HttpOnly cookies, with CSRF required
+for writes. Only theme preferences are stored in browser storage. Server long IDs/versions
+use exact bigint parsing/encoding; dates remain ISO strings. Tasks and alpha-data import
+are later milestones, and no user directory is exposed by this UI.
 
 ### First ADMIN
 
@@ -242,12 +274,13 @@ or detailed diagnostics.
 
 ### Regression testing
 
-Run `./mvnw clean verify` and `npm run check:alpha` / `npm run test:alpha`.
+Install browser dependencies with `npm ci --ignore-scripts`, then run `./mvnw clean verify`,
+`npm run check:alpha` / `npm run test:alpha` and `npm run check:workspace` / `npm run test:workspace`.
 
 For the development loop, use `./mvnw -Pfast-tests test` (Windows: `./mvnw.cmd -Pfast-tests test`).
-It runs the 56 JDK/domain/value/token/architecture tests without starting Spring or databases.
+It runs the JDK/domain/value/token/architecture and asset-adapter tests without starting Spring or databases.
 Use `-Dtest=ClassName` for a focused regression. The fast profile is optional and is not a
-release verification: default `clean verify` still runs all 110 tests, including HTTP,
+release verification: default `clean verify` still runs all 126 tests, including HTTP,
 authorization, migrations and concurrency, with the unchanged Checkstyle/JaCoCo gates.
 CI runs the full suite with both H2 and PostgreSQL.
 The planning tests include an independent exhaustive oracle: 80 seeded six-task DAGs
@@ -271,7 +304,7 @@ npx.cmd playwright install chromium
 npm.cmd run test:browser
 ```
 
-Playwright starts and stops its own alpha server on loopback port 18082, uses isolated
+Playwright starts and stops its own alpha/workspace server on loopback port 18082, uses isolated
 browser storage, and leaves a separately running preview on port 8080 alone.
 Set `ALPHA_TEST_PORT` to change the test port. To use an installed Google Chrome instead
 of downloading Chromium, set `$env:PLAYWRIGHT_CHANNEL = 'chrome'` before running the suite.
@@ -279,7 +312,10 @@ The suite covers ordering/theme persistence, execution readiness, cycle rejectio
 network/quota failures, stale storage caches, exhausted IDs, corrupt storage, XSS, Swagger
 and selected WCAG A/AA checks across eight themes and List/Kanban views. A real cookie-session
 scenario checks reload/browser restoration, HttpOnly credentials, CSRF-protected project writes,
-refresh and database revocation across browsers. Failure traces are written to `target/playwright-results`.
+refresh and database revocation across browsers. Workspace scenarios cover actual UI registration,
+profile/password, two-browser projects and conflicts, membership/ownership/ACL, two-tab
+refresh, draft restoration, logout, uncertain writes, removal and WCAG across eight themes.
+Failure traces are written to `target/playwright-results`.
 CI installs Chromium and runs this suite against PostgreSQL.
 
 Test database cleanup and concurrent-call helpers live in test-only `support` classes.
@@ -324,8 +360,9 @@ starts only PostgreSQL, for running Java from the IDE. Stop just the application
 `docker compose --profile app stop app`, or the stack with `docker compose --profile app down`.
 Neither command removes the database volume.
 
-By default, the Dockerfile runs Maven Wrapper `clean verify` in a Java 21 JDK build stage, then
-copies only the application JAR into a JRE runtime stage. The Temurin bases are pinned
+By default, the Dockerfile checks and builds the workspace in a Node 24 stage, then runs
+Maven Wrapper `clean verify` in a Java 21 JDK stage using those exact frontend assets and
+copies only the application JAR into a JRE runtime stage. The Node/Temurin bases are pinned
 by digest; update their digests deliberately and repeat the checks when upgrading.
 The runtime runs as UID 10001 in UTC, checks Actuator health, and starts after the
 database becomes healthy. Both host ports bind to loopback. The alpha profile is off.

@@ -33,7 +33,8 @@ class ArchitectureRulesTest {
             Map.entry("security", Set.of("identity")),
             Map.entry("integration.outbox", Set.of()),
             Map.entry("shared", Set.of()),
-            Map.entry("alpha", Set.of("planning")));
+            Map.entry("alpha", Set.of("planning")),
+            Map.entry("workspace", Set.of()));
 
     @Test
     void planningDependsOnlyOnItselfAndJdk() {

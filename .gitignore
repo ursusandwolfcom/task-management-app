@@ -37,3 +37,4 @@ target/
 
 # Local frontend verification dependencies
 node_modules/
+frontend/dist/
