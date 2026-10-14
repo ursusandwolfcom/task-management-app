@@ -199,6 +199,20 @@ public class UserService implements IdentityOperations {
         sessions.saveAndFlush(session);
     }
 
+    @Override
+    public void logoutRefresh(String token) {
+        var found = sessions.findByTokenHash(hash(token));
+        if (found.isEmpty()) {
+            return;
+        }
+        var session = found.orElseThrow();
+        lockedUser(session.userId());
+        // Possession was verified before waiting: logout must still revoke if a refresh won the user lock.
+        entityManager.refresh(session);
+        session.revoke();
+        sessions.saveAndFlush(session);
+    }
+
     private void lockAdminChanges() {
         jdbc.queryForObject("select id from task_management.identity_bootstrap_lock where id = 1 for update",
                 Integer.class);

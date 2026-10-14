@@ -76,9 +76,9 @@ Changing credentials in `.env` does not change users in an existing database vol
 
 The backend now persists users and sessions in PostgreSQL. The alpha UI continues
 to store its projects/tasks in the browser; it does not use these user accounts yet.
-All `/api/**` routes require a Bearer JWT except POST register, login and refresh.
-Health and the explicitly enabled local alpha remain public. No cookie authentication
-or permissive CORS policy is configured.
+Protected `/api/**` routes accept a Bearer JWT or a browser access cookie. POST register,
+login and refresh remain public; browser session endpoints use the CSRF contract below.
+Health and the explicitly enabled local alpha remain public. No permissive CORS policy is configured.
 
 | Endpoint | Behavior |
 |---|---|
@@ -115,6 +115,41 @@ ADMIN returns 409 / `LAST_ADMIN`, including concurrent role changes. Errors use
 `application/problem+json` with a stable `code`, without credential values.
 Unknown JSON properties cannot assign role or another user's identity.
 
+### Persistent browser session
+
+The browser adapter uses the same persisted sessions and live authorization checks.
+It sets `__Host-pf-access` and `__Host-pf-refresh` cookies with `Secure`, `HttpOnly`,
+`SameSite=Strict`, `Path=/` and no Domain. Access lasts at most 15 minutes; the refresh
+cookie persists until the original seven-day deadline. Tokens are never included in
+browser session JSON or stored in localStorage/sessionStorage by this adapter.
+External hosts require HTTPS. Secure is not disabled for ordinary HTTP; loopback
+browser support is covered by the Chromium regression suite.
+
+| Endpoint | Browser behavior |
+|---|---|
+| `GET /api/session/csrf` | Public bootstrap: masked token and headerName; HttpOnly CSRF cookie |
+| `POST /api/session/login` | identifier/password plus CSRF; set auth cookies; return user/expiresAt |
+| `POST /api/session/refresh` | CSRF plus refresh cookie; rotate once without extending expiry |
+| `POST /api/session/logout` | CSRF plus optional refresh cookie; revoke and clear cookies; idempotent 204 |
+
+Fetch `/api/session/csrf` before login, then send its token using its returned headerName
+(`X-XSRF-TOKEN`). Fetch a new token after login or logout, which clear the old CSRF cookie.
+Same-origin fetch sends the HttpOnly credentials automatically. Reloading the page can
+read `/api/users/me`; after access expiry, refresh once and reload the required read.
+Logout works even when access has expired. Password changes revoke all cookie and Bearer sessions.
+
+Every browser session mutation and every cookie-authenticated API mutation requires CSRF;
+missing/invalid tokens return 403 `CSRF_INVALID` without changing data. Explicit Authorization
+headers take priority and never fall back to cookies. Bearer clients retain the existing
+contract without CSRF, while `/api/session/**` mutations always require it.
+These protections use Spring Security's [standard cookie CSRF repository and masked tokens](https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html).
+
+Coordinate refresh requests between tabs: only one use of a refresh token succeeds.
+A rejected/replayed refresh returns 401 without deleting cookies, preserving a concurrent
+winner's new credentials. Do not automatically replay a business write after a network error.
+Account forms and server project screens are the next M1 iteration; the alpha UI still uses
+its separate local projects and does not log in automatically.
+
 ### First ADMIN
 
 Public registration always creates USER. To bootstrap the first ADMIN, supply
@@ -132,13 +167,14 @@ it fails with `ADMIN_ALREADY_EXISTS` instead of changing credentials or roles. A
 lock serializes concurrent bootstrap commands. Clear bootstrap credentials from the
 environment afterwards. Later ADMINs are assigned by an authenticated ADMIN endpoint.
 
-With the `alpha` profile, Swagger offers separate **alpha**, **identity** and **projects** definitions.
-The specifications are `/v3/api-docs/identity` and `/v3/api-docs/projects`; task CRUD is not implemented.
+With the `alpha` profile, Swagger offers separate **alpha**, **identity**, **session** and **projects** definitions.
+The specifications include `/v3/api-docs/identity`, `/v3/api-docs/session` and `/v3/api-docs/projects`;
+task CRUD is not implemented.
 Documentation stays disabled without the alpha profile.
 
 ### Protected projects and members
 
-Projects are persisted in PostgreSQL and require a Bearer JWT. The creator becomes owner
+Projects are persisted in PostgreSQL and require a Bearer JWT or browser cookie. The creator becomes owner
 and member in one transaction. Members can read the project; its owner and global ADMIN
 can change metadata, manage members, transfer ownership and delete the currently empty
 project. ADMIN has access to all projects. Other users receive the same 404 /
@@ -239,10 +275,11 @@ Playwright starts and stops its own alpha server on loopback port 18082, uses is
 browser storage, and leaves a separately running preview on port 8080 alone.
 Set `ALPHA_TEST_PORT` to change the test port. To use an installed Google Chrome instead
 of downloading Chromium, set `$env:PLAYWRIGHT_CHANNEL = 'chrome'` before running the suite.
-The fifteen scenarios cover ordering/theme persistence, execution readiness, cycle rejection,
-network/quota failures, exhausted IDs, corrupt storage, XSS, Swagger and selected WCAG A/AA
-checks in all three themes and List/Kanban views, including settings, search and summary
-updates. Failure traces are written to `target/playwright-results`.
+The suite covers ordering/theme persistence, execution readiness, cycle rejection,
+network/quota failures, stale storage caches, exhausted IDs, corrupt storage, XSS, Swagger
+and selected WCAG A/AA checks across eight themes and List/Kanban views. A real cookie-session
+scenario checks reload/browser restoration, HttpOnly credentials, CSRF-protected project writes,
+refresh and database revocation across browsers. Failure traces are written to `target/playwright-results`.
 CI installs Chromium and runs this suite against PostgreSQL.
 
 Test database cleanup and concurrent-call helpers live in test-only `support` classes.

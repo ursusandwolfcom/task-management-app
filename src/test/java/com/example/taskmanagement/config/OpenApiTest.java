@@ -71,6 +71,22 @@ class OpenApiTest {
     }
 
     @Test
+    void browserSessionSpecDocumentsCsrfAndCookieAlternativesWithoutTokenResponses() throws Exception {
+        mvc.perform(get("/v3/api-docs/session")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths.length()").value(4))
+                .andExpect(jsonPath("$.paths['/api/session/csrf'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/session/login'].post.security[0].csrfAuth").exists())
+                .andExpect(jsonPath("$.paths['/api/session/refresh'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/session/logout'].post.responses['204']").exists())
+                .andExpect(jsonPath("$.components.schemas.SessionView.properties.accessToken").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.SessionView.properties.refreshToken").doesNotExist())
+                .andExpect(jsonPath("$.components.securitySchemes.csrfAuth.name").value("X-XSRF-TOKEN"));
+        mvc.perform(get("/v3/api-docs/projects")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/projects'].get.security[1].cookieAuth").exists())
+                .andExpect(jsonPath("$.paths['/api/projects'].post.security[1].csrfAuth").exists());
+    }
+
+    @Test
     void projectsHaveSeparateProtectedSpecAndDocumentOwnershipAndDeletion() throws Exception {
         mvc.perform(get("/v3/api-docs/projects")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.info.title").value("ProjectFlow projects API"))
