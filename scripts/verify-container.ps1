@@ -75,7 +75,7 @@ function Assert-HttpStatus([string]$Path, [int]$Expected) {
 function Assert-MigrationHistory {
     $count = Invoke-Compose @('exec', '-T', 'postgres', 'psql', '-U', 'task_management_check',
         '-d', 'task_management_check', '-tAc', 'SELECT count(*) FROM public.databasechangelog;')
-    if (($count | Out-String).Trim() -ne '3') { throw 'Liquibase tracking history was not preserved in public' }
+    if (($count | Out-String).Trim() -ne '4') { throw 'Liquibase tracking history was not preserved in public' }
 }
 
 function Assert-IdentityBootstrap {
@@ -110,6 +110,65 @@ function Assert-IdentityBootstrap {
         throw 'Runtime without a signing key must fail closed'
     }
     Write-Output 'Identity command: bootstrap/login/me passed; duplicate bootstrap and missing signing key rejected.'
+}
+
+function Invoke-TaskSmokeApi([string]$Path, [string]$Method = 'Get', $Payload = $null) {
+    $requestArguments = @{
+        Uri = 'http://127.0.0.1:' + $AppPort + $Path
+        Method = $Method
+        Headers = $script:taskSmokeHeaders
+    }
+    if ($null -ne $Payload) {
+        $requestArguments.ContentType = 'application/json'
+        $requestArguments.Body = $Payload | ConvertTo-Json -Compress
+    }
+    Invoke-RestMethod @requestArguments
+}
+
+function Start-TaskPersistenceSmoke {
+    $loginArguments = @{
+        Method = 'Post'; Uri = 'http://127.0.0.1:' + $AppPort + '/api/auth/login'
+        ContentType = 'application/json'
+        Body = (@{
+            identifier = $environmentOverrides.BOOTSTRAP_ADMIN_EMAIL
+            password = $environmentOverrides.BOOTSTRAP_ADMIN_PASSWORD
+        } | ConvertTo-Json)
+    }
+    $login = Invoke-RestMethod @loginArguments
+    $script:taskSmokeHeaders = @{ Authorization = 'Bearer ' + $login.accessToken }
+    $ownerProfile = Invoke-TaskSmokeApi '/api/users/me'
+    $project = Invoke-TaskSmokeApi '/api/projects' 'Post' @{
+        name = 'Container task persistence'; startDate = '2026-10-14'; endDate = '2027-10-14'; timezone = 'UTC'
+    }
+    $task = Invoke-TaskSmokeApi '/api/tasks' 'Post' @{
+        projectId = $project.id; name = 'Persisted attempt'; priority = 'HIGH'
+        estimatedMinutes = 525600; assigneeId = $ownerProfile.id
+    }
+    $task = Invoke-TaskSmokeApi ('/api/tasks/' + $task.id + '/start') 'Post' @{ version = $task.version }
+    $task = Invoke-TaskSmokeApi ('/api/tasks/' + $task.id + '/fail') 'Post' @{ version = $task.version }
+    $script:taskSmokeFirstAttempt = (Invoke-TaskSmokeApi ('/api/tasks/' + $task.id + '/attempts')).content[0]
+    $task = Invoke-TaskSmokeApi ('/api/tasks/' + $task.id + '/retry') 'Post' @{ version = $task.version }
+    $script:taskSmokeId = $task.id
+    if ($task.status -ne 'NOT_STARTED' -or $task.attemptCount -ne 1 -or $task.estimatedMinutes -ne 525600) {
+        throw 'Task retry lost execution facts or physical-year estimate.'
+    }
+    Write-Output 'Task persistence: create/assign/start/fail/retry passed before container restart.'
+}
+
+function Complete-TaskPersistenceSmoke {
+    $task = Invoke-TaskSmokeApi ('/api/tasks/' + $script:taskSmokeId)
+    $task = Invoke-TaskSmokeApi ('/api/tasks/' + $task.id + '/start') 'Post' @{ version = $task.version }
+    $task = Invoke-TaskSmokeApi ('/api/tasks/' + $task.id + '/complete') 'Post' @{ version = $task.version }
+    $history = Invoke-TaskSmokeApi ('/api/tasks/' + $task.id + '/attempts')
+    if ($task.status -ne 'COMPLETED' -or $task.attemptCount -ne 2 -or $history.totalElements -ne 2) {
+        throw 'Restart or second execution lost persisted attempts.'
+    }
+    if ($history.content[0].outcome -ne 'COMPLETED' -or $history.content[1].outcome -ne 'FAILED' -or
+        $history.content[1].actualStart -ne $script:taskSmokeFirstAttempt.actualStart -or
+        $history.content[1].actualEnd -ne $script:taskSmokeFirstAttempt.actualEnd) {
+        throw 'Restart or second execution changed the persisted failed attempt.'
+    }
+    Write-Output 'Task persistence: restart/start/complete preserved both execution attempts.'
 }
 
 Push-Location $projectRoot
@@ -153,7 +212,8 @@ try {
         'test ! -e /app/.env && test ! -e /app/docs && test ! -e /build')
     Assert-MigrationHistory
     Assert-IdentityBootstrap
-    Write-Output 'Container startup: health UP, identity protected, alpha disabled, UID 10001, UTC, migrations 3.'
+    Start-TaskPersistenceSmoke
+    Write-Output 'Container startup: health UP, identity protected, alpha disabled, UID 10001, UTC, migrations 4.'
 
     $restartTime = [DateTime]::UtcNow.ToString('o')
     Invoke-Compose @('restart', 'app')
@@ -162,10 +222,11 @@ try {
     Assert-MigrationHistory
     $restartLog = Invoke-Compose @('logs', '--no-color', '--since', $restartTime, 'app') | Out-String
     $restartLog | Set-Content -LiteralPath (Join-Path $logDirectory 'restart.log') -Encoding UTF8
-    if ($restartLog -notmatch 'Run:\s+0' -or $restartLog -notmatch 'Previously run:\s+3') {
+    if ($restartLog -notmatch 'Run:\s+0' -or $restartLog -notmatch 'Previously run:\s+4') {
         throw 'Restart reapplied migrations or did not preserve Liquibase history'
     }
-    Write-Output 'Container restart: health UP, Liquibase 0 new / 3 existing migrations.'
+    Complete-TaskPersistenceSmoke
+    Write-Output 'Container restart: health UP, Liquibase 0 new / 4 existing migrations.'
 } finally {
     try {
         # Only this run's randomly named, disposable Compose project may be removed.
@@ -177,6 +238,7 @@ try {
         foreach ($key in $savedEnvironment.Keys) {
             [Environment]::SetEnvironmentVariable($key, $savedEnvironment[$key], 'Process')
         }
+        $script:taskSmokeHeaders = $null
         Pop-Location
     }
 }

@@ -11,4 +11,6 @@ public interface ProjectCoordination {
     ProjectView lockAndAuthorize(long actorId, long projectId, @NotNull Permission permission);
 
     ProjectView markInputChanged(long actorId, long projectId);
+
+    boolean isMember(long projectId, long userId);
 }

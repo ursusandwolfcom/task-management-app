@@ -3,6 +3,7 @@ package com.example.taskmanagement.config;
 import com.example.taskmanagement.planning.core.GraphValidationException;
 import com.example.taskmanagement.identity.api.IdentityException;
 import com.example.taskmanagement.project.api.ProjectException;
+import com.example.taskmanagement.task.api.TaskException;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
@@ -27,9 +28,21 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             case PROJECT_NOT_FOUND, MEMBER_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case FORBIDDEN -> HttpStatus.FORBIDDEN;
             case VALIDATION_ERROR -> HttpStatus.BAD_REQUEST;
-            case VERSION_CONFLICT, MEMBER_ALREADY_EXISTS, OWNER_REMOVAL_FORBIDDEN -> HttpStatus.CONFLICT;
+            case VERSION_CONFLICT, MEMBER_ALREADY_EXISTS, OWNER_REMOVAL_FORBIDDEN,
+                    MEMBER_HAS_ASSIGNMENTS, PROJECT_NOT_EMPTY -> HttpStatus.CONFLICT;
         };
         return uncachedProblem(status, exception.reason().name(), "The project operation could not be completed.");
+    }
+
+    @ExceptionHandler(TaskException.class)
+    public ResponseEntity<ProblemDetail> taskProblem(TaskException exception) {
+        HttpStatus status = switch (exception.reason()) {
+            case TASK_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case FORBIDDEN -> HttpStatus.FORBIDDEN;
+            case VALIDATION_ERROR -> HttpStatus.BAD_REQUEST;
+            default -> HttpStatus.CONFLICT;
+        };
+        return uncachedProblem(status, exception.reason().name(), "The task operation could not be completed.");
     }
 
     @ExceptionHandler(IdentityException.class)

@@ -6,9 +6,54 @@ The pure `task.domain` lifecycle supports start, complete, fail, cancel and retr
 Cancel is allowed from NOT_STARTED, IN_PROGRESS and FAILED; COMPLETED and CANCELLED
 are terminal. `TaskExecution` retains immutable execution attempts with UTC timestamps:
 retry preserves the failed attempt and the next start creates another. Start requires
-actual predecessor completion supplied by the caller. Domain persistence, transactional
-resource/access guards and execution HTTP endpoints are planned for later stages.
+actual predecessor completion supplied by the caller. The task API persists tasks and
+attempts and checks live project access and actual dependency completion under the project lock.
+Resource calendars and reservations remain a later stage.
 The browser alpha remains a separate prototype.
+
+## Persisted tasks
+
+Authenticated project participants create and edit tasks through either
+`POST/GET /api/tasks` (projectId in body/query) or
+`POST/GET /api/projects/{projectId}/tasks`. Both routes use the same service;
+conflicting project IDs are rejected. Tasks have name, description, priority
+(LOW/MEDIUM/HIGH/CRITICAL), optional estimatedMinutes, dueDate and assigneeId.
+Effort is a whole number from **15 to 525600 minutes**, inclusive: one year means
+365 physical days, independent of the future working calendar. An assignee must
+be a member of the task's project.
+
+`GET/PUT/PATCH /api/tasks/{id}` reads or updates metadata. Updates require the
+task's expected version; projectId is immutable. PUT replaces optional metadata,
+PATCH retains omitted fields and explicit null clears optional fields. Status,
+factual dates, attempt history and unknown fields are rejected in request bodies.
+Assignee changes are allowed only in NOT_STARTED or FAILED.
+
+`POST /api/tasks/{id}/start|complete|fail|retry` takes `{"version":0}` and is
+available to the assignee, owner or ADMIN. Start requires an assignee and every
+actual predecessor COMPLETED. Only owner or ADMIN can cancel using
+`POST /api/tasks/{id}/cancel`. Terminal COMPLETED/CANCELLED tasks cannot restart.
+Retry preserves failed attempts; the next start creates another. UTC actualStart/
+actualEnd describe the most recent attempt, including its retained facts after retry.
+`GET /api/tasks/{id}/attempts` returns history newest first.
+
+`DELETE /api/tasks/{id}?version=0` is owner/ADMIN only and accepts only a
+task that has never started and has no dependent tasks (NOT_STARTED or cancelled before
+its first start). History-bearing
+tasks cannot be deleted even after retry. A project containing tasks cannot be
+deleted; a member with any assigned task cannot be removed until reassignment or
+unassignment. These checks share the same project lock as task writes.
+
+Task/attempt lists accept page 0..1000000 and size 1..100 (defaults 0/20), newest
+first. Missing and inaccessible tasks both return 404 TASK_NOT_FOUND. Conflicts
+return stable 409 codes: VERSION_CONFLICT, ASSIGNEE_NOT_MEMBER, ASSIGNEE_REQUIRED,
+INVALID_TASK_TRANSITION, DEPENDENCIES_NOT_COMPLETED, ASSIGNMENT_CHANGE_FORBIDDEN,
+TASK_DELETE_FORBIDDEN and TASK_HAS_DEPENDENTS. Project guards return
+MEMBER_HAS_ASSIGNMENTS or PROJECT_NOT_EMPTY. Bearer authentication and browser
+cookies follow the existing session rules; cookie writes require CSRF.
+
+Liquibase migration 004 adds tasks, execution attempts and same-project dependency
+constraints. Dependency editing endpoints, server Task UI, alpha import and resource
+reservations are subsequent work. Alpha browser tasks remain prototype data.
 
 ## Local development
 
@@ -460,7 +505,7 @@ With the alpha profile enabled, open `http://localhost:8080/swagger-ui/index.htm
 for interactive API documentation or `/v3/api-docs` for the generated OpenAPI JSON.
 The default **alpha** definition documents `POST /alpha/plan`; choose **identity**
 for registration, sessions, profiles and roles, or **projects** for persisted projects,
-members and ownership. Task CRUD is planned for later sprints.
+members and ownership, or **tasks** for persisted task metadata and execution history.
 Swagger and its specification are disabled without alpha, including normal container startup.
 The [springdoc 3.1.1 release](https://github.com/springdoc/springdoc-openapi/releases/tag/v3.1.1)
 is pinned and verified with this project's Boot 4.1.1 / Java 21.
