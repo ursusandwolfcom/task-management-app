@@ -88,6 +88,7 @@ export function ProjectDetail({ user, id }: { user: User; id: bigint }) {
   const manage = project && (user.role === 'ADMIN' || project.ownerId === user.id);
   return <><PageHeader eyebrow="ПРОЕКТ" title={project?.name ?? 'Проект'}><a href="#/projects">← К проектам</a></PageHeader>
     <Alert error={query.error} />{query.loading && <Loading />}
+    {query.error && !query.loading && <button onClick={query.reload}>Повторить загрузку</button>}
     {project && <>
       <div className="project-overview"><span className="badge">{statuses[project.status] ?? project.status}</span>
         <span>{date(project.startDate)} — {date(project.endDate)}</span><span>{project.timezone}</span>

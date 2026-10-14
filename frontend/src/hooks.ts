@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { explain } from './client.ts';
+import { ApiError, explain } from './client.ts';
 
 export function useLoad<T>(key: string, load: (signal: AbortSignal) => Promise<T>) {
   const request = useRef(load); request.current = load;
@@ -10,8 +10,12 @@ export function useLoad<T>(key: string, load: (signal: AbortSignal) => Promise<T
     setState(previous => ({ ...previous, error: '', loading: true }));
     void request.current(abort.signal).then(value => {
       if (!abort.signal.aborted) setState({ value, error: '', loading: false });
-    }, error => {
-      if (!abort.signal.aborted) setState(previous => ({ ...previous, error: explain(error), loading: false }));
+    }, (error: unknown) => {
+      if (!abort.signal.aborted) setState(previous => ({
+        value: error instanceof ApiError && (error.status === 403 || error.status === 404) ? undefined : previous.value,
+        error: error instanceof TypeError ? 'Не удалось загрузить данные. Проверьте соединение и повторите.' : explain(error),
+        loading: false
+      }));
     });
     return () => abort.abort();
   }, [key, revision]);

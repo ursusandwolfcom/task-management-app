@@ -19,5 +19,8 @@ target/**
 !frontend/
 !frontend/**
 frontend/dist/**
+**/node_modules/**
+**/.env
+**/.env.*
 !scripts/
 !scripts/build-workspace.mjs

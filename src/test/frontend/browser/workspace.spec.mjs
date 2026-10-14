@@ -167,3 +167,25 @@ test('workspace is responsive, keyboard accessible and every theme passes WCAG',
   await page.getByRole('link', { name: 'Профиль', exact: true }).focus(); await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: 'Профиль', exact: true })).toBeVisible();
 });
+
+test('revoked project access removes the cached card after a denied read', async ({ page, context, browser, baseURL }) => {
+  const owner = identity(); await registerApi(context.request, owner); await login(page, owner);
+  const name = `Отзыв доступа ${owner.username}`; const id = await createProject(page, name);
+  const memberContext = await browser.newContext({ baseURL });
+  try {
+    const member = identity(); const registered = await registerApi(memberContext.request, member);
+    const memberPage = await memberContext.newPage(); await login(memberPage, member);
+    await page.getByLabel('ID пользователя', { exact: true }).fill(String(registered.id));
+    await page.getByRole('button', { name: 'Добавить участника', exact: true }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Участник добавлен' })).toBeVisible();
+    await memberPage.goto(`/app/#/projects/${id}`);
+    await expect(memberPage.getByRole('heading', { name, exact: true })).toBeVisible();
+    page.once('dialog', dialog => dialog.accept());
+    await page.getByRole('button', { name: `Удалить участника ${registered.id}`, exact: true }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Участник удалён' })).toBeVisible();
+    await memberPage.getByRole('button', { name: 'Обновить проект', exact: true }).click();
+    await expect(memberPage.getByRole('alert')).toContainText('Проект не найден');
+    await expect(memberPage.getByRole('heading', { name, exact: true })).toHaveCount(0);
+    await expect(memberPage.getByText('Контекст команды и ожидаемый результат', { exact: true })).toHaveCount(0);
+  } finally { await memberContext.close(); }
+});
