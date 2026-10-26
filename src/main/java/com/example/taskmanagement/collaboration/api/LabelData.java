@@ -1,11 +1,12 @@
 package com.example.taskmanagement.collaboration.api;
 
+import com.example.taskmanagement.shared.validation.NoNul;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.Locale;
 
-public record LabelData(@NotBlank @Size(max = 100) @Pattern(regexp = "[^\\x00]*") String name,
+public record LabelData(@NotBlank @Size(max = 100) @NoNul String name,
         @NotBlank @Pattern(regexp = "#[0-9A-F]{6}") String color) {
     public LabelData {
         name = name == null ? null : name.strip();
