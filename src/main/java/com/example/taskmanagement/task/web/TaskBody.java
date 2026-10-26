@@ -4,6 +4,7 @@ import com.example.taskmanagement.task.api.TaskData;
 import com.example.taskmanagement.task.api.TaskException;
 import com.example.taskmanagement.task.api.TaskPriority;
 import com.example.taskmanagement.task.api.TaskView;
+import com.example.taskmanagement.shared.web.JsonFields;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Set;
@@ -18,21 +19,19 @@ final class TaskBody {
     }
 
     static void validate(JsonNode body, Set<String> allowed) {
-        if (!body.isObject() || body.propertyNames().stream().anyMatch(name -> !allowed.contains(name))) {
-            throw invalid();
-        }
+        new JsonFields(body, TaskBody::invalid).only(allowed);
     }
 
     static TaskData data(JsonNode body, TaskView previous) {
-        validate(body, FIELDS);
-        String name = text(body, "name", previous == null ? null : previous.name());
-        String description = text(body, "description", previous == null ? null : previous.description());
-        String priority = text(body, "priority", previous == null ? null : previous.priority().name());
-        String due = text(body, "dueDate", previous == null || previous.dueDate() == null
+        var fields = new JsonFields(body, TaskBody::invalid).only(FIELDS);
+        String name = fields.text("name", previous == null ? null : previous.name());
+        String description = fields.text("description", previous == null ? null : previous.description());
+        String priority = fields.text("priority", previous == null ? null : previous.priority().name());
+        String due = fields.text("dueDate", previous == null || previous.dueDate() == null
                 ? null : previous.dueDate().toString());
-        Long estimate = number(body, "estimatedMinutes", previous == null || previous.estimatedMinutes() == null
+        Long estimate = fields.number("estimatedMinutes", previous == null || previous.estimatedMinutes() == null
                 ? null : previous.estimatedMinutes().longValue());
-        Long assignee = number(body, "assigneeId", previous == null ? null : previous.assigneeId());
+        Long assignee = fields.number("assigneeId", previous == null ? null : previous.assigneeId());
         try {
             return new TaskData(name, description, priority == null ? null : TaskPriority.valueOf(priority),
                     estimate == null ? null : Math.toIntExact(estimate),
@@ -47,15 +46,11 @@ final class TaskBody {
     }
 
     static long requiredNumber(JsonNode body, String name, long minimum) {
-        Long value = number(body, name, null);
-        if (value == null || value < minimum) {
-            throw invalid();
-        }
-        return value;
+        return new JsonFields(body, TaskBody::invalid).requiredNumber(name, minimum);
     }
 
     static long projectId(JsonNode body, Long pathId) {
-        Long bodyId = number(body, "projectId", null);
+        Long bodyId = new JsonFields(body, TaskBody::invalid).number("projectId", null);
         if (pathId != null && body.has("projectId") && !pathId.equals(bodyId)) {
             throw invalid();
         }
@@ -70,34 +65,6 @@ final class TaskBody {
         if (body.has("projectId")) {
             projectId(body, projectId);
         }
-    }
-
-    private static String text(JsonNode body, String name, String fallback) {
-        var node = body.get(name);
-        if (node == null) {
-            return fallback;
-        }
-        if (node.isNull()) {
-            return null;
-        }
-        if (!node.isTextual()) {
-            throw invalid();
-        }
-        return node.asString();
-    }
-
-    private static Long number(JsonNode body, String name, Long fallback) {
-        var node = body.get(name);
-        if (node == null) {
-            return fallback;
-        }
-        if (node.isNull()) {
-            return null;
-        }
-        if (!node.isIntegralNumber() || !node.canConvertToLong()) {
-            throw invalid();
-        }
-        return node.longValue();
     }
 
     private static TaskException invalid() {

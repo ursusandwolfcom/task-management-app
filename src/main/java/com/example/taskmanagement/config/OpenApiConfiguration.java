@@ -97,6 +97,42 @@ public class OpenApiConfiguration {
     }
 
     @Bean
+    public GroupedOpenApi collaborationOpenApi() {
+        return GroupedOpenApi.builder().group("collaboration")
+                .pathsToMatch("/api/comments/**", "/api/labels/**", "/api/tasks/*/labels/**")
+                .addOpenApiCustomizer(api -> {
+                    api.getPaths().entrySet().removeIf(entry -> !entry.getKey().startsWith("/api/comments")
+                            && !entry.getKey().startsWith("/api/labels") && !entry.getKey().contains("/labels"));
+                    api.info(new Info().title("ProjectFlow collaboration API").version("0.0.1")
+                            .description("Project-scoped plain-text comments and labels with live access checks. "
+                                    + "Collaboration metadata does not change task or planning revisions."));
+                    api.getPaths().forEach((route, path) -> {
+                        if (route.equals("/api/comments") && path.getPost() != null) {
+                            setTaskBody(path.getPost(), new ObjectSchema()
+                                    .addProperty("taskId", new IntegerSchema().format("int64")
+                                            .minimum(java.math.BigDecimal.ONE))
+                                    .addProperty("text", new StringSchema().minLength(1).maxLength(10000)
+                                            .pattern("[^\\x00]*"))
+                                    .required(List.of("taskId", "text")).additionalProperties(false));
+                        }
+                        if (route.equals("/api/labels") && path.getPost() != null) {
+                            setTaskBody(path.getPost(), labelMetadata(true));
+                        }
+                        if (route.equals("/api/labels/{id}") && path.getPut() != null) {
+                            setTaskBody(path.getPut(), labelMetadata(false));
+                        }
+                        if (path.getPost() != null) {
+                            var response = path.getPost().getResponses().remove("200");
+                            if (response != null) {
+                                path.getPost().getResponses().addApiResponse("201", response);
+                            }
+                        }
+                    });
+                    addProtectedErrors(api);
+                }).build();
+    }
+
+    @Bean
     public GroupedOpenApi taskOpenApi() {
         return GroupedOpenApi.builder().group("tasks").pathsToMatch("/api/tasks/**", "/api/projects/*/tasks",
                         "/api/projects/*/execution-order", "/api/projects/*/available-tasks",
@@ -104,6 +140,7 @@ public class OpenApiConfiguration {
                 .addOpenApiCustomizer(api -> {
                     api.getPaths().entrySet().removeIf(entry -> !entry.getKey().startsWith("/api/tasks")
                             && !entry.getKey().endsWith("/tasks") && !planningRoute(entry.getKey()));
+                    api.getPaths().entrySet().removeIf(entry -> entry.getKey().contains("/labels"));
                     api.info(new Info().title("ProjectFlow tasks API").version("0.0.1")
                             .description("Persisted tasks and immutable execution history. "
                                     + "Estimate is optional, 15..525600 physical minutes. "
@@ -145,6 +182,21 @@ public class OpenApiConfiguration {
 
     private static boolean planningRoute(String route) {
         return route.endsWith("/execution-order") || route.endsWith("/available-tasks") || route.endsWith("/next-task");
+    }
+
+    private static io.swagger.v3.oas.models.media.Schema<?> labelMetadata(boolean create) {
+        var schema = new ObjectSchema()
+                .addProperty("name", new StringSchema().minLength(1).maxLength(100).pattern("[^\\x00]*")
+                        .description("Trimmed name, unique within its project using Locale.ROOT lowercase"))
+                .addProperty("color", new StringSchema().pattern("^#[0-9A-Fa-f]{6}$"));
+        if (create) {
+            schema.addProperty("projectId", new IntegerSchema().format("int64").minimum(java.math.BigDecimal.ONE));
+        } else {
+            schema.addProperty("version", versionSchema());
+        }
+        schema.required(List.of(create ? "projectId" : "version", "name", "color"));
+        schema.additionalProperties(false);
+        return schema;
     }
 
     private static io.swagger.v3.oas.models.media.Schema<?> versionSchema() {
