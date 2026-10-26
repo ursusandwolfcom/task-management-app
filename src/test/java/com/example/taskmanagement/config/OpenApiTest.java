@@ -24,6 +24,35 @@ class OpenApiTest {
     private MockMvc mvc;
 
     @Test
+    void dependencySpecUsesProjectRevisionAndDocumentsStrictCreateAndDelete() throws Exception {
+        String route = "$.paths['/api/tasks/{id}/dependencies'].post";
+        mvc.perform(get("/v3/api-docs/tasks")).andExpect(status().isOk())
+                .andExpect(jsonPath(route + ".responses['201']").exists())
+                .andExpect(jsonPath(route + ".requestBody.content['application/json'].schema.required[0]")
+                        .value("dependsOnTaskId"))
+                .andExpect(jsonPath(route + ".requestBody.content['application/json'].schema.required[1]")
+                        .value("inputRevision"))
+                .andExpect(jsonPath(route + ".requestBody.content['application/json'].schema.additionalProperties")
+                        .value(false))
+                .andExpect(jsonPath(route + ".security[1].csrfAuth").exists())
+                .andExpect(jsonPath("$.paths['/api/tasks/{id}/dependencies/{dependsOnTaskId}']"
+                        + ".delete.responses['204']").exists());
+    }
+
+    @Test
+    void graphQueriesAreDocumentedWithTasksAndNoContentNextDoesNotNeedCsrf() throws Exception {
+        mvc.perform(get("/v3/api-docs/tasks")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/projects/{id}/execution-order'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/projects/{id}/available-tasks'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/projects/{id}/next-task'].get.responses['200']").exists())
+                .andExpect(jsonPath("$.paths['/api/projects/{id}/next-task'].get.responses['204']").exists())
+                .andExpect(jsonPath("$.paths['/api/projects/{id}/next-task'].get.security[1].cookieAuth").exists())
+                .andExpect(jsonPath("$.paths['/api/projects/{id}/next-task'].get.security[1].csrfAuth").doesNotExist());
+        mvc.perform(get("/v3/api-docs/projects")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/projects/{id}/execution-order']").doesNotExist());
+    }
+
+    @Test
     void taskSpecDocumentsPhysicalMinuteLimitsCommandsAndCookieProtection() throws Exception {
         String estimate = "$.paths['/api/tasks'].post.requestBody.content['application/json'].schema"
                 + ".properties.estimatedMinutes";

@@ -43,11 +43,15 @@ final class TaskBody {
     }
 
     static long version(JsonNode body) {
-        Long version = number(body, "version", null);
-        if (version == null || version < 0) {
+        return requiredNumber(body, "version", 0);
+    }
+
+    static long requiredNumber(JsonNode body, String name, long minimum) {
+        Long value = number(body, name, null);
+        if (value == null || value < minimum) {
             throw invalid();
         }
-        return version;
+        return value;
     }
 
     static long projectId(JsonNode body, Long pathId) {

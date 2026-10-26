@@ -37,7 +37,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(TaskException.class)
     public ResponseEntity<ProblemDetail> taskProblem(TaskException exception) {
         HttpStatus status = switch (exception.reason()) {
-            case TASK_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case TASK_NOT_FOUND, DEPENDENCY_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case FORBIDDEN -> HttpStatus.FORBIDDEN;
             case VALIDATION_ERROR -> HttpStatus.BAD_REQUEST;
             default -> HttpStatus.CONFLICT;
@@ -77,7 +77,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                 ? HttpStatus.CONFLICT : HttpStatus.BAD_REQUEST;
         var problem = problem(status, exception.reason().name(), exception.getMessage());
         problem.setProperty("taskIds", exception.taskIds());
-        return ResponseEntity.status(status).body(problem);
+        return ResponseEntity.status(status).header("Cache-Control", "no-store").body(problem);
     }
 
     @Override
