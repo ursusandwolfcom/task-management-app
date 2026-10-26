@@ -1,5 +1,6 @@
 package com.example.taskmanagement.project.api;
 
+import com.example.taskmanagement.shared.validation.NoNul;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -7,8 +8,8 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-public record ProjectData(@NotBlank @Size(max = 200) String name,
-        @Size(max = 10000) String description,
+public record ProjectData(@NotBlank @Size(max = 200) @NoNul String name,
+        @Size(max = 10000) @NoNul String description,
         @Schema(description = "PostgreSQL DATE range: -4713-11-24 through +5874897-12-31 (ISO years)")
         @NotNull LocalDate startDate,
         @Schema(description = "Same PostgreSQL DATE range as startDate; must be on or after startDate")

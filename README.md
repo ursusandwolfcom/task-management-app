@@ -105,7 +105,6 @@ Project members, owners and ADMIN can create and list plain-text comments throug
 `POST /api/comments` with `{"taskId":123,"text":"Review this"}` and
 `GET /api/comments?taskId=123`. The server supplies authorId and a UTC timestamp;
 text is stripped and must contain 1..10000 characters. Markup remains plain text.
-Comment text and label names reject U+0000 with 400 VALIDATION_ERROR.
 `DELETE /api/comments/{id}` requires current project access and the comment author,
 current project owner or ADMIN. Author and timestamp fields cannot be supplied by clients.
 
@@ -132,6 +131,16 @@ while preserving the project labels. Deleting a label removes its associations;
 deleting an empty project removes its labels. Liquibase migrations 006/007 enforce
 parent cleanup and same-project associations. The alpha profile documents these
 routes separately at `/v3/api-docs/collaboration`; browser alpha storage remains separate.
+
+## Text validation
+
+Persisted free-text fields reject U+0000 with 400 VALIDATION_ERROR before the affected
+text reaches SQL: project/task names and descriptions, profile first/last names,
+comments and label names. Login identifiers follow the same rule for both Bearer
+and browser-session login; password validation is unchanged.
+The shared validation preserves Unicode, line breaks, optional
+null values and the existing field-specific length/blank rules. Rejected updates
+leave metadata, versions and planning revisions unchanged.
 
 ## Local development
 

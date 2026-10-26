@@ -1,5 +1,6 @@
 package com.example.taskmanagement.identity.api;
 
+import com.example.taskmanagement.shared.validation.NoNul;
 import java.time.Instant;
 import java.util.UUID;
 import jakarta.validation.Valid;
@@ -22,7 +23,8 @@ public interface IdentityOperations {
 
     UserView bootstrapAdmin(@NotNull @Valid RegisterUser command);
 
-    SessionGrant login(@NotBlank @Size(max = 254) String identifier, @NotBlank @Size(max = 128) String password);
+    SessionGrant login(@NotBlank @Size(max = 254) @NoNul String identifier,
+            @NotBlank @Size(max = 128) String password);
 
     SessionGrant refresh(@NotBlank @Size(min = 43, max = 43) String token);
 
