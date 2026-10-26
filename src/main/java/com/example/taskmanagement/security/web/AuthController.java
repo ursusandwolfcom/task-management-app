@@ -4,6 +4,7 @@ import com.example.taskmanagement.identity.api.IdentityOperations;
 import com.example.taskmanagement.identity.api.RegisterUser;
 import com.example.taskmanagement.identity.api.UserView;
 import com.example.taskmanagement.security.application.TokenService;
+import com.example.taskmanagement.shared.validation.NoNul;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -25,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
-    public record LoginRequest(@NotBlank @Size(max = 254) String identifier,
+    public record LoginRequest(@NotBlank @Size(max = 254) @NoNul String identifier,
             @NotBlank @Size(max = 128) String password) {
         @Override
         public String toString() {

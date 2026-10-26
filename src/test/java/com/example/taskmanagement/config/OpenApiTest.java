@@ -1,5 +1,6 @@
 package com.example.taskmanagement.config;
 
+import com.example.taskmanagement.shared.validation.NoNul;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -22,6 +23,30 @@ class OpenApiTest {
 
     @Autowired
     private MockMvc mvc;
+
+    @Test
+    void documentsSharedTextRuleForPersistedFieldsAndLoginWithoutRestrictingPasswords() throws Exception {
+        mvc.perform(get("/v3/api-docs/identity")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.schemas.RegisterUser.properties.firstName.pattern")
+                        .value(NoNul.PATTERN))
+                .andExpect(jsonPath("$.components.schemas.ProfileChange.properties.lastName.pattern")
+                        .value(NoNul.PATTERN))
+                .andExpect(jsonPath("$.components.schemas.ProfilePatch.properties.firstName.pattern")
+                        .value(NoNul.PATTERN))
+                .andExpect(jsonPath("$.components.schemas.LoginRequest.properties.identifier.pattern")
+                        .value(NoNul.PATTERN))
+                .andExpect(jsonPath("$.components.schemas.LoginRequest.properties.password.pattern").doesNotExist());
+        mvc.perform(get("/v3/api-docs/projects")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.schemas.ProjectData.properties.name.pattern").value(NoNul.PATTERN))
+                .andExpect(jsonPath("$.components.schemas.ChangeRequest.properties.description.pattern")
+                        .value(NoNul.PATTERN));
+        mvc.perform(get("/v3/api-docs/tasks")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/tasks'].post.requestBody.content['application/json']"
+                        + ".schema.properties.name.pattern").value(NoNul.PATTERN));
+        mvc.perform(get("/v3/api-docs/session")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.schemas.LoginRequest.properties.identifier.pattern")
+                        .value(NoNul.PATTERN));
+    }
 
     @Test
     void collaborationSpecSeparatesStrictMetadataFromTaskBodies() throws Exception {

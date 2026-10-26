@@ -1,5 +1,6 @@
 package com.example.taskmanagement.config;
 
+import com.example.taskmanagement.shared.validation.NoNul;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
@@ -8,6 +9,7 @@ import io.swagger.v3.oas.models.media.IntegerSchema;
 import io.swagger.v3.oas.models.media.ObjectSchema;
 import io.swagger.v3.oas.models.media.StringSchema;
 import java.util.List;
+import java.util.Map;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -112,7 +114,7 @@ public class OpenApiConfiguration {
                                     .addProperty("taskId", new IntegerSchema().format("int64")
                                             .minimum(java.math.BigDecimal.ONE))
                                     .addProperty("text", new StringSchema().minLength(1).maxLength(10000)
-                                            .pattern("[^\\x00]*"))
+                                            .pattern(NoNul.PATTERN))
                                     .required(List.of("taskId", "text")).additionalProperties(false));
                         }
                         if (route.equals("/api/labels") && path.getPost() != null) {
@@ -186,7 +188,7 @@ public class OpenApiConfiguration {
 
     private static io.swagger.v3.oas.models.media.Schema<?> labelMetadata(boolean create) {
         var schema = new ObjectSchema()
-                .addProperty("name", new StringSchema().minLength(1).maxLength(100).pattern("[^\\x00]*")
+                .addProperty("name", new StringSchema().minLength(1).maxLength(100).pattern(NoNul.PATTERN)
                         .description("Trimmed name, unique within its project using Locale.ROOT lowercase"))
                 .addProperty("color", new StringSchema().pattern("^#[0-9A-Fa-f]{6}$"));
         if (create) {
@@ -206,8 +208,8 @@ public class OpenApiConfiguration {
     private static ObjectSchema taskMetadata(boolean create, boolean patch, boolean projectRequired) {
         var schema = new ObjectSchema();
         schema.addProperty("projectId", new IntegerSchema().format("int64").minimum(java.math.BigDecimal.ONE));
-        schema.addProperty("name", new StringSchema().minLength(1).maxLength(200));
-        schema.addProperty("description", new StringSchema().maxLength(10000).nullable(true));
+        schema.addProperty("name", new StringSchema().minLength(1).maxLength(200).pattern(NoNul.PATTERN));
+        schema.addProperty("description", new StringSchema().maxLength(10000).nullable(true).pattern(NoNul.PATTERN));
         schema.addProperty("priority", new StringSchema()._enum(List.of("LOW", "MEDIUM", "HIGH", "CRITICAL")));
         schema.addProperty("estimatedMinutes", new IntegerSchema().minimum(java.math.BigDecimal.valueOf(15))
                 .maximum(java.math.BigDecimal.valueOf(525600)).nullable(true));
@@ -239,6 +241,7 @@ public class OpenApiConfiguration {
     }
 
     private static void addProtectedErrors(OpenAPI api) {
+        addTextPatterns(api);
         api.getComponents().addSecuritySchemes("bearerAuth", new SecurityScheme()
                 .type(SecurityScheme.Type.HTTP).scheme("bearer").bearerFormat("JWT"));
         api.getComponents().addSecuritySchemes("cookieAuth", new SecurityScheme().type(SecurityScheme.Type.APIKEY)
@@ -263,5 +266,27 @@ public class OpenApiConfiguration {
                                                 .$ref("#/components/schemas/ApiError")))));
             }
         }));
+    }
+
+    private static void addTextPatterns(OpenAPI api) {
+        // Projected PUT/PATCH input records need the same contract as the validated module DTOs.
+        Map<String, List<String>> fields = Map.of(
+                "ProjectData", List.of("name", "description"),
+                "ChangeRequest", List.of("name", "description"),
+                "RegisterUser", List.of("firstName", "lastName"),
+                "ProfileChange", List.of("firstName", "lastName"),
+                "ProfilePatch", List.of("firstName", "lastName"),
+                "LoginRequest", List.of("identifier"));
+        fields.forEach((name, properties) -> {
+            io.swagger.v3.oas.models.media.Schema<?> schema = api.getComponents().getSchemas().get(name);
+            if (schema != null && schema.getProperties() != null) {
+                properties.forEach(property -> {
+                    var text = schema.getProperties().get(property);
+                    if (text != null) {
+                        text.setPattern(NoNul.PATTERN);
+                    }
+                });
+            }
+        });
     }
 }
