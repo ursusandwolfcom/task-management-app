@@ -55,8 +55,49 @@ MEMBER_HAS_ASSIGNMENTS or PROJECT_NOT_EMPTY. Bearer authentication and browser
 cookies follow the existing session rules; cookie writes require CSRF.
 
 Liquibase migration 004 adds tasks, execution attempts and same-project dependency
-constraints. Dependency editing endpoints, server Task UI, alpha import and resource
-reservations are subsequent work. Alpha browser tasks remain prototype data.
+constraints. Server Task UI, alpha import and resource reservations are subsequent work.
+Alpha browser tasks remain prototype data.
+
+Project participants, owners and ADMIN edit incoming dependencies through
+`POST /api/tasks/{id}/dependencies` with `{"dependsOnTaskId":123,"inputRevision":4}`
+and `DELETE /api/tasks/{id}/dependencies/{dependsOnTaskId}?inputRevision=4`.
+The successor must be NOT_STARTED with **no execution attempts**; FAILED and tasks
+returned to NOT_STARTED by retry cannot change their dependencies. Predecessors can
+have any status, but only COMPLETED predecessors satisfy readiness.
+
+Both commands recheck access, state and the expected **project inputRevision** under
+the common project lock. A successful change increments inputRevision once; task
+metadata versions and execution history are unchanged. POST returns 201 and the new
+revision; DELETE returns 204 and X-Project-Input-Revision. Stale graph input returns
+409 VERSION_CONFLICT. Self-dependencies return 400 SELF_DEPENDENCY; cycles return
+409 CYCLIC_DEPENDENCY, duplicates 409 DEPENDENCY_ALREADY_EXISTS, disallowed successor
+states 409 DEPENDENCY_CHANGE_FORBIDDEN and missing edges 404 DEPENDENCY_NOT_FOUND.
+A readable predecessor from another project returns 409 CROSS_PROJECT_DEPENDENCY;
+missing/inaccessible referenced tasks remain indistinguishable as 404 TASK_NOT_FOUND.
+Cookie writes require CSRF. Removing an edge can repair an oversized graph.
+
+## Persisted project graph queries
+
+Project members, owners and ADMIN can read a coherent graph snapshot through:
+
+- `GET /api/projects/{id}/execution-order`: projectId, inputRevision and ordered taskIds.
+- `GET /api/projects/{id}/available-tasks`: ordered NOT_STARTED tasks with all actual
+  predecessors COMPLETED; blockingReasons identify incomplete predecessor IDs for blocked candidates.
+- `GET /api/projects/{id}/next-task`: the first available task, or 204 if none is available.
+
+All three endpoints use the Java planning core, return `Cache-Control: no-store` and
+`X-Project-Input-Revision` (also on 204), and never update execution facts or project revisions.
+The snapshot loads under the same project lock as task writers; calculations run after
+the read transaction releases the lock. FAILED/CANCELLED predecessors remain blockers.
+Readiness does not check assignment, execution rights or resource calendars, and does not
+reserve a task. A later execution command validates current facts again under its write lock.
+
+`planning.graph.max-tasks` (default 10000) and `planning.graph.max-dependencies` (default
+50000) bound snapshot loading. Oversized graphs return 409 GRAPH_TOO_LARGE rather than
+calculating a partial graph. Queries use fixed bulk task/edge reads, without per-node loads.
+These routes are included in `/v3/api-docs/tasks` when the alpha documentation profile is active.
+Liquibase migration 005 adds a covering `(project_id, task_id, depends_on_task_id)` index
+for bounded, ordered project-edge reads; previous migrations remain unchanged.
 
 ## Local development
 

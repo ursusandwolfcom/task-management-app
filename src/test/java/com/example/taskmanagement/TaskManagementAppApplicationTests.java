@@ -40,6 +40,27 @@ class TaskManagementAppApplicationTests {
     }
 
     @Test
+    void projectGraphIndexCoversProjectAndBothDependencyIdsWithPublicLiquibaseTracking() {
+        var columns = jdbcTemplate.execute((org.springframework.jdbc.core.ConnectionCallback<java.util.List<String>>)
+                connection -> {
+                    var positions = new java.util.TreeMap<Short, String>();
+                    try (var indexes = connection.getMetaData().getIndexInfo(connection.getCatalog(),
+                            "task_management", "task_dependencies", false, false)) {
+                        while (indexes.next()) {
+                            if ("dependencies_project_graph_idx".equalsIgnoreCase(indexes.getString("INDEX_NAME"))) {
+                                positions.put(indexes.getShort("ORDINAL_POSITION"),
+                                        indexes.getString("COLUMN_NAME").toLowerCase(java.util.Locale.ROOT));
+                            }
+                        }
+                    }
+                    return java.util.List.copyOf(positions.values());
+                });
+        assertEquals(java.util.List.of("project_id", "task_id", "depends_on_task_id"), columns);
+        assertEquals(1, jdbcTemplate.queryForObject("select count(*) from public.databasechangelog "
+                + "where id = '005-index-project-graph' and exectype = 'EXECUTED'", Integer.class));
+    }
+
+    @Test
     void alphaPageAssetsAndPlanningEndpointAreDisabledByDefault() throws Exception {
         for (String path : new String[] {"/alpha/", "/alpha/styles.css", "/alpha/app.js", "/alpha/store.js",
                 "/alpha/demo.js"}) {
