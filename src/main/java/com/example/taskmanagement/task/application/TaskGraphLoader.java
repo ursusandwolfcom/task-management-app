@@ -45,4 +45,8 @@ public class TaskGraphLoader {
         }
         return new TaskGraphInput(projectId, project.inputRevision(), nodes, edges);
     }
+
+    int maxDependencies() {
+        return maxDependencies;
+    }
 }

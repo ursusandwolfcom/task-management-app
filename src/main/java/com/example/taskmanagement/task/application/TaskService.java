@@ -5,8 +5,6 @@ import com.example.taskmanagement.identity.api.UserRole;
 import com.example.taskmanagement.shared.persistence.PageRequests;
 import com.example.taskmanagement.project.api.ProjectCoordination;
 import com.example.taskmanagement.project.api.ProjectCoordination.Permission;
-import com.example.taskmanagement.project.api.ProjectException;
-import com.example.taskmanagement.project.api.ProjectOperations;
 import com.example.taskmanagement.project.api.ProjectView;
 import com.example.taskmanagement.task.api.TaskData;
 import com.example.taskmanagement.task.api.TaskException;
@@ -37,19 +35,19 @@ public class TaskService implements TaskOperations {
     private final TaskRepository tasks;
     private final AttemptRepository attempts;
     private final ProjectCoordination coordination;
-    private final ProjectOperations projects;
+    private final TaskProjectAccess access;
     private final IdentityOperations identity;
     private final EntityManager entityManager;
     private final Validator validator;
     private final Clock clock;
 
     public TaskService(TaskRepository tasks, AttemptRepository attempts, ProjectCoordination coordination,
-            ProjectOperations projects, IdentityOperations identity, EntityManager entityManager,
+            TaskProjectAccess access, IdentityOperations identity, EntityManager entityManager,
             Validator validator, Clock clock) {
         this.tasks = tasks;
         this.attempts = attempts;
         this.coordination = coordination;
-        this.projects = projects;
+        this.access = access;
         this.identity = identity;
         this.entityManager = entityManager;
         this.validator = validator;
@@ -68,15 +66,14 @@ public class TaskService implements TaskOperations {
     @Override
     @Transactional(readOnly = true)
     public TaskView read(long actorId, long taskId) {
-        long projectId = projectId(taskId);
-        readable(actorId, projectId);
+        access.readable(actorId, taskId);
         return found(taskId).view();
     }
 
     @Override
     @Transactional(readOnly = true)
     public TaskPage list(long actorId, long projectId, int page, int size) {
-        projects.read(actorId, projectId);
+        access.readProject(actorId, projectId);
         var result = tasks.findByProjectId(projectId, paging(page, size, "id"));
         return new TaskPage(result.getContent().stream().map(TaskEntity::view).toList(),
                 page, size, result.getTotalElements(), result.getTotalPages());
@@ -84,7 +81,7 @@ public class TaskService implements TaskOperations {
 
     @Override
     public TaskView replace(long actorId, long taskId, TaskData data, long version) {
-        var project = lock(actorId, taskId);
+        var project = access.lock(actorId, taskId);
         var task = managed(taskId, version);
         validateData(project.id(), data);
         var previous = task.view();
@@ -100,7 +97,7 @@ public class TaskService implements TaskOperations {
 
     @Override
     public TaskView execute(long actorId, long taskId, Command command, long version) {
-        var project = lock(actorId, taskId);
+        var project = access.lock(actorId, taskId);
         var task = managed(taskId, version);
         authorizeExecution(actorId, project, task.view(), command == Command.CANCEL);
         try {
@@ -139,7 +136,7 @@ public class TaskService implements TaskOperations {
     @Override
     @Transactional(readOnly = true)
     public AttemptPage attempts(long actorId, long taskId, int page, int size) {
-        readable(actorId, projectId(taskId));
+        access.readable(actorId, taskId);
         var result = attempts.findByTaskId(taskId, paging(page, size, "number"));
         return new AttemptPage(result.getContent().stream().map(AttemptEntity::view).toList(),
                 page, size, result.getTotalElements(), result.getTotalPages());
@@ -147,7 +144,7 @@ public class TaskService implements TaskOperations {
 
     @Override
     public void delete(long actorId, long taskId, long version) {
-        var project = lock(actorId, taskId);
+        var project = access.lock(actorId, taskId);
         var task = managed(taskId, version);
         authorizeExecution(actorId, project, task.view(), true);
         if ((task.view().status() != TaskStatus.NOT_STARTED && task.view().status() != TaskStatus.CANCELLED)
@@ -161,32 +158,6 @@ public class TaskService implements TaskOperations {
         tasks.delete(task);
         tasks.flush();
         coordination.markInputChanged(actorId, project.id());
-    }
-
-    private ProjectView lock(long actorId, long taskId) {
-        try {
-            return coordination.lockAndAuthorize(actorId, projectId(taskId), Permission.WRITE_TASKS);
-        } catch (ProjectException exception) {
-            if (exception.reason() == ProjectException.Reason.PROJECT_NOT_FOUND) {
-                throw error(TaskException.Reason.TASK_NOT_FOUND);
-            }
-            throw exception;
-        }
-    }
-
-    private void readable(long actorId, long projectId) {
-        try {
-            projects.read(actorId, projectId);
-        } catch (ProjectException exception) {
-            if (exception.reason() == ProjectException.Reason.PROJECT_NOT_FOUND) {
-                throw error(TaskException.Reason.TASK_NOT_FOUND);
-            }
-            throw exception;
-        }
-    }
-
-    private long projectId(long taskId) {
-        return tasks.projectId(taskId).orElseThrow(() -> error(TaskException.Reason.TASK_NOT_FOUND));
     }
 
     private TaskEntity found(long taskId) {

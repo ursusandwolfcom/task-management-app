@@ -55,8 +55,26 @@ MEMBER_HAS_ASSIGNMENTS or PROJECT_NOT_EMPTY. Bearer authentication and browser
 cookies follow the existing session rules; cookie writes require CSRF.
 
 Liquibase migration 004 adds tasks, execution attempts and same-project dependency
-constraints. Dependency editing endpoints, server Task UI, alpha import and resource
-reservations are subsequent work. Alpha browser tasks remain prototype data.
+constraints. Server Task UI, alpha import and resource reservations are subsequent work.
+Alpha browser tasks remain prototype data.
+
+Project participants, owners and ADMIN edit incoming dependencies through
+`POST /api/tasks/{id}/dependencies` with `{"dependsOnTaskId":123,"inputRevision":4}`
+and `DELETE /api/tasks/{id}/dependencies/{dependsOnTaskId}?inputRevision=4`.
+The successor must be NOT_STARTED with **no execution attempts**; FAILED and tasks
+returned to NOT_STARTED by retry cannot change their dependencies. Predecessors can
+have any status, but only COMPLETED predecessors satisfy readiness.
+
+Both commands recheck access, state and the expected **project inputRevision** under
+the common project lock. A successful change increments inputRevision once; task
+metadata versions and execution history are unchanged. POST returns 201 and the new
+revision; DELETE returns 204 and X-Project-Input-Revision. Stale graph input returns
+409 VERSION_CONFLICT. Self-dependencies return 400 SELF_DEPENDENCY; cycles return
+409 CYCLIC_DEPENDENCY, duplicates 409 DEPENDENCY_ALREADY_EXISTS, disallowed successor
+states 409 DEPENDENCY_CHANGE_FORBIDDEN and missing edges 404 DEPENDENCY_NOT_FOUND.
+A readable predecessor from another project returns 409 CROSS_PROJECT_DEPENDENCY;
+missing/inaccessible referenced tasks remain indistinguishable as 404 TASK_NOT_FOUND.
+Cookie writes require CSRF. Removing an edge can repair an oversized graph.
 
 ## Persisted project graph queries
 

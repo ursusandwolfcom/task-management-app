@@ -20,4 +20,15 @@ public class DependencyRepository {
                 where project_id = ? order by task_id, depends_on_task_id limit ?
                 """, (row, index) -> new DependencyEdge(row.getLong(1), row.getLong(2)), projectId, limit);
     }
+
+    public void insert(long projectId, long taskId, long dependsOnTaskId) {
+        jdbc.update("insert into task_management.task_dependencies(project_id, task_id, depends_on_task_id) "
+                + "values (?, ?, ?)", projectId, taskId, dependsOnTaskId);
+    }
+
+    public boolean remove(long projectId, long taskId, long dependsOnTaskId) {
+        return jdbc.update("delete from task_management.task_dependencies "
+                + "where project_id = ? and task_id = ? and depends_on_task_id = ?",
+                projectId, taskId, dependsOnTaskId) == 1;
+    }
 }

@@ -139,6 +139,28 @@ class TaskPlanningIntegrationTest {
     }
 
     @Test
+    void diamondRequiresBothActualPredecessorCompletions() {
+        var root = create("Root", TaskPriority.LOW);
+        var left = create("Left", TaskPriority.MEDIUM);
+        var right = create("Right", TaskPriority.HIGH);
+        var sink = create("Sink", TaskPriority.CRITICAL);
+        edge(left, root);
+        edge(right, root);
+        edge(sink, left);
+        edge(sink, right);
+        for (var task : List.of(root, left)) {
+            var running = tasks.execute(owner.id(), task.id(), Command.START, task.version());
+            tasks.execute(owner.id(), task.id(), Command.COMPLETE, running.version());
+        }
+        var available = planning.availableTasks(member.id(), project.id());
+        assertThat(available.tasks()).extracting(TaskView::id).containsExactly(right.id());
+        assertThat(available.blockingReasons().getFirst().predecessorIds()).containsExactly(right.id());
+        var running = tasks.execute(owner.id(), right.id(), Command.START, right.version());
+        tasks.execute(owner.id(), right.id(), Command.COMPLETE, running.version());
+        assertThat(planning.nextTask(member.id(), project.id()).task().id()).isEqualTo(sink.id());
+    }
+
+    @Test
     void failedAndCancelledPredecessorsRemainBlockersAndAreNotCandidates() {
         for (var finish : List.of(Command.FAIL, Command.CANCEL)) {
             var predecessor = create("Blocked by " + finish, TaskPriority.HIGH);

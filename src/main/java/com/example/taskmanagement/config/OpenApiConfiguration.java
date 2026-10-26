@@ -112,11 +112,20 @@ public class OpenApiConfiguration {
                     api.getPaths().forEach((route, path) -> {
                         boolean collection = route.equals("/api/tasks") || route.endsWith("/tasks");
                         if (path.getPost() != null) {
-                            setTaskBody(path.getPost(), collection
-                                    ? taskMetadata(true, false, route.equals("/api/tasks"))
-                                    : new ObjectSchema().addProperty("version", versionSchema())
-                                            .required(List.of("version")).additionalProperties(false));
-                            if (collection) {
+                            if (route.endsWith("/dependencies")) {
+                                setTaskBody(path.getPost(), new ObjectSchema()
+                                        .addProperty("dependsOnTaskId", new IntegerSchema().format("int64")
+                                                .minimum(java.math.BigDecimal.ONE))
+                                        .addProperty("inputRevision", versionSchema())
+                                        .required(List.of("dependsOnTaskId", "inputRevision"))
+                                        .additionalProperties(false));
+                            } else {
+                                setTaskBody(path.getPost(), collection
+                                        ? taskMetadata(true, false, route.equals("/api/tasks"))
+                                        : new ObjectSchema().addProperty("version", versionSchema())
+                                                .required(List.of("version")).additionalProperties(false));
+                            }
+                            if (collection || route.endsWith("/dependencies")) {
                                 var response = path.getPost().getResponses().remove("200");
                                 if (response != null) {
                                     path.getPost().getResponses().addApiResponse("201", response);
