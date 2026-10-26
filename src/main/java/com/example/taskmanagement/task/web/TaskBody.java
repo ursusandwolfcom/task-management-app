@@ -5,6 +5,7 @@ import com.example.taskmanagement.task.api.TaskException;
 import com.example.taskmanagement.task.api.TaskPriority;
 import com.example.taskmanagement.task.api.TaskView;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Set;
 import tools.jackson.databind.JsonNode;
 
@@ -36,7 +37,7 @@ final class TaskBody {
             return new TaskData(name, description, priority == null ? null : TaskPriority.valueOf(priority),
                     estimate == null ? null : Math.toIntExact(estimate),
                     due == null ? null : LocalDate.parse(due), assignee);
-        } catch (IllegalArgumentException | ArithmeticException invalidValue) {
+        } catch (IllegalArgumentException | ArithmeticException | DateTimeParseException invalidValue) {
             throw invalid();
         }
     }

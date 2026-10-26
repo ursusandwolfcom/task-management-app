@@ -86,6 +86,8 @@ class ReadinessCalculatorTest {
         var error = assertThrows(GraphValidationException.class,
                 () -> calculator.availableTasks(graph, new ExecutionFacts(Set.of(), Set.of())));
         assertEquals(GraphValidationException.Reason.CYCLIC_DEPENDENCY, error.reason());
+        assertThrows(GraphValidationException.class,
+                () -> calculator.nextTask(graph, new ExecutionFacts(Set.of(), Set.of())));
     }
 
     @Test
@@ -95,6 +97,7 @@ class ReadinessCalculatorTest {
             var error = assertThrows(GraphValidationException.class, () -> calculator.availableTasks(chain(), facts));
             assertEquals(GraphValidationException.Reason.UNKNOWN_TASK, error.reason());
             assertEquals(List.of(3L), error.taskIds());
+            assertThrows(GraphValidationException.class, () -> calculator.nextTask(chain(), facts));
         }
     }
 

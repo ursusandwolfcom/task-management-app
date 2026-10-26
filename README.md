@@ -27,6 +27,9 @@ task's expected version; projectId is immutable. PUT replaces optional metadata,
 PATCH retains omitted fields and explicit null clears optional fields. Status,
 factual dates, attempt history and unknown fields are rejected in request bodies.
 Assignee changes are allowed only in NOT_STARTED or FAILED.
+Malformed due dates return 400 VALIDATION_ERROR. PATCH checks both the version of
+the metadata snapshot and the version under the write lock; a mismatch returns
+409 VERSION_CONFLICT without changing omitted fields.
 
 `POST /api/tasks/{id}/start|complete|fail|retry` takes `{"version":0}` and is
 available to the assignee, owner or ADMIN. Start requires an assignee and every
@@ -611,6 +614,10 @@ Execution order includes every task and does not simulate real completion. Avail
 tasks are only supplied candidates whose predecessors are actually completed; next
 is a recommendation, without starting a task or reserving an assignee. Resource and
 permission guards, calendars, CPM and domain REST endpoints follow in later sprints.
+Both readiness methods validate the entire graph and execution facts before selecting
+candidates. `nextTask` selects the minimum using the same priority comparator without
+sorting or materialising all available candidates; complete DAG validation still costs
+O(E + V log V).
 
 After building, try the pure core with `jshell --class-path target/classes`:
 

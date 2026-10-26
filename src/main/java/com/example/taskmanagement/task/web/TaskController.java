@@ -1,6 +1,7 @@
 package com.example.taskmanagement.task.web;
 
 import com.example.taskmanagement.task.api.TaskData;
+import com.example.taskmanagement.task.api.TaskException;
 import com.example.taskmanagement.task.api.TaskOperations;
 import com.example.taskmanagement.task.api.TaskOperations.AttemptPage;
 import com.example.taskmanagement.task.api.TaskOperations.TaskPage;
@@ -88,12 +89,19 @@ public class TaskController {
     @PatchMapping("/api/tasks/{id}")
     @Operation(summary = "Patch task metadata with expected version",
             description = "Omitted fields retain values; null clears description, estimate, dueDate or assignee. "
-                    + "name/priority cannot be null. Same invariants as PUT; command fields rejected.")
+                    + "name/priority cannot be null. Same invariants as PUT; command fields rejected. "
+                    + "The metadata snapshot and locked task must both match version; otherwise VERSION_CONFLICT.")
     public ResponseEntity<TaskView> patch(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long id,
             @RequestBody JsonNode body) {
         var previous = tasks.read(actor(jwt), id);
         TaskBody.immutableProject(body, previous.projectId());
-        return response(tasks.replace(actor(jwt), id, TaskBody.data(body, previous), TaskBody.version(body)));
+        long version = TaskBody.version(body);
+        // Omitted fields must come from the same version the client expects to replace.
+        // The service checks again under its lock in case another writer commits after this read.
+        if (previous.version() != version) {
+            throw new TaskException(TaskException.Reason.VERSION_CONFLICT);
+        }
+        return response(tasks.replace(actor(jwt), id, TaskBody.data(body, previous), version));
     }
 
     @PostMapping({"/api/tasks/{id}/start", "/api/tasks/{id}/complete", "/api/tasks/{id}/fail",
