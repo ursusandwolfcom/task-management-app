@@ -58,6 +58,27 @@ Liquibase migration 004 adds tasks, execution attempts and same-project dependen
 constraints. Dependency editing endpoints, server Task UI, alpha import and resource
 reservations are subsequent work. Alpha browser tasks remain prototype data.
 
+## Persisted project graph queries
+
+Project members, owners and ADMIN can read a coherent graph snapshot through:
+
+- `GET /api/projects/{id}/execution-order`: projectId, inputRevision and ordered taskIds.
+- `GET /api/projects/{id}/available-tasks`: ordered NOT_STARTED tasks with all actual
+  predecessors COMPLETED; blockingReasons identify incomplete predecessor IDs for blocked candidates.
+- `GET /api/projects/{id}/next-task`: the first available task, or 204 if none is available.
+
+All three endpoints use the Java planning core, return `Cache-Control: no-store` and
+`X-Project-Input-Revision` (also on 204), and never update execution facts or project revisions.
+The snapshot loads under the same project lock as task writers; calculations run after
+the read transaction releases the lock. FAILED/CANCELLED predecessors remain blockers.
+Readiness does not check assignment, execution rights or resource calendars, and does not
+reserve a task. A later execution command validates current facts again under its write lock.
+
+`planning.graph.max-tasks` (default 10000) and `planning.graph.max-dependencies` (default
+50000) bound snapshot loading. Oversized graphs return 409 GRAPH_TOO_LARGE rather than
+calculating a partial graph. Queries use fixed bulk task/edge reads, without per-node loads.
+These routes are included in `/v3/api-docs/tasks` when the alpha documentation profile is active.
+
 ## Local development
 
 The application uses Java 21, Spring Boot 4.1.1, Maven Wrapper and Node.js 24 for the React/TypeScript workspace build.

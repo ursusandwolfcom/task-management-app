@@ -85,7 +85,8 @@ public class OpenApiConfiguration {
                 .addOpenApiCustomizer(api -> {
                     api.getPaths().entrySet().removeIf(entry -> !entry.getKey().equals("/api/projects")
                             && !entry.getKey().startsWith("/api/projects/"));
-                    api.getPaths().entrySet().removeIf(entry -> entry.getKey().endsWith("/tasks"));
+                    api.getPaths().entrySet().removeIf(entry -> entry.getKey().endsWith("/tasks")
+                            || planningRoute(entry.getKey()));
                     api.info(new Info().title("ProjectFlow projects API").version("0.0.1")
                             .description("Persisted projects, membership and ownership transfer "
                                     + "with live access checks. "
@@ -97,14 +98,17 @@ public class OpenApiConfiguration {
 
     @Bean
     public GroupedOpenApi taskOpenApi() {
-        return GroupedOpenApi.builder().group("tasks").pathsToMatch("/api/tasks/**", "/api/projects/*/tasks")
+        return GroupedOpenApi.builder().group("tasks").pathsToMatch("/api/tasks/**", "/api/projects/*/tasks",
+                        "/api/projects/*/execution-order", "/api/projects/*/available-tasks",
+                        "/api/projects/*/next-task")
                 .addOpenApiCustomizer(api -> {
                     api.getPaths().entrySet().removeIf(entry -> !entry.getKey().startsWith("/api/tasks")
-                            && !entry.getKey().endsWith("/tasks"));
+                            && !entry.getKey().endsWith("/tasks") && !planningRoute(entry.getKey()));
                     api.info(new Info().title("ProjectFlow tasks API").version("0.0.1")
                             .description("Persisted tasks and immutable execution history. "
                                     + "Estimate is optional, 15..525600 physical minutes. "
-                                    + "Commands use actual predecessor completion, not resource reservations."));
+                                    + "Commands use actual predecessor completion, not resource reservations. "
+                                    + "Graph queries return coherent inputRevision snapshots and never change facts."));
                     api.getPaths().forEach((route, path) -> {
                         boolean collection = route.equals("/api/tasks") || route.endsWith("/tasks");
                         if (path.getPost() != null) {
@@ -128,6 +132,10 @@ public class OpenApiConfiguration {
                     });
                     addProtectedErrors(api);
                 }).build();
+    }
+
+    private static boolean planningRoute(String route) {
+        return route.endsWith("/execution-order") || route.endsWith("/available-tasks") || route.endsWith("/next-task");
     }
 
     private static io.swagger.v3.oas.models.media.Schema<?> versionSchema() {

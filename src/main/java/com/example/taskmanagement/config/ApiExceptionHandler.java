@@ -77,7 +77,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                 ? HttpStatus.CONFLICT : HttpStatus.BAD_REQUEST;
         var problem = problem(status, exception.reason().name(), exception.getMessage());
         problem.setProperty("taskIds", exception.taskIds());
-        return ResponseEntity.status(status).body(problem);
+        return ResponseEntity.status(status).header("Cache-Control", "no-store").body(problem);
     }
 
     @Override

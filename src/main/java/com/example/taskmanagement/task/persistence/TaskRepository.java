@@ -1,6 +1,8 @@
 package com.example.taskmanagement.task.persistence;
 
 import java.util.Optional;
+import java.util.List;
+import com.example.taskmanagement.task.api.TaskView;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -8,6 +10,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface TaskRepository extends JpaRepository<TaskEntity, Long> {
+    @Query("""
+            select new com.example.taskmanagement.task.api.TaskView(t.id, t.projectId, t.name, t.description,
+                t.priority, t.estimatedMinutes, t.dueDate, t.assigneeId, t.status,
+                t.actualStart, t.actualEnd, t.attemptCount, t.version)
+            from TaskEntity t where t.projectId = :projectId order by t.id
+            """)
+    List<TaskView> graphTasks(@Param("projectId") long projectId, Pageable limit);
+
     Page<TaskEntity> findByProjectId(long projectId, Pageable pageable);
 
     boolean existsByProjectId(long projectId);
