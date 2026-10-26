@@ -33,6 +33,11 @@ class OpenApiTest {
                 .andExpect(jsonPath(label + ".properties.version.minimum").value(0))
                 .andExpect(jsonPath(label + ".additionalProperties").value(false))
                 .andExpect(jsonPath("$.paths['/api/tasks/{taskId}/labels/{labelId}'].put").exists())
+                .andExpect(jsonPath("$.paths['/api/tasks/{taskId}/labels/{labelId}'].put.responses['204']").exists())
+                .andExpect(jsonPath("$.paths['/api/tasks/{taskId}/labels/{labelId}'].put.responses['200']")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/tasks/{taskId}/labels/{labelId}'].delete.responses['204']").exists())
+                .andExpect(jsonPath("$.paths['/api/labels/{id}'].delete.responses['204']").exists())
                 .andExpect(jsonPath("$.paths['/api/comments'].post.security[1].csrfAuth").exists())
                 .andExpect(jsonPath("$.paths['/api/projects']").doesNotExist());
         mvc.perform(get("/v3/api-docs/tasks")).andExpect(status().isOk())

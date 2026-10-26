@@ -2,6 +2,7 @@ package com.example.taskmanagement.collaboration.web;
 
 import com.example.taskmanagement.collaboration.api.LabelOperations;
 import com.example.taskmanagement.collaboration.api.LabelOperations.LabelPage;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.constraints.Positive;
 import org.springframework.http.CacheControl;
@@ -34,6 +35,7 @@ public class TaskLabelController {
     }
 
     @PutMapping("/{labelId}")
+    @ApiResponse(responseCode = "204", description = "Task-label association present; repeated calls are idempotent")
     public ResponseEntity<Void> link(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long taskId,
             @PathVariable @Positive long labelId) {
         labels.link(Long.parseLong(jwt.getSubject()), taskId, labelId);
@@ -41,6 +43,7 @@ public class TaskLabelController {
     }
 
     @DeleteMapping("/{labelId}")
+    @ApiResponse(responseCode = "204", description = "Task-label association absent; repeated calls are idempotent")
     public ResponseEntity<Void> unlink(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long taskId,
             @PathVariable @Positive long labelId) {
         labels.unlink(Long.parseLong(jwt.getSubject()), taskId, labelId);

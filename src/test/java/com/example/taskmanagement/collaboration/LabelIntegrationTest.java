@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -248,6 +249,14 @@ class LabelIntegrationTest {
             mvc.perform(put("/api/labels/" + label.id()).header("Authorization", auth)
                     .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isBadRequest());
         }
+        String route = "/api/tasks/" + task.id() + "/labels/" + label.id();
+        for (int repeat = 0; repeat < 2; repeat++) {
+            mvc.perform(put(route).header("Authorization", auth)).andExpect(status().isNoContent())
+                    .andExpect(header().string("Cache-Control", "no-store"));
+        }
+        mvc.perform(delete(route).header("Authorization", auth)).andExpect(status().isNoContent());
+        mvc.perform(delete("/api/labels/" + label.id()).param("version", "0").header("Authorization", auth))
+                .andExpect(status().isNoContent());
     }
 
     private LabelView create(String name) {

@@ -6,6 +6,7 @@ import com.example.taskmanagement.collaboration.api.LabelOperations;
 import com.example.taskmanagement.collaboration.api.LabelOperations.LabelPage;
 import com.example.taskmanagement.collaboration.api.LabelView;
 import com.example.taskmanagement.shared.web.JsonFields;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -65,6 +66,7 @@ public class LabelController {
     }
 
     @DeleteMapping("/{id}")
+    @ApiResponse(responseCode = "204", description = "Label and its task associations removed")
     public ResponseEntity<Void> delete(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long id,
             @RequestParam @PositiveOrZero long version) {
         labels.delete(actor(jwt), id, version);
