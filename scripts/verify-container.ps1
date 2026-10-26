@@ -152,10 +152,36 @@ function Start-TaskPersistenceSmoke {
     if ($task.status -ne 'NOT_STARTED' -or $task.attemptCount -ne 1 -or $task.estimatedMinutes -ne 525600) {
         throw 'Task retry lost execution facts or physical-year estimate.'
     }
+    $successor = Invoke-TaskSmokeApi '/api/tasks' 'Post' @{
+        projectId = $project.id; name = 'Persisted blocked successor'; priority = 'CRITICAL'
+        estimatedMinutes = 15; assigneeId = $ownerProfile.id
+    }
+    $project = Invoke-TaskSmokeApi ('/api/projects/' + $project.id)
+    $change = Invoke-TaskSmokeApi ('/api/tasks/' + $successor.id + '/dependencies') 'Post' @{
+        dependsOnTaskId = $task.id; inputRevision = $project.inputRevision
+    }
+    $script:taskSmokeProjectId = $project.id
+    $script:taskSmokeSuccessorId = $successor.id
+    $script:taskSmokeGraphRevision = $change.inputRevision
+    $available = Invoke-TaskSmokeApi ('/api/projects/' + $project.id + '/available-tasks')
+    $order = Invoke-TaskSmokeApi ('/api/projects/' + $project.id + '/execution-order')
+    if (@($available.tasks).Count -ne 1 -or $available.tasks[0].id -ne $task.id -or
+            @($order.taskIds).Count -ne 2 -or $order.taskIds[0] -ne $task.id -or
+            $order.taskIds[1] -ne $successor.id -or $available.inputRevision -ne $change.inputRevision) {
+        throw 'Persisted dependency readiness/order/revision is inconsistent before restart.'
+    }
+    Write-Output 'Graph persistence: dependency blocks higher-priority successor without changing execution facts.'
     Write-Output 'Task persistence: create/assign/start/fail/retry passed before container restart.'
 }
 
 function Complete-TaskPersistenceSmoke {
+    $available = Invoke-TaskSmokeApi ('/api/projects/' + $script:taskSmokeProjectId + '/available-tasks')
+    if ($available.inputRevision -ne $script:taskSmokeGraphRevision -or
+            @($available.blockingReasons).Count -ne 1 -or
+            $available.blockingReasons[0].taskId -ne $script:taskSmokeSuccessorId -or
+            $available.blockingReasons[0].predecessorIds[0] -ne $script:taskSmokeId) {
+        throw 'Restart lost the persisted dependency or graph revision.'
+    }
     $task = Invoke-TaskSmokeApi ('/api/tasks/' + $script:taskSmokeId)
     $task = Invoke-TaskSmokeApi ('/api/tasks/' + $task.id + '/start') 'Post' @{ version = $task.version }
     $task = Invoke-TaskSmokeApi ('/api/tasks/' + $task.id + '/complete') 'Post' @{ version = $task.version }
@@ -168,6 +194,14 @@ function Complete-TaskPersistenceSmoke {
         $history.content[1].actualEnd -ne $script:taskSmokeFirstAttempt.actualEnd) {
         throw 'Restart or second execution changed the persisted failed attempt.'
     }
+    $next = Invoke-TaskSmokeApi ('/api/projects/' + $script:taskSmokeProjectId + '/next-task')
+    if ($next.task.id -ne $script:taskSmokeSuccessorId -or
+            $next.inputRevision -ne ($script:taskSmokeGraphRevision + 2)) {
+        throw 'Actual predecessor completion did not unlock the persisted successor after restart.'
+    }
+    $null = Invoke-TaskSmokeApi ('/api/tasks/' + $script:taskSmokeSuccessorId + '/dependencies/' +
+            $script:taskSmokeId + '?inputRevision=' + $next.inputRevision) 'Delete'
+    Write-Output 'Graph persistence: restart preserved dependency; actual completion unlocked next; removal passed.'
     Write-Output 'Task persistence: restart/start/complete preserved both execution attempts.'
 }
 
