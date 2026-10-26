@@ -14,6 +14,7 @@ import com.example.taskmanagement.project.api.ProjectData;
 import com.example.taskmanagement.project.api.ProjectOperations;
 import com.example.taskmanagement.project.api.ProjectView;
 import com.example.taskmanagement.security.application.TokenService;
+import com.example.taskmanagement.security.web.BrowserSessionCookies;
 import com.example.taskmanagement.support.DatabaseFixtures;
 import com.example.taskmanagement.task.api.TaskData;
 import com.example.taskmanagement.task.api.TaskOperations;
@@ -93,6 +94,28 @@ class StoredTextIntegrationTest {
         assertThat(projects.read(owner.id(), project.id())).isEqualTo(project);
         assertThat(tasks.read(owner.id(), task.id())).isEqualTo(task);
         assertThat(identity.profile(owner.id())).isEqualTo(owner);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"auth", "session"})
+    void loginsRejectNulBeforeQueryingUsers(String adapter) throws Exception {
+        var login = request(HttpMethod.POST, "/api/" + adapter + "/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("identifier", INVALID, "password", PASSWORD)));
+        if (adapter.equals("session")) {
+            var csrf = mvc.perform(request(HttpMethod.GET, "/api/session/csrf"))
+                    .andReturn().getResponse();
+            var token = json.readTree(csrf.getContentAsString());
+            login.cookie(csrf.getCookie(BrowserSessionCookies.CSRF))
+                    .header(token.path("headerName").asText(), token.path("token").asText());
+        }
+        mvc.perform(login).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void moduleLoginRejectsNulBeforeQueryingUsers() {
+        assertThatThrownBy(() -> identity.login(INVALID, PASSWORD)).isInstanceOf(ConstraintViolationException.class);
     }
 
     @ParameterizedTest

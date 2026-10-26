@@ -134,9 +134,11 @@ routes separately at `/v3/api-docs/collaboration`; browser alpha storage remains
 
 ## Text validation
 
-Persisted free-text fields reject U+0000 with 400 VALIDATION_ERROR before accessing
-storage: project/task names and descriptions, profile first/last names, comments
-and label names. The shared validation preserves Unicode, line breaks, optional
+Persisted free-text fields reject U+0000 with 400 VALIDATION_ERROR before the affected
+text reaches SQL: project/task names and descriptions, profile first/last names,
+comments and label names. Login identifiers follow the same rule for both Bearer
+and browser-session login; password validation is unchanged.
+The shared validation preserves Unicode, line breaks, optional
 null values and the existing field-specific length/blank rules. Rejected updates
 leave metadata, versions and planning revisions unchanged.
 
