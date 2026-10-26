@@ -24,6 +24,22 @@ class OpenApiTest {
     private MockMvc mvc;
 
     @Test
+    void collaborationSpecSeparatesStrictMetadataFromTaskBodies() throws Exception {
+        String label = "$.paths['/api/labels/{id}'].put.requestBody.content['application/json'].schema";
+        mvc.perform(get("/v3/api-docs/collaboration")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/comments'].post.responses['201']").exists())
+                .andExpect(jsonPath("$.paths['/api/comments'].post.requestBody.content['application/json']"
+                        + ".schema.additionalProperties").value(false))
+                .andExpect(jsonPath(label + ".properties.version.minimum").value(0))
+                .andExpect(jsonPath(label + ".additionalProperties").value(false))
+                .andExpect(jsonPath("$.paths['/api/tasks/{taskId}/labels/{labelId}'].put").exists())
+                .andExpect(jsonPath("$.paths['/api/comments'].post.security[1].csrfAuth").exists())
+                .andExpect(jsonPath("$.paths['/api/projects']").doesNotExist());
+        mvc.perform(get("/v3/api-docs/tasks")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/tasks/{taskId}/labels/{labelId}']").doesNotExist());
+    }
+
+    @Test
     void dependencySpecUsesProjectRevisionAndDocumentsStrictCreateAndDelete() throws Exception {
         String route = "$.paths['/api/tasks/{id}/dependencies'].post";
         mvc.perform(get("/v3/api-docs/tasks")).andExpect(status().isOk())

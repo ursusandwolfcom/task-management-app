@@ -14,3 +14,9 @@ databaseChangeLog:
   - include:
       file: changes/005-index-project-graph.yaml
       relativeToChangelogFile: true
+  - include:
+      file: changes/006-create-comments.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/007-create-labels.yaml
+      relativeToChangelogFile: true
