@@ -75,7 +75,7 @@ function Assert-HttpStatus([string]$Path, [int]$Expected) {
 function Assert-MigrationHistory {
     $count = Invoke-Compose @('exec', '-T', 'postgres', 'psql', '-U', 'task_management_check',
         '-d', 'task_management_check', '-tAc', 'SELECT count(*) FROM public.databasechangelog;')
-    if (($count | Out-String).Trim() -ne '4') { throw 'Liquibase tracking history was not preserved in public' }
+    if (($count | Out-String).Trim() -ne '5') { throw 'Liquibase tracking history was not preserved in public' }
 }
 
 function Assert-IdentityBootstrap {
@@ -247,7 +247,7 @@ try {
     Assert-MigrationHistory
     Assert-IdentityBootstrap
     Start-TaskPersistenceSmoke
-    Write-Output 'Container startup: health UP, identity protected, alpha disabled, UID 10001, UTC, migrations 4.'
+    Write-Output 'Container startup: health UP, identity protected, alpha disabled, UID 10001, UTC, migrations 5.'
 
     $restartTime = [DateTime]::UtcNow.ToString('o')
     Invoke-Compose @('restart', 'app')
@@ -256,11 +256,11 @@ try {
     Assert-MigrationHistory
     $restartLog = Invoke-Compose @('logs', '--no-color', '--since', $restartTime, 'app') | Out-String
     $restartLog | Set-Content -LiteralPath (Join-Path $logDirectory 'restart.log') -Encoding UTF8
-    if ($restartLog -notmatch 'Run:\s+0' -or $restartLog -notmatch 'Previously run:\s+4') {
+    if ($restartLog -notmatch 'Run:\s+0' -or $restartLog -notmatch 'Previously run:\s+5') {
         throw 'Restart reapplied migrations or did not preserve Liquibase history'
     }
     Complete-TaskPersistenceSmoke
-    Write-Output 'Container restart: health UP, Liquibase 0 new / 4 existing migrations.'
+    Write-Output 'Container restart: health UP, Liquibase 0 new / 5 existing migrations.'
 } finally {
     try {
         # Only this run's randomly named, disposable Compose project may be removed.

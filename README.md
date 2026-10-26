@@ -96,6 +96,8 @@ reserve a task. A later execution command validates current facts again under it
 50000) bound snapshot loading. Oversized graphs return 409 GRAPH_TOO_LARGE rather than
 calculating a partial graph. Queries use fixed bulk task/edge reads, without per-node loads.
 These routes are included in `/v3/api-docs/tasks` when the alpha documentation profile is active.
+Liquibase migration 005 adds a covering `(project_id, task_id, depends_on_task_id)` index
+for bounded, ordered project-edge reads; previous migrations remain unchanged.
 
 ## Local development
 
