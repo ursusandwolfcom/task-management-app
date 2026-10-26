@@ -99,6 +99,40 @@ These routes are included in `/v3/api-docs/tasks` when the alpha documentation p
 Liquibase migration 005 adds a covering `(project_id, task_id, depends_on_task_id)` index
 for bounded, ordered project-edge reads; previous migrations remain unchanged.
 
+## Comments and project labels
+
+Project members, owners and ADMIN can create and list plain-text comments through
+`POST /api/comments` with `{"taskId":123,"text":"Review this"}` and
+`GET /api/comments?taskId=123`. The server supplies authorId and a UTC timestamp;
+text is stripped and must contain 1..10000 characters. Markup remains plain text.
+Comment text and label names reject U+0000 with 400 VALIDATION_ERROR.
+`DELETE /api/comments/{id}` requires current project access and the comment author,
+current project owner or ADMIN. Author and timestamp fields cannot be supplied by clients.
+
+`POST /api/labels` accepts `{"projectId":1,"name":"Bug","color":"#FF0000"}`.
+`GET /api/labels?projectId=1` lists project labels; `GET /api/labels/{id}` reads one.
+Names contain 1..100 characters after stripping the ends and are unique per project
+using `Locale.ROOT` lowercase: `Bug` and ` bug ` conflict. Colors must be `#RRGGBB`,
+case-insensitive on input and uppercase on output. Project participants can manage labels.
+`PUT /api/labels/{id}` replaces name/color with an explicit expected `version`;
+`DELETE /api/labels/{id}?version=0` also requires the current label version.
+Stale versions return 409 VERSION_CONFLICT; duplicate names return 409 LABEL_ALREADY_EXISTS.
+
+`PUT/DELETE /api/tasks/{taskId}/labels/{labelId}` idempotently adds/removes an association;
+`GET /api/tasks/{taskId}/labels` lists assigned labels. Both parents must exist and belong
+to the same project. A visible foreign-project label returns 409 CROSS_PROJECT_LABEL;
+inaccessible labels and comments return 404 LABEL_NOT_FOUND/COMMENT_NOT_FOUND.
+Lists use page 0..1000000, size 1..100 (defaults 0/20), newest ID first.
+All responses use no-store; browser-cookie writes require CSRF.
+
+Writes use the shared project lock and recheck current access after waiting.
+Comments, labels and their associations do not change task versions or project/planning
+revisions. Deleting an eligible task deletes its comments and label associations,
+while preserving the project labels. Deleting a label removes its associations;
+deleting an empty project removes its labels. Liquibase migrations 006/007 enforce
+parent cleanup and same-project associations. The alpha profile documents these
+routes separately at `/v3/api-docs/collaboration`; browser alpha storage remains separate.
+
 ## Local development
 
 The application uses Java 21, Spring Boot 4.1.1, Maven Wrapper and Node.js 24 for the React/TypeScript workspace build.

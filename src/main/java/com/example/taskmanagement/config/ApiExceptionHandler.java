@@ -1,5 +1,6 @@
 package com.example.taskmanagement.config;
 
+import com.example.taskmanagement.collaboration.api.CollaborationException;
 import com.example.taskmanagement.planning.core.GraphValidationException;
 import com.example.taskmanagement.identity.api.IdentityException;
 import com.example.taskmanagement.project.api.ProjectException;
@@ -21,6 +22,18 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 /** Shared HTTP representation; pure graph and lifecycle modules remain unaware of HTTP. */
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
+
+    @ExceptionHandler(CollaborationException.class)
+    public ResponseEntity<ProblemDetail> collaborationProblem(CollaborationException exception) {
+        HttpStatus status = switch (exception.reason()) {
+            case COMMENT_NOT_FOUND, TASK_NOT_FOUND, LABEL_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case FORBIDDEN -> HttpStatus.FORBIDDEN;
+            case VALIDATION_ERROR -> HttpStatus.BAD_REQUEST;
+            case LABEL_ALREADY_EXISTS, VERSION_CONFLICT, CROSS_PROJECT_LABEL -> HttpStatus.CONFLICT;
+        };
+        return uncachedProblem(status, exception.reason().name(),
+                "The collaboration operation could not be completed.");
+    }
 
     @ExceptionHandler(ProjectException.class)
     public ResponseEntity<ProblemDetail> projectProblem(ProjectException exception) {

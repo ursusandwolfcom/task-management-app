@@ -75,7 +75,7 @@ function Assert-HttpStatus([string]$Path, [int]$Expected) {
 function Assert-MigrationHistory {
     $count = Invoke-Compose @('exec', '-T', 'postgres', 'psql', '-U', 'task_management_check',
         '-d', 'task_management_check', '-tAc', 'SELECT count(*) FROM public.databasechangelog;')
-    if (($count | Out-String).Trim() -ne '5') { throw 'Liquibase tracking history was not preserved in public' }
+    if (($count | Out-String).Trim() -ne '7') { throw 'Liquibase tracking history was not preserved in public' }
 }
 
 function Assert-IdentityBootstrap {
@@ -163,6 +163,22 @@ function Start-TaskPersistenceSmoke {
     $script:taskSmokeProjectId = $project.id
     $script:taskSmokeSuccessorId = $successor.id
     $script:taskSmokeGraphRevision = $change.inputRevision
+    $comment = Invoke-TaskSmokeApi '/api/comments' 'Post' @{
+        taskId = $successor.id; text = '<b>Persisted plain text</b>'
+    }
+    $label = Invoke-TaskSmokeApi '/api/labels' 'Post' @{
+        projectId = $project.id; name = ' Bug '; color = '#aabbcc'
+    }
+    $null = Invoke-TaskSmokeApi ('/api/tasks/' + $successor.id + '/labels/' + $label.id) 'Put'
+    $null = Invoke-TaskSmokeApi ('/api/tasks/' + $successor.id + '/labels/' + $label.id) 'Put'
+    $script:collaborationSmokeComment = $comment
+    $script:collaborationSmokeLabel = $label
+    $script:collaborationSmokeTaskVersion = $successor.version
+    $unchanged = Invoke-TaskSmokeApi ('/api/projects/' + $project.id)
+    if ($unchanged.inputRevision -ne $change.inputRevision -or $comment.authorId -ne $ownerProfile.id -or
+            $label.name -ne 'Bug' -or $label.color -ne '#AABBCC') {
+        throw 'Collaboration metadata normalization, authorship or revision isolation failed.'
+    }
     $available = Invoke-TaskSmokeApi ('/api/projects/' + $project.id + '/available-tasks')
     $order = Invoke-TaskSmokeApi ('/api/projects/' + $project.id + '/execution-order')
     if (@($available.tasks).Count -ne 1 -or $available.tasks[0].id -ne $task.id -or
@@ -175,6 +191,16 @@ function Start-TaskPersistenceSmoke {
 }
 
 function Complete-TaskPersistenceSmoke {
+    $comments = Invoke-TaskSmokeApi ('/api/comments?taskId=' + $script:taskSmokeSuccessorId)
+    $labels = Invoke-TaskSmokeApi ('/api/tasks/' + $script:taskSmokeSuccessorId + '/labels')
+    $successor = Invoke-TaskSmokeApi ('/api/tasks/' + $script:taskSmokeSuccessorId)
+    if ($comments.totalElements -ne 1 -or $comments.content[0].id -ne $script:collaborationSmokeComment.id -or
+            $comments.content[0].text -ne '<b>Persisted plain text</b>' -or
+            $comments.content[0].createdAt -ne $script:collaborationSmokeComment.createdAt -or
+            $labels.totalElements -ne 1 -or $labels.content[0].id -ne $script:collaborationSmokeLabel.id -or
+            $successor.version -ne $script:collaborationSmokeTaskVersion) {
+        throw 'Restart lost collaboration metadata or changed the task version.'
+    }
     $available = Invoke-TaskSmokeApi ('/api/projects/' + $script:taskSmokeProjectId + '/available-tasks')
     if ($available.inputRevision -ne $script:taskSmokeGraphRevision -or
             @($available.blockingReasons).Count -ne 1 -or
@@ -201,6 +227,15 @@ function Complete-TaskPersistenceSmoke {
     }
     $null = Invoke-TaskSmokeApi ('/api/tasks/' + $script:taskSmokeSuccessorId + '/dependencies/' +
             $script:taskSmokeId + '?inputRevision=' + $next.inputRevision) 'Delete'
+    $null = Invoke-TaskSmokeApi ('/api/tasks/' + $successor.id + '?version=' + $successor.version) 'Delete'
+    $remainingLabel = Invoke-TaskSmokeApi ('/api/labels/' + $script:collaborationSmokeLabel.id)
+    $counts = Invoke-Compose @('exec', '-T', 'postgres', 'psql', '-U', 'task_management_check',
+        '-d', 'task_management_check', '-tAc',
+        'SELECT (SELECT count(*) FROM task_management.comments), (SELECT count(*) FROM task_management.task_labels);')
+    if (($counts | Out-String).Trim() -ne '0|0' -or $remainingLabel.name -ne 'Bug') {
+        throw 'Task deletion did not cascade owned metadata or removed the project label.'
+    }
+    Write-Output 'Collaboration persistence: restart preserved comments/labels; task cleanup preserved project label.'
     Write-Output 'Graph persistence: restart preserved dependency; actual completion unlocked next; removal passed.'
     Write-Output 'Task persistence: restart/start/complete preserved both execution attempts.'
 }
@@ -247,7 +282,7 @@ try {
     Assert-MigrationHistory
     Assert-IdentityBootstrap
     Start-TaskPersistenceSmoke
-    Write-Output 'Container startup: health UP, identity protected, alpha disabled, UID 10001, UTC, migrations 5.'
+    Write-Output 'Container startup: health UP, identity protected, alpha disabled, UID 10001, UTC, migrations 7.'
 
     $restartTime = [DateTime]::UtcNow.ToString('o')
     Invoke-Compose @('restart', 'app')
@@ -256,11 +291,11 @@ try {
     Assert-MigrationHistory
     $restartLog = Invoke-Compose @('logs', '--no-color', '--since', $restartTime, 'app') | Out-String
     $restartLog | Set-Content -LiteralPath (Join-Path $logDirectory 'restart.log') -Encoding UTF8
-    if ($restartLog -notmatch 'Run:\s+0' -or $restartLog -notmatch 'Previously run:\s+5') {
+    if ($restartLog -notmatch 'Run:\s+0' -or $restartLog -notmatch 'Previously run:\s+7') {
         throw 'Restart reapplied migrations or did not preserve Liquibase history'
     }
     Complete-TaskPersistenceSmoke
-    Write-Output 'Container restart: health UP, Liquibase 0 new / 5 existing migrations.'
+    Write-Output 'Container restart: health UP, Liquibase 0 new / 7 existing migrations.'
 } finally {
     try {
         # Only this run's randomly named, disposable Compose project may be removed.

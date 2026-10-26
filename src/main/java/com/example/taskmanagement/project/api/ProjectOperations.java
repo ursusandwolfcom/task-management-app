@@ -40,6 +40,6 @@ public interface ProjectOperations {
 
     ProjectView transferOwner(long actorId, long projectId, long userId, @PositiveOrZero long version);
 
-    /** The workflow calls this while the project is empty; future child FKs must use RESTRICT. */
+    /** Deletes a project without tasks; owned collaboration metadata is removed with its parent. */
     void deleteEmpty(long actorId, long projectId, @PositiveOrZero long version);
 }
