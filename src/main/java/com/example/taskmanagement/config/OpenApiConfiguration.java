@@ -111,7 +111,8 @@ public class OpenApiConfiguration {
                             setTaskBody(path.getPost(), new ObjectSchema()
                                     .addProperty("taskId", new IntegerSchema().format("int64")
                                             .minimum(java.math.BigDecimal.ONE))
-                                    .addProperty("text", new StringSchema().minLength(1).maxLength(10000))
+                                    .addProperty("text", new StringSchema().minLength(1).maxLength(10000)
+                                            .pattern("[^\\x00]*"))
                                     .required(List.of("taskId", "text")).additionalProperties(false));
                         }
                         if (route.equals("/api/labels") && path.getPost() != null) {
@@ -185,7 +186,7 @@ public class OpenApiConfiguration {
 
     private static io.swagger.v3.oas.models.media.Schema<?> labelMetadata(boolean create) {
         var schema = new ObjectSchema()
-                .addProperty("name", new StringSchema().minLength(1).maxLength(100)
+                .addProperty("name", new StringSchema().minLength(1).maxLength(100).pattern("[^\\x00]*")
                         .description("Trimmed name, unique within its project using Locale.ROOT lowercase"))
                 .addProperty("color", new StringSchema().pattern("^#[0-9A-Fa-f]{6}$"));
         if (create) {

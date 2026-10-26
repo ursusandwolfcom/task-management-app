@@ -110,9 +110,11 @@ class CommentIntegrationTest {
     void httpRejectsSpoofingFractionsAndBlankText() throws Exception {
         String auth = "Bearer " + tokens.issue(identity.login(member.username(), PASSWORD)).accessToken();
         for (String body : new String[] {"{\"taskId\":" + task.id() + ",\"text\":\"x\",\"authorId\":1}",
-                "{\"taskId\":1.5,\"text\":\"x\"}", "{\"taskId\":" + task.id() + ",\"text\":\"   \"}"}) {
+                "{\"taskId\":1.5,\"text\":\"x\"}", "{\"taskId\":" + task.id() + ",\"text\":\"   \"}",
+                "{\"taskId\":" + task.id() + ",\"text\":\"bad\\u0000text\"}"}) {
             mvc.perform(post("/api/comments").header("Authorization", auth)
-                    .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isBadRequest());
+                    .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
         }
         mvc.perform(post("/api/comments").header("Authorization", auth).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"taskId\":" + task.id() + ",\"text\":\"Hello\"}"))

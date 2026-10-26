@@ -242,6 +242,9 @@ class LabelIntegrationTest {
                 .andExpect(jsonPath("$.color").value("#AABBCC"));
         mvc.perform(post("/api/labels").header("Authorization", auth).contentType(MediaType.APPLICATION_JSON)
                 .content(prefix + ",\"version\":0}")) .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/labels").header("Authorization", auth).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"projectId\":" + project.id() + ",\"name\":\"bad\\u0000name\",\"color\":\"#000000\"}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
         var label = create("Other");
         for (String body : new String[] {"{\"name\":\"x\",\"color\":\"#000000\"}",
                 "{\"name\":\"x\",\"color\":\"#000000\",\"version\":0.5}",
