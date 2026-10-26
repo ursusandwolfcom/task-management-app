@@ -90,6 +90,65 @@ class TaskIntegrationTest {
     }
 
     @Test
+    void pageBoundsRetainModuleErrorsAcrossTaskAndProjectLists() throws Exception {
+        var task = create(member.id());
+        String auth = bearer(member);
+        for (String path : List.of("/api/tasks/" + task.id() + "/attempts",
+                "/api/projects/" + project.id() + "/tasks", "/api/projects",
+                "/api/projects/" + project.id() + "/members")) {
+            for (int[] bounds : new int[][] {{-1, 20}, {1000001, 20}, {0, 0}, {0, 101}}) {
+                mvc.perform(get(path).header("Authorization", auth)
+                        .param("page", Integer.toString(bounds[0])).param("size", Integer.toString(bounds[1])))
+                        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+            }
+            mvc.perform(get(path).header("Authorization", auth).param("page", "1000000").param("size", "100"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.content").isEmpty());
+        }
+    }
+
+    @Test
+    void malformedDueDatesReturnValidationErrorsWithoutChangingTaskOrProject() throws Exception {
+        var task = create(member.id());
+        String auth = bearer(member);
+        var revision = projects.read(owner.id(), project.id()).inputRevision();
+        for (String date : List.of("not-a-date", "2026-02-30", "2026-13-01", "+9999999999-01-01")) {
+            for (String method : List.of("POST", "PUT", "PATCH")) {
+                String path = method.equals("POST") ? "/api/projects/" + project.id() + "/tasks"
+                        : "/api/tasks/" + task.id();
+                var request = org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request(
+                        org.springframework.http.HttpMethod.valueOf(method), path);
+                String fields = "\"name\":\"Invalid\",\"priority\":\"HIGH\",\"dueDate\":\"" + date + "\"";
+                if (!method.equals("POST")) {
+                    fields += ",\"version\":" + task.version();
+                }
+                mvc.perform(request.header("Authorization", auth).contentType(MediaType.APPLICATION_JSON)
+                        .content("{" + fields + "}"))
+                        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+            }
+        }
+        assertThat(tasks.read(member.id(), task.id())).isEqualTo(task);
+        assertThat(tasks.list(member.id(), project.id(), 0, 20).totalElements()).isEqualTo(1);
+        assertThat(projects.read(owner.id(), project.id()).inputRevision()).isEqualTo(revision);
+    }
+
+    @Test
+    void patchRejectsSnapshotWhoseVersionDiffersFromRequestEvenWhenRequestMatchesLatestVersion() {
+        var stale = create(member.id());
+        var latest = tasks.replace(member.id(), stale.id(),
+                data("Concurrent change", 30, member.id()), stale.version());
+        // Reproduce a read that finished before another writer committed, without timing-dependent sleeps.
+        var interleaved = org.mockito.Mockito.mock(TaskOperations.class,
+                org.mockito.AdditionalAnswers.delegatesTo(tasks));
+        org.mockito.Mockito.doReturn(stale).when(interleaved).read(member.id(), stale.id());
+        var controller = new com.example.taskmanagement.task.web.TaskController(interleaved);
+        var jwt = org.springframework.security.oauth2.jwt.Jwt.withTokenValue("test")
+                .header("alg", "HS256").subject(Long.toString(member.id())).build();
+        var body = json.readTree("{\"version\":" + latest.version() + ",\"description\":\"Patch\"}");
+        assertReason(() -> controller.patch(jwt, stale.id(), body), TaskException.Reason.VERSION_CONFLICT);
+        assertThat(tasks.read(member.id(), stale.id())).isEqualTo(latest);
+    }
+
+    @Test
     void cookieTaskWritesRequireCsrfWhileReadsUseTheExistingProtectedSession() throws Exception {
         var grant = identity.login(member.username(), PASSWORD);
         var access = new jakarta.servlet.http.Cookie(
