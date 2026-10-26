@@ -2,6 +2,7 @@ package com.example.taskmanagement.project.application;
 
 import com.example.taskmanagement.identity.api.IdentityOperations;
 import com.example.taskmanagement.identity.api.UserRole;
+import com.example.taskmanagement.shared.persistence.PageRequests;
 import com.example.taskmanagement.project.api.ProjectCoordination;
 import com.example.taskmanagement.project.api.ProjectContentGuard;
 import com.example.taskmanagement.project.api.ProjectData;
@@ -17,7 +18,6 @@ import jakarta.persistence.EntityManager;
 import jakarta.validation.Validator;
 import java.util.List;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -210,10 +210,7 @@ public class ProjectService implements ProjectOperations, ProjectCoordination {
     }
 
     private static PageRequest paging(int page, int size, String property) {
-        if (page < 0 || page > 1000000 || size < 1 || size > 100) {
-            throw error(ProjectException.Reason.VALIDATION_ERROR);
-        }
-        return PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, property));
+        return PageRequests.descending(page, size, property, () -> error(ProjectException.Reason.VALIDATION_ERROR));
     }
 
     private static ProjectException error(ProjectException.Reason reason) {

@@ -90,6 +90,23 @@ class TaskIntegrationTest {
     }
 
     @Test
+    void pageBoundsRetainModuleErrorsAcrossTaskAndProjectLists() throws Exception {
+        var task = create(member.id());
+        String auth = bearer(member);
+        for (String path : List.of("/api/tasks/" + task.id() + "/attempts",
+                "/api/projects/" + project.id() + "/tasks", "/api/projects",
+                "/api/projects/" + project.id() + "/members")) {
+            for (int[] bounds : new int[][] {{-1, 20}, {1000001, 20}, {0, 0}, {0, 101}}) {
+                mvc.perform(get(path).header("Authorization", auth)
+                        .param("page", Integer.toString(bounds[0])).param("size", Integer.toString(bounds[1])))
+                        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+            }
+            mvc.perform(get(path).header("Authorization", auth).param("page", "1000000").param("size", "100"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.content").isEmpty());
+        }
+    }
+
+    @Test
     void malformedDueDatesReturnValidationErrorsWithoutChangingTaskOrProject() throws Exception {
         var task = create(member.id());
         String auth = bearer(member);

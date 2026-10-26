@@ -89,7 +89,8 @@ public class TaskController {
     @PatchMapping("/api/tasks/{id}")
     @Operation(summary = "Patch task metadata with expected version",
             description = "Omitted fields retain values; null clears description, estimate, dueDate or assignee. "
-                    + "name/priority cannot be null. Same invariants as PUT; command fields rejected.")
+                    + "name/priority cannot be null. Same invariants as PUT; command fields rejected. "
+                    + "The metadata snapshot and locked task must both match version; otherwise VERSION_CONFLICT.")
     public ResponseEntity<TaskView> patch(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long id,
             @RequestBody JsonNode body) {
         var previous = tasks.read(actor(jwt), id);
