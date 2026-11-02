@@ -7,7 +7,7 @@ import { useSession } from './session.tsx';
 import { emptyTaskQuery, taskQueryString } from './taskQuery.ts';
 import { Alert, Empty, Field, Loading, Notice, PageHeader, Pagination } from './ui.tsx';
 import type {
-  AvailableTasks, Comment, ExecutionAttempt, Label, Page, Predecessors, Project,
+  Attachment, AvailableTasks, Comment, ExecutionAttempt, Label, Page, Predecessors, Project,
   ProjectGantt, Task, TaskBucket, TaskFields, TaskPriority, TaskQuery, User
 } from './types.ts';
 
@@ -293,6 +293,7 @@ function TaskWorkspace({ user, task, onReload }: { user: User; task: Task; onRel
         <Attempts user={user} taskId={task.id} />
         <Comments user={user} taskId={task.id} />
       </div>
+      <Attachments user={user} taskId={task.id} />
       <LabelsPanel user={user} task={task} />
     </>}
   </>;
@@ -447,6 +448,47 @@ function Comments({ user, taskId }: { user: User; taskId: bigint }) {
           onChange={event => setText(event.target.value)} /></label>
       <Alert error={command.error} /><Notice>{command.notice}</Notice>
       <button type="submit">Отправить</button>
+    </fieldset></form>
+  </section>;
+}
+
+function Attachments({ user, taskId }: { user: User; taskId: bigint }) {
+  const { client, generation } = useSession();
+  const [page, setPage] = useState(0);
+  const [file, setFile] = useState<File | null>(null);
+  const command = useCommand();
+  const query = useLoad(`${user.id}:${generation}:${taskId}:attachments:${page}`, signal =>
+    client.request<Page<Attachment>>(user.id, `/api/attachments?taskId=${taskId}&page=${page}&size=20`,
+      'GET', undefined, signal));
+  return <section className="card"><h2>Вложения</h2>
+    <p className="muted">До 5 МиБ: PDF, PNG, JPEG, WebP, TXT. Файлы на диске сервера; Dropbox позже.</p>
+    <Alert error={query.error} />{query.loading && <Loading />}
+    <ul className="attempt-list">{query.value?.content.map(item => <li key={String(item.id)}>
+      <strong>{item.fileName}</strong>
+      <small>{String(item.sizeBytes)} байт · {item.contentType} · {item.createdAt}</small>
+      <a href={`/api/attachments/${item.id}/content`} target="_blank" rel="noreferrer">Скачать</a>
+      {(item.uploaderId === user.id || user.role === 'ADMIN') &&
+        <button className="text-button danger-text" disabled={command.busy} onClick={() =>
+          void command.run(async () => {
+            await client.request<void>(user.id, `/api/attachments/${item.id}`, 'DELETE');
+            query.reload();
+          })}>Удалить</button>}
+    </li>)}</ul>
+    <Pagination page={page} total={query.value?.totalPages ?? 0} onChange={setPage} />
+    <form className="team-form" onSubmit={event => { event.preventDefault();
+      if (!file) return;
+      void command.run(async () => {
+        const body = new FormData();
+        body.append('file', file);
+        await client.upload(user.id, `/api/attachments?taskId=${taskId}`, body);
+        setFile(null); command.setNotice('Файл загружен.'); query.reload();
+      });
+    }}><fieldset disabled={command.busy}>
+      <label className="field"><span>Файл</span>
+        <input type="file" required accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,application/pdf,image/*,text/plain"
+          onChange={event => setFile(event.target.files?.[0] ?? null)} /></label>
+      <Alert error={command.error} /><Notice>{command.notice}</Notice>
+      <button type="submit">Загрузить</button>
     </fieldset></form>
   </section>;
 }

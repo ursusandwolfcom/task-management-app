@@ -105,6 +105,34 @@ export class Client {
     this.verified = { actor, at: Date.now() };
   }
 
+  async upload<T>(actor: bigint, path: string, form: FormData, signal?: AbortSignal): Promise<T> {
+    return this.options.lock(async () => {
+      await this.requireActor(actor, signal, true);
+      const csrf = await this.raw<Csrf>('/api/session/csrf');
+      try {
+        const response = await this.options.fetch(path, {
+          method: 'POST', credentials: 'same-origin', cache: 'no-store', signal,
+          headers: csrf ? { [csrf.headerName]: csrf.token } : {},
+          body: form
+        });
+        const text = await response.text();
+        const data: unknown = text ? decodeJson(text) : null;
+        if (!response.ok) {
+          const code = data && typeof data === 'object' && 'code' in data && typeof data.code === 'string'
+            ? data.code : 'HTTP_ERROR';
+          throw new ApiError(response.status, code);
+        }
+        return data as T;
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          this.verified = null;
+          this.options.session(null);
+        }
+        throw error;
+      }
+    });
+  }
+
   async request<T>(actor: bigint, path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
     // Reads only need the lock for session restore; holding it for the whole GET
     // serializes every tab's project/task fetches and stalls dual-tab restore.
@@ -167,9 +195,10 @@ export function explain(error: unknown): string {
     SELF_DEPENDENCY: 'Задача не может зависеть от себя.', CYCLIC_DEPENDENCY: 'Зависимость создаёт цикл.',
     DEPENDENCY_ALREADY_EXISTS: 'Такая зависимость уже есть.', DEPENDENCY_CHANGE_FORBIDDEN: 'Зависимости меняются только до первого старта.',
     DEPENDENCY_NOT_FOUND: 'Зависимость не найдена.', CROSS_PROJECT_DEPENDENCY: 'Зависимость только внутри одного проекта.',
-    GRAPH_TOO_LARGE: 'Граф слишком большой для этой операции.', COMMENT_NOT_FOUND: 'Комментарий не найден.',
+    GRAPH_TOO_LARGE: 'Граф слишком большой для этой операции.',     COMMENT_NOT_FOUND: 'Комментарий не найден.',
     LABEL_NOT_FOUND: 'Метка не найдена.', LABEL_ALREADY_EXISTS: 'Метка с таким именем уже есть.',
-    CROSS_PROJECT_LABEL: 'Метка принадлежит другому проекту.'
+    CROSS_PROJECT_LABEL: 'Метка принадлежит другому проекту.',
+    ATTACHMENT_NOT_FOUND: 'Вложение не найдено.', STORAGE_ERROR: 'Не удалось сохранить файл.'
   };
   return messages[error.code] ?? 'Сервер отклонил действие. Форма сохранена; попробуйте после проверки данных.';
 }
