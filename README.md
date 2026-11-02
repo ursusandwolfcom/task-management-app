@@ -1,4 +1,57 @@
-# Task Management System
+# ProjectFlow
+
+> Планирование и выполнение командной работы: что делать дальше, кто отвечает, что блокирует сроки.
+
+[![CI](https://github.com/ursusandwolfcom/task-management-app/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ursusandwolfcom/task-management-app/actions/workflows/ci.yml)
+[![Java 21](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)](#local-development)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-модульный%20монолит-6DB33F?logo=springboot&logoColor=white)](#local-development)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Liquibase-4169E1?logo=postgresql&logoColor=white)](#local-development)
+[![React](https://img.shields.io/badge/Workspace-React%20%2B%20TypeScript-61DAFB?logo=react&logoColor=black)](#local-development)
+
+## Демо для заказчика
+
+Готовый **рабочий демо-срез** на ветке `main`: полный MVP-сценарий плюс планирование, портфель, файлы и in-app уведомления. Это не production-deploy и не весь исходный assignment end-to-end — честный объём см. [Deferred](#deferred-explicit-technical-debt).
+
+### За 10 минут
+
+| # | Что показать | Зачем |
+|---|--------------|--------|
+| 1 | Регистрация / вход (cookie-сессия) | Один аккаунт = одни данные в двух вкладках |
+| 2 | Проект → участник → задачи **A → B** | Зависимости и права на живых данных |
+| 3 | «Мои задачи»: B заблокирована, A готова | Очередь с причиной, не «магический» статус |
+| 4 | Завершить A → B открывается; fail → retry | История попыток сохраняется |
+| 5 | Gantt / what-if по оценкам | CPM Mon–Fri 09–17, сценарий без записи в БД |
+| 6 | Обзор портфеля + загрузка исполнителей | Риск и нагрузка → переход к работе |
+| 7 | Комментарий, метка, вложение, уведомление | Совместная работа в карточке задачи |
+
+### Что уже в демо
+
+```text
+Аккаунт и проекты     Задачи и lifecycle     DAG / очередь / next
+Комментарии и метки   Вложения (локальный диск)   In-app уведомления (outbox)
+CPM + Gantt + what-if Портфель рисков + workload  Workspace UI (темы, CSRF)
+```
+
+### Что сознательно позже
+
+Dropbox, email/Telegram, resource leveling, праздники в календаре, финансовые KPI — перечислены в таблице **Deferred** ниже. В демо их **не** обещать.
+
+### Как запустить демо
+
+Полный пошаговый скрипт с таймингом: **[DEMO.md](DEMO.md)**.
+
+```powershell
+docker compose up -d --wait
+.\mvnw.cmd -q -DskipTests package
+java -jar target/task-management-app-0.0.1-SNAPSHOT.jar --spring.profiles.active=workspace
+# UI: http://127.0.0.1:8080/app/
+```
+
+Подробные контракты API — в разделах ниже. Alpha (`/alpha`) — отдельный браузерный прототип, не путать с серверным workspace.
+
+---
+
+# Technical reference
 
 ## Task lifecycle
 
@@ -141,6 +194,12 @@ Project members, owners and ADMIN can upload files through `POST /api/attachment
 PostgreSQL (Liquibase 009); bytes live under `attachment.storage-dir` (local disk) via
 `AttachmentObjectStore`.
 
+`GET /api/attachments?taskId=` lists newest first; `GET /api/attachments/{id}/content` downloads;
+`DELETE /api/attachments/{id}` requires the uploader, current project owner or ADMIN with live
+access. Uploads/deletes use the project write lock and do not change task or planning revisions.
+Task deletion cascades attachment rows; orphaned disk files may remain after storage failures.
+Workspace task detail shows the attachment panel. Browser-cookie writes require CSRF.
+
 ## Deferred (explicit technical debt)
 
 These items are **not** implemented; they need disproportionate product/ops work relative to
@@ -155,12 +214,6 @@ the current MVP slice and will land later when credentials, channel choice and c
 | Financial / actual-effort KPI | Estimates are planning inputs, not timesheets |
 
 Do not treat README assignment notes that mention Dropbox/email as shipped behavior.
-
-`GET /api/attachments?taskId=` lists newest first; `GET /api/attachments/{id}/content` downloads;
-`DELETE /api/attachments/{id}` requires the uploader, current project owner or ADMIN with live
-access. Uploads/deletes use the project write lock and do not change task or planning revisions.
-Task deletion cascades attachment rows; orphaned disk files may remain after storage failures.
-Workspace task detail shows the attachment panel. Browser-cookie writes require CSRF.
 
 ## Comments and project labels
 
