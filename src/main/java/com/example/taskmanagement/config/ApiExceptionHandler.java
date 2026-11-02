@@ -1,6 +1,8 @@
 package com.example.taskmanagement.config;
 
+import com.example.taskmanagement.attachment.api.AttachmentException;
 import com.example.taskmanagement.collaboration.api.CollaborationException;
+import com.example.taskmanagement.notification.api.NotificationException;
 import com.example.taskmanagement.planning.core.GraphValidationException;
 import com.example.taskmanagement.identity.api.IdentityException;
 import com.example.taskmanagement.project.api.ProjectException;
@@ -22,6 +24,29 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 /** Shared HTTP representation; pure graph and lifecycle modules remain unaware of HTTP. */
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
+
+    @ExceptionHandler(NotificationException.class)
+    public ResponseEntity<ProblemDetail> notificationProblem(NotificationException exception) {
+        HttpStatus status = switch (exception.reason()) {
+            case NOTIFICATION_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case FORBIDDEN -> HttpStatus.FORBIDDEN;
+            case VALIDATION_ERROR -> HttpStatus.BAD_REQUEST;
+        };
+        return uncachedProblem(status, exception.reason().name(),
+                "The notification operation could not be completed.");
+    }
+
+    @ExceptionHandler(AttachmentException.class)
+    public ResponseEntity<ProblemDetail> attachmentProblem(AttachmentException exception) {
+        HttpStatus status = switch (exception.reason()) {
+            case ATTACHMENT_NOT_FOUND, TASK_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case FORBIDDEN -> HttpStatus.FORBIDDEN;
+            case VALIDATION_ERROR -> HttpStatus.BAD_REQUEST;
+            case STORAGE_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
+        };
+        return uncachedProblem(status, exception.reason().name(),
+                "The attachment operation could not be completed.");
+    }
 
     @ExceptionHandler(CollaborationException.class)
     public ResponseEntity<ProblemDetail> collaborationProblem(CollaborationException exception) {
@@ -106,6 +131,14 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return handleExceptionInternal(exception, problem(status, "MALFORMED_REQUEST",
                 "Request body must be valid JSON with the documented field types and dates."),
                 headers, status, request);
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleMaxUploadSizeExceededException(
+            org.springframework.web.multipart.MaxUploadSizeExceededException exception, HttpHeaders headers,
+            HttpStatusCode status, WebRequest request) {
+        return handleExceptionInternal(exception, problem(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR",
+                "The attachment operation could not be completed."), headers, HttpStatus.BAD_REQUEST, request);
     }
 
     @Override

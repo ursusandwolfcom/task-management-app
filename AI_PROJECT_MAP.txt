@@ -2,31 +2,29 @@
 AI_PROJECT_MAP — Task Management App (ProjectFlow)
 Дата огляду: 2026-11-02
 Ролі: архітектор + аналітик + code-reviewer + code-quality
-Гілка роботи: sprint/s18 (M5 CPM/Gantt; після S16 UI + S17 dual-tab fix)
+Гілка роботи: sprint/s24 (outbox + in-app notifications; S23 на dev)
 ================================================================================
 
 1) СТАН СПРИНТІВ / ГІЛОК
 --------------------------------------------------------------------------------
 | Гілка              | Tip SHA   | Відносно інших                         |
 |--------------------|-----------|----------------------------------------|
-| origin/main        | b7990fe   | Release S15 (ще не release S16/S17)    |
-| origin/dev         | 1747c64   | S16+S17 змержені                       |
-| origin/sprint/s18  | (WIP)     | WorkingCalendar + CPM + GET /gantt     |
+| origin/main        | 00ecaaf   | Release S22                            |
+| origin/dev         | c920cf7   | + S23 attachments                      |
+| sprint/s24         | (WIP)     | outbox + in-app notifications          |
 
-Останній у dev: S17 (dual-tab session restore). Release на main ще потрібен після зеленого CI.
-Наступний: S18 M5 — календар/CPM/Gantt API+UI список.
+Batch release S23+S24 → main після зеленого S24.
 
 Roadmap PRODUCT_ROADMAP.md (етапи продукту, не номери спринту):
   M1 Аккаунт/проєкти     — ЗРОБЛЕНО (S9–S10)
   M2 Серверні задачі     — ЗРОБЛЕНО (S11–S12)
   M3 Залежності/черга    — ЗРОБЛЕНО (S13)
-  M4 Спільна робота      — ЧАСТКОВО (S14: comments+labels; файли/сповіщення — ні)
-  M5 Планування дат/CPM  — У РОБОТІ (S18: Mon–Fri 09–17, CPM, GET /gantt)
-  M6 Портфель/метрики    — НЕ
+  M4 Спільна робота      — ЧАСТКОВО (S14+S23; S24 in-app notify; email/Telegram — ні)
+  M5 Планування дат/CPM  — ЗРОБЛЕНО (S18–S19, what-if S21)
+  M6 Портфель/метрики    — ЧАСТКОВО (S20 risk + S22 workload)
 
-Допущення S18: без свят/перерв; null estimate = milestone 0 хв; без resource leveling.
-MVP acceptance (M1–M3) уже покритий API+workspace; Gantt — розширення M5.
-Висновок: продуктово MVP-сценарій готовий; повний roadmap — M4-tail + M5 + M6.
+Допущення S24: канал in-app; події task.assigned + comment.created через transactional outbox.
+Висновок: MVP M1–M3 готовий; M4 майже закритий in-app; зовнішні канали відкладені.
 
 
 2) ВЕРДИКТ CODE REVIEW

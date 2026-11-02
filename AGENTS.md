@@ -11,16 +11,25 @@ The user selected this workflow: `sprint/sNN` → `dev` → `main`.
 - Keep exactly three working branches locally and on origin: main, dev and the current
   sprint branch. Once work is preserved in the current sprint or integrated into main/dev,
   close superseded PRs, remove obsolete clean worktrees and delete obsolete branches.
-  Delete the completed sprint branch before creating the next one; a brief transition
-  with two branches is expected. Never delete a branch with unpreserved unique work.
+  Delete the completed sprint branch locally and on origin immediately after it is merged
+  to `dev` (do not leave stale `sprint/sNN` remotes). Delete it before creating the next
+  sprint; a brief transition with two sprint branches is expected. Never delete a branch
+  with unpreserved unique work.
 - Work in the sprint branch with small meaningful commits and a sprint PR targeting `dev`.
+- Acceleration (user-approved): batch fixes into one push before opening/updating a PR;
+  run targeted Maven/npm checks while iterating and one full `clean verify` on the
+  sprint SHA before merge; overlap local verify with CI; merge to `dev` as soon as the
+  latest sprint SHA is green. Release `dev` → `main` in batches of 2–3 sprints (or when
+  a blocking hotfix needs main), not after every sprint. Still require green checks on
+  the exact SHA being merged; never use success from an older SHA.
 - Before merging to `dev`, run Maven Wrapper `clean verify` and all applicable database,
   concurrency, startup/container and frontend checks. Verify CI on the latest sprint SHA
   and the proposed merge result against current `dev`.
-- After merging, rerun the required checks on the actual latest `dev` commit.
-- Only after those repeated checks succeed, merge a release PR from `dev` into `main`.
-  Ensure the main merge result contains exactly the tested code; integrate divergent main
-  changes into dev and rerun checks before release.
+- After merging, rerun the required checks on the actual latest `dev` commit (smoke or
+  full verify as appropriate); do not open a release PR until the batch is ready.
+- Only after those repeated checks succeed for the release candidate, merge a release PR
+  from `dev` into `main`. Ensure the main merge result contains exactly the tested code;
+  integrate divergent main changes into dev and rerun checks before release.
 - Check `main` CI/smoke after merge, then synchronise `dev` with `main` for the next sprint.
 - Use merge commits for sprint/release integration. Never rewrite shared branch history,
   force-push, bypass branch protections, skip required checks, or use success from an older SHA.

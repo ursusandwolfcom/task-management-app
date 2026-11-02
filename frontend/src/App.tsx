@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Auth, Profile } from './Account.tsx';
+import { Notifications } from './Notifications.tsx';
 import { Portfolio } from './Portfolio.tsx';
 import { CreateProject, ProjectDetail, ProjectList } from './Projects.tsx';
 import { MyTasks, TaskDetail } from './Tasks.tsx';
@@ -32,6 +33,7 @@ function Theme() {
 
 function Content({ user, route }: { user: User; route: string }) {
   if (route === '/overview') return <Portfolio user={user} />;
+  if (route === '/notifications') return <Notifications user={user} />;
   if (route === '/projects') return <ProjectList user={user} />;
   if (route === '/projects/new') return <CreateProject user={user} />;
   if (route === '/tasks') return <MyTasks user={user} />;
@@ -68,6 +70,7 @@ export function App() {
           <a href="#/overview" aria-current={route === '/overview' ? 'page' : undefined}><span aria-hidden="true">◈</span>Обзор</a>
           <a href="#/projects" aria-current={route.startsWith('/projects') ? 'page' : undefined}><span aria-hidden="true">◇</span>Проекты</a>
           <a href="#/tasks" aria-current={route === '/tasks' || route.startsWith('/tasks/') ? 'page' : undefined}><span aria-hidden="true">▣</span>Мои задачи</a>
+          <a href="#/notifications" aria-current={route === '/notifications' ? 'page' : undefined}><span aria-hidden="true">◉</span>Уведомления</a>
           <a href="#/profile" aria-current={route === '/profile' ? 'page' : undefined}><span aria-hidden="true">○</span>Профиль</a>
         </nav><div className="sidebar-bottom"><span className="small-dot" /> Ваша команда. Ваши проекты.</div>
       </aside>

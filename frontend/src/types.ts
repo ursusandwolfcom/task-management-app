@@ -40,6 +40,10 @@ export interface Predecessors {
   taskId: bigint; projectId: bigint; inputRevision: bigint; dependsOnTaskIds: bigint[];
 }
 export interface Comment { id: bigint; projectId: bigint; taskId: bigint; authorId: bigint; text: string; createdAt: string }
+export interface Attachment {
+  id: bigint; projectId: bigint; taskId: bigint; uploaderId: bigint; fileName: string;
+  contentType: string; sizeBytes: bigint; createdAt: string;
+}
 export interface Label { id: bigint; projectId: bigint; name: string; color: string; version: bigint }
 export interface GanttTask {
   taskId: bigint; durationMinutes: bigint; earlyStart: string; earlyFinish: string;
@@ -66,3 +70,11 @@ export interface AssigneeLoad {
   userId: bigint; openTasks: bigint; estimatedMinutes: bigint; overdueTasks: bigint;
 }
 export interface WorkloadSnapshot { calculatedAt: string; assignees: AssigneeLoad[] }
+export interface NotificationItem {
+  id: bigint; eventType: string; projectId: bigint; taskId: bigint; title: string; body: string;
+  createdAt: string; readAt: string | null;
+}
+export interface NotificationPage {
+  content: NotificationItem[]; page: number; size: number; totalElements: bigint; totalPages: number;
+  unreadCount: bigint;
+}

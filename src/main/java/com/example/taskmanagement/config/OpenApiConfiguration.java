@@ -135,6 +135,37 @@ public class OpenApiConfiguration {
     }
 
     @Bean
+    public GroupedOpenApi attachmentOpenApi() {
+        return GroupedOpenApi.builder().group("attachments").pathsToMatch("/api/attachments/**")
+                .addOpenApiCustomizer(api -> {
+                    api.info(new Info().title("ProjectFlow attachments API").version("0.0.1")
+                            .description("Task file attachments stored on local disk (max 5 MiB; "
+                                    + "pdf/png/jpeg/webp/plain text). Metadata is in PostgreSQL; "
+                                    + "uploads do not change task or planning revisions. Dropbox deferred."));
+                    api.getPaths().forEach((route, path) -> {
+                        if (path.getPost() != null) {
+                            var response = path.getPost().getResponses().remove("200");
+                            if (response != null) {
+                                path.getPost().getResponses().addApiResponse("201", response);
+                            }
+                        }
+                    });
+                    addProtectedErrors(api);
+                }).build();
+    }
+
+    @Bean
+    public GroupedOpenApi notificationOpenApi() {
+        return GroupedOpenApi.builder().group("notifications").pathsToMatch("/api/notifications/**")
+                .addOpenApiCustomizer(api -> {
+                    api.info(new Info().title("ProjectFlow notifications API").version("0.0.1")
+                            .description("In-app notifications projected from the transactional outbox "
+                                    + "(task.assigned, comment.created). Email/Telegram deferred."));
+                    addProtectedErrors(api);
+                }).build();
+    }
+
+    @Bean
     public GroupedOpenApi taskOpenApi() {
         return GroupedOpenApi.builder().group("tasks").pathsToMatch("/api/tasks/**", "/api/projects/*/tasks",
                         "/api/projects/*/execution-order", "/api/projects/*/available-tasks",
