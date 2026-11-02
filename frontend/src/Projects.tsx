@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { ApiError } from './client.ts';
 import { useCommand, useLoad } from './hooks.ts';
@@ -87,14 +87,6 @@ export function ProjectDetail({ user, id }: { user: User; id: bigint }) {
   const command = useCommand();
   const project = query.value;
   const manage = project && (user.role === 'ADMIN' || project.ownerId === user.id);
-  // Defer task/queue fetches so project editor can paint before shared session-lock contention.
-  const [tasksReady, setTasksReady] = useState(false);
-  useEffect(() => {
-    setTasksReady(false);
-    if (!project) return;
-    const timer = window.setTimeout(() => setTasksReady(true), 0);
-    return () => window.clearTimeout(timer);
-  }, [project?.id, project?.inputRevision]);
   return <><PageHeader eyebrow="ПРОЕКТ" title={project?.name ?? 'Проект'}><a href="#/projects">← К проектам</a></PageHeader>
     <Alert error={query.error} />{query.loading && <Loading />}
     {query.error && !query.loading && <button onClick={query.reload}>Повторить загрузку</button>}
@@ -109,7 +101,7 @@ export function ProjectDetail({ user, id }: { user: User; id: bigint }) {
             <p className="muted">Управлять данными и составом команды может владелец проекта.</p></>}
       </section><Members key={String(id)} user={user} project={project} manage={Boolean(manage)}
         updating={query.loading} refreshProject={query.reload} /></div>
-      {tasksReady && <ProjectTasks key={`tasks-${project.inputRevision}`} user={user} project={project} manage={Boolean(manage)} />}
+      <ProjectTasks key={`tasks-${project.inputRevision}`} user={user} project={project} manage={Boolean(manage)} />
       {manage && <section className="danger-section"><div><h2>Удалить проект</h2><p className="muted">Удаление доступно только для пустого проекта.</p></div>
         <button className="danger" disabled={command.busy} onClick={() => {
           if (!window.confirm(`Удалить проект «${project.name}»? Это действие нельзя отменить.`)) return;

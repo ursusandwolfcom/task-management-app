@@ -81,15 +81,31 @@ export class Client {
     });
   }
 
+  private async requireActor(actor: bigint, signal?: AbortSignal): Promise<User> {
+    signal?.throwIfAborted();
+    // Recheck under the lock: another tab may have refreshed or switched accounts.
+    const user = await this.restoreLocked();
+    this.options.session(user);
+    if (!user) throw new ApiError(401, 'INVALID_SESSION');
+    if (user.id !== actor) throw new ApiError(409, 'ACCOUNT_CHANGED');
+    return user;
+  }
+
   async request<T>(actor: bigint, path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
+    // Reads only need the lock for session restore; holding it for the whole GET
+    // serializes every tab's project/task fetches and stalls dual-tab restore.
+    if (method === 'GET') {
+      await this.options.lock(async () => { await this.requireActor(actor, signal); });
+      try {
+        return await this.raw<T>(path, method, body, undefined, signal);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) this.options.session(null);
+        throw error;
+      }
+    }
     return this.options.lock(async () => {
-      signal?.throwIfAborted();
-      // Recheck after obtaining the lock: another tab may have refreshed or switched accounts.
-      const user = await this.restoreLocked();
-      this.options.session(user);
-      if (!user) throw new ApiError(401, 'INVALID_SESSION');
-      if (user.id !== actor) throw new ApiError(409, 'ACCOUNT_CHANGED');
-      const csrf = method === 'GET' ? undefined : await this.raw<Csrf>('/api/session/csrf');
+      await this.requireActor(actor, signal);
+      const csrf = await this.raw<Csrf>('/api/session/csrf');
       try {
         const result = await this.raw<T>(path, method, body, csrf, signal);
         if (path === '/api/users/me/password' && method === 'POST') {
