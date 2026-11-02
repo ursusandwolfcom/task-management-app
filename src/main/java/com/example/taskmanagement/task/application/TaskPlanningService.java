@@ -1,13 +1,20 @@
 package com.example.taskmanagement.task.application;
 
 import com.example.taskmanagement.planning.core.CriticalPathCalculator;
+import com.example.taskmanagement.planning.core.GraphSnapshot;
 import com.example.taskmanagement.planning.core.PriorityTopologicalSorter;
+import com.example.taskmanagement.planning.core.ProjectSchedule;
 import com.example.taskmanagement.planning.core.ReadinessCalculator;
 import com.example.taskmanagement.planning.core.TaskNode;
 import com.example.taskmanagement.planning.core.WorkingCalendar;
+import com.example.taskmanagement.task.api.TaskException;
 import com.example.taskmanagement.task.api.TaskPlanningOperations;
+import com.example.taskmanagement.task.api.TaskView;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,8 +65,49 @@ public class TaskPlanningService implements TaskPlanningOperations {
     public ProjectGantt gantt(long actorId, long projectId) {
         var input = loader.load(actorId, projectId);
         var calendar = new WorkingCalendar(ZoneId.of(input.timezone()));
-        var planned = criticalPath.schedule(input.graph(), calendar, calendar.projectOrigin(input.startDate()),
-                input.endDate());
+        return toGantt(projectId, input, criticalPath.schedule(input.graph(), calendar,
+                calendar.projectOrigin(input.startDate()), input.endDate()));
+    }
+
+    @Override
+    public ProjectGantt whatIf(long actorId, long projectId, WhatIfRequest request) {
+        var input = loader.load(actorId, projectId);
+        var known = input.viewsById().keySet();
+        var overrides = new HashMap<Long, Integer>();
+        var seen = new HashSet<Long>();
+        for (var item : request.estimates()) {
+            if (!known.contains(item.taskId())) {
+                throw new TaskException(TaskException.Reason.TASK_NOT_FOUND);
+            }
+            if (!seen.add(item.taskId())) {
+                throw new TaskException(TaskException.Reason.VALIDATION_ERROR);
+            }
+            overrides.put(item.taskId(), item.estimatedMinutes());
+        }
+        var calendar = new WorkingCalendar(ZoneId.of(input.timezone()));
+        var graph = GraphSnapshot.of(input.tasks().stream().map(task -> node(task, overrides)).toList(), input.edges());
+        return toGantt(projectId, input, criticalPath.schedule(graph, calendar,
+                calendar.projectOrigin(input.startDate()), input.endDate()));
+    }
+
+    private static TaskNode node(TaskView task, Map<Long, Integer> overrides) {
+        int weight = switch (task.priority()) {
+            case LOW -> 10;
+            case MEDIUM -> 20;
+            case HIGH -> 30;
+            case CRITICAL -> 40;
+        };
+        Long minutes;
+        if (overrides.containsKey(task.id())) {
+            Integer override = overrides.get(task.id());
+            minutes = override == null ? null : override.longValue();
+        } else {
+            minutes = task.estimatedMinutes() == null ? null : task.estimatedMinutes().longValue();
+        }
+        return new TaskNode(task.id(), weight, task.dueDate(), minutes);
+    }
+
+    private static ProjectGantt toGantt(long projectId, TaskGraphInput input, ProjectSchedule planned) {
         var tasks = planned.tasks().stream()
                 .map(task -> new GanttTask(task.taskId(), task.durationMinutes(), task.earlyStart(),
                         task.earlyFinish(), task.lateStart(), task.lateFinish(), task.floatMinutes(),

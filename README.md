@@ -109,6 +109,9 @@ All four endpoints use the Java planning core, return `Cache-Control: no-store` 
 `GET /api/portfolio` returns a paged risk overview for accessible projects: `ON_TRACK`,
 `AT_RISK` (any task deadline overrun) or `OVERDUE` (project end overrun), plus open/critical
 task counts and planned duration. Workspace route `#/overview` shows the same cards.
+
+`POST /api/projects/{id}/gantt/what-if` accepts `{"estimates":[{"taskId":1,"estimatedMinutes":960}]}`
+and returns a CPM snapshot with those overrides only in memory; persisted estimates are unchanged.
 The snapshot loads under the same project lock as task writers; calculations run after
 the read transaction releases the lock. FAILED/CANCELLED predecessors remain blockers.
 Readiness does not check assignment, execution rights or resource calendars, and does not
