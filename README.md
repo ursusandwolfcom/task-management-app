@@ -125,6 +125,20 @@ These routes are included in `/v3/api-docs/tasks` when the alpha documentation p
 Liquibase migration 005 adds a covering `(project_id, task_id, depends_on_task_id)` index
 for bounded, ordered project-edge reads; previous migrations remain unchanged.
 
+## Task attachments
+
+Project members, owners and ADMIN can upload files through `POST /api/attachments?taskId={id}`
+(`multipart/form-data`, field `file`). Limits for this release: max **5 MiB**; content types
+`application/pdf`, `image/png`, `image/jpeg`, `image/webp`, `text/plain`. Metadata is stored in
+PostgreSQL (Liquibase 009); bytes live under `attachment.storage-dir` (local disk). Dropbox is
+deferred behind `AttachmentObjectStore`.
+
+`GET /api/attachments?taskId=` lists newest first; `GET /api/attachments/{id}/content` downloads;
+`DELETE /api/attachments/{id}` requires the uploader, current project owner or ADMIN with live
+access. Uploads/deletes use the project write lock and do not change task or planning revisions.
+Task deletion cascades attachment rows; orphaned disk files may remain after storage failures.
+Workspace task detail shows the attachment panel. Browser-cookie writes require CSRF.
+
 ## Comments and project labels
 
 Project members, owners and ADMIN can create and list plain-text comments through
