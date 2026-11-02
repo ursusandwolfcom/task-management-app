@@ -55,10 +55,8 @@ public class CommentService implements CommentOperations {
         long projectId = comments.projectId(commentId)
                 .orElseThrow(() -> error(CollaborationException.Reason.COMMENT_NOT_FOUND));
         var project = access.lockProject(actorId, projectId, CollaborationException.Reason.COMMENT_NOT_FOUND);
-        // A caller may already have a cached entity; immutable facts are safe only after rechecking row existence.
-        if (comments.projectId(commentId).isEmpty()) {
-            throw error(CollaborationException.Reason.COMMENT_NOT_FOUND);
-        }
+        // Fresh scalar existence after the lock; then load the row (may already be in the persistence context).
+        comments.projectId(commentId).orElseThrow(() -> error(CollaborationException.Reason.COMMENT_NOT_FOUND));
         var comment = comments.findById(commentId)
                 .orElseThrow(() -> error(CollaborationException.Reason.COMMENT_NOT_FOUND));
         if (actorId != comment.view().authorId() && actorId != project.ownerId()

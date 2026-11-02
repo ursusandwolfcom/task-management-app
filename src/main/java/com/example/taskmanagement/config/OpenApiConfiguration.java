@@ -217,6 +217,8 @@ public class OpenApiConfiguration {
                 .description("Finite PostgreSQL DATE, -4713-11-24 through +5874897-12-31"));
         schema.addProperty("assigneeId", new IntegerSchema().format("int64")
                 .minimum(java.math.BigDecimal.ONE).nullable(true));
+        schema.addProperty("bucket", new StringSchema()._enum(List.of("INBOX", "INCUBATOR", "WORK", "ARCHIVE"))
+                .description("Workbench column; independent of lifecycle. Create default is INBOX when omitted."));
         var required = new java.util.ArrayList<String>();
         if (!create) {
             schema.addProperty("version", versionSchema());

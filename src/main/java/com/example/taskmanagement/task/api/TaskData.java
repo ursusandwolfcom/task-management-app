@@ -15,7 +15,7 @@ public record TaskData(@NotBlank @Size(max = 200) @NoNul String name,
         @Schema(description = "Optional whole minutes, 15 through 525600 (365 physical days)")
         @Min(15) @Max(525600) Integer estimatedMinutes,
         @Schema(description = "Optional PostgreSQL DATE: -4713-11-24 through +5874897-12-31")
-        LocalDate dueDate, @Positive Long assigneeId) {
+        LocalDate dueDate, @Positive Long assigneeId, @NotNull TaskBucket bucket) {
     public TaskData {
         name = name == null ? null : name.strip();
         description = description == null ? "" : description.strip();

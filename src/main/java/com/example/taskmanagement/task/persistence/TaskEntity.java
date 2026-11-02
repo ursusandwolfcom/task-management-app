@@ -1,6 +1,7 @@
 package com.example.taskmanagement.task.persistence;
 
 import com.example.taskmanagement.shared.persistence.FiniteDateJdbcType;
+import com.example.taskmanagement.task.api.TaskBucket;
 import com.example.taskmanagement.task.api.TaskData;
 import com.example.taskmanagement.task.api.TaskPriority;
 import com.example.taskmanagement.task.api.TaskView;
@@ -43,6 +44,9 @@ public class TaskEntity {
     private Long assigneeId;
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
+    private TaskBucket bucket = TaskBucket.INBOX;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
     private TaskStatus status = TaskStatus.NOT_STARTED;
     @Column(name = "actual_start")
     private Instant actualStart;
@@ -63,7 +67,7 @@ public class TaskEntity {
 
     public TaskView view() {
         return new TaskView(id, projectId, name, description, priority, estimatedMinutes, dueDate,
-                assigneeId, status, actualStart, actualEnd, attemptCount, version);
+                assigneeId, bucket, status, actualStart, actualEnd, attemptCount, version);
     }
 
     public void update(TaskData data) {
@@ -73,6 +77,7 @@ public class TaskEntity {
         estimatedMinutes = data.estimatedMinutes();
         dueDate = data.dueDate();
         assigneeId = data.assigneeId();
+        bucket = data.bucket();
     }
 
     public void execute(TaskExecution execution) {

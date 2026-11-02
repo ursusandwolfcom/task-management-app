@@ -2,6 +2,7 @@ package com.example.taskmanagement.shared.web;
 
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import tools.jackson.databind.JsonNode;
 
@@ -26,31 +27,21 @@ public final class JsonFields {
     }
 
     public String text(String name, String fallback) {
-        var node = body.get(name);
-        if (node == null) {
-            return fallback;
-        }
-        if (node.isNull()) {
-            return null;
-        }
-        if (!node.isTextual()) {
-            throw invalid.get();
-        }
-        return node.asString();
+        return optional(name, fallback, node -> {
+            if (!node.isTextual()) {
+                throw invalid.get();
+            }
+            return node.asString();
+        });
     }
 
     public Long number(String name, Long fallback) {
-        var node = body.get(name);
-        if (node == null) {
-            return fallback;
-        }
-        if (node.isNull()) {
-            return null;
-        }
-        if (!node.isIntegralNumber() || !node.canConvertToLong()) {
-            throw invalid.get();
-        }
-        return node.longValue();
+        return optional(name, fallback, node -> {
+            if (!node.isIntegralNumber() || !node.canConvertToLong()) {
+                throw invalid.get();
+            }
+            return node.longValue();
+        });
     }
 
     public long requiredNumber(String name, long minimum) {
@@ -59,5 +50,16 @@ public final class JsonFields {
             throw invalid.get();
         }
         return value;
+    }
+
+    private <T> T optional(String name, T fallback, Function<JsonNode, T> reader) {
+        var node = body.get(name);
+        if (node == null) {
+            return fallback;
+        }
+        if (node.isNull()) {
+            return null;
+        }
+        return reader.apply(node);
     }
 }

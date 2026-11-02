@@ -2,6 +2,7 @@ package com.example.taskmanagement.task.web;
 
 import com.example.taskmanagement.task.api.TaskDependencyOperations;
 import com.example.taskmanagement.task.api.TaskDependencyOperations.Change;
+import com.example.taskmanagement.task.api.TaskDependencyOperations.Predecessors;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -14,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -30,6 +32,15 @@ public class TaskDependencyController {
 
     public TaskDependencyController(TaskDependencyOperations dependencies) {
         this.dependencies = dependencies;
+    }
+
+    @GetMapping
+    @Operation(summary = "List incoming predecessor IDs for an accessible task",
+            description = "Returns the coherent project inputRevision; does not change the graph.")
+    public ResponseEntity<Predecessors> list(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long id) {
+        var listed = dependencies.list(actor(jwt), id);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .header("X-Project-Input-Revision", Long.toString(listed.inputRevision())).body(listed);
     }
 
     @PostMapping
