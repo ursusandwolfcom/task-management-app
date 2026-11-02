@@ -9,7 +9,8 @@
 :root:is([data-theme="light"], [data-theme="ivory"], [data-theme="pearl"]) { color-scheme: light;
   --bg:#f1f4f8; --surface:#fff; --sidebar:#e8edf4; --raised:#e5ebf3; --text:#222c3b; --muted:#576578;
   --border:#b9c4d3; --accent:#244e82; --accent-bg:#305986; --on-accent:#fff; --danger:#9f243c; --error-bg:#fae7e8; --focus:#244e82; }
-:root[data-theme="ivory"] { --bg:#f4f0e6; --surface:#fffdf8; --sidebar:#ece4d7; --raised:#e9dfce; --accent:#68502d; --accent-bg:#68502d; }
+:root[data-theme="ivory"] { --bg:#f4f0e6; --surface:#fffdf8; --sidebar:#ece4d7; --raised:#e9dfce; --muted:#445062;
+  --accent:#68502d; --accent-bg:#68502d; }
 :root[data-theme="pearl"] { --bg:#eceff4; --surface:#f8f9fc; --sidebar:#e3e7ef; --raised:#dde3ef; --accent:#4f527b; --accent-bg:#4f527b; }
 * { box-sizing:border-box; } body { margin:0; } a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
 button, input, textarea, select { font:inherit; } button, .button { cursor:pointer; border:1px solid var(--border); border-radius:8px;
