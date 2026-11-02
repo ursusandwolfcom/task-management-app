@@ -58,7 +58,8 @@ public class TaskDependencyService implements TaskDependencyOperations {
         }
         var proposed = new ArrayList<>(input.edges());
         proposed.add(edge);
-        sorter.executionOrder(new TaskGraphInput(projectId, input.inputRevision(), input.tasks(), proposed).graph());
+        sorter.executionOrder(new TaskGraphInput(projectId, input.inputRevision(), input.calendarRevision(),
+                input.startDate(), input.endDate(), input.timezone(), input.tasks(), proposed).graph());
         dependencies.insert(projectId, taskId, dependsOnTaskId);
         var changed = coordination.markInputChanged(actorId, projectId);
         return new Change(projectId, taskId, dependsOnTaskId, changed.inputRevision());

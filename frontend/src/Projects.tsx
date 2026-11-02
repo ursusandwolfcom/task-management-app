@@ -4,7 +4,7 @@ import { ApiError } from './client.ts';
 import { useCommand, useLoad } from './hooks.ts';
 import { userId } from './json.ts';
 import { useSession } from './session.tsx';
-import { ProjectTasks } from './Tasks.tsx';
+import { ProjectSchedule, ProjectTasks } from './Tasks.tsx';
 import { Alert, Empty, Field, Loading, Notice, PageHeader, Pagination } from './ui.tsx';
 import type { Member, Page, Project, ProjectFields, User } from './types.ts';
 
@@ -102,6 +102,7 @@ export function ProjectDetail({ user, id }: { user: User; id: bigint }) {
       </section><Members key={String(id)} user={user} project={project} manage={Boolean(manage)}
         updating={query.loading} refreshProject={query.reload} /></div>
       <ProjectTasks key={`tasks-${project.inputRevision}`} user={user} project={project} manage={Boolean(manage)} />
+      <ProjectSchedule key={`gantt-${project.inputRevision}`} user={user} project={project} />
       {manage && <section className="danger-section"><div><h2>Удалить проект</h2><p className="muted">Удаление доступно только для пустого проекта.</p></div>
         <button className="danger" disabled={command.busy} onClick={() => {
           if (!window.confirm(`Удалить проект «${project.name}»? Это действие нельзя отменить.`)) return;
