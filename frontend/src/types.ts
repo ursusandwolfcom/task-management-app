@@ -70,3 +70,11 @@ export interface AssigneeLoad {
   userId: bigint; openTasks: bigint; estimatedMinutes: bigint; overdueTasks: bigint;
 }
 export interface WorkloadSnapshot { calculatedAt: string; assignees: AssigneeLoad[] }
+export interface NotificationItem {
+  id: bigint; eventType: string; projectId: bigint; taskId: bigint; title: string; body: string;
+  createdAt: string; readAt: string | null;
+}
+export interface NotificationPage {
+  content: NotificationItem[]; page: number; size: number; totalElements: bigint; totalPages: number;
+  unreadCount: bigint;
+}

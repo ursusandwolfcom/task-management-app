@@ -155,6 +155,17 @@ public class OpenApiConfiguration {
     }
 
     @Bean
+    public GroupedOpenApi notificationOpenApi() {
+        return GroupedOpenApi.builder().group("notifications").pathsToMatch("/api/notifications/**")
+                .addOpenApiCustomizer(api -> {
+                    api.info(new Info().title("ProjectFlow notifications API").version("0.0.1")
+                            .description("In-app notifications projected from the transactional outbox "
+                                    + "(task.assigned, comment.created). Email/Telegram deferred."));
+                    addProtectedErrors(api);
+                }).build();
+    }
+
+    @Bean
     public GroupedOpenApi taskOpenApi() {
         return GroupedOpenApi.builder().group("tasks").pathsToMatch("/api/tasks/**", "/api/projects/*/tasks",
                         "/api/projects/*/execution-order", "/api/projects/*/available-tasks",
