@@ -1,0 +1,316 @@
+================================================================================
+AI_PROJECT_MAP — Task Management App (ProjectFlow)
+Дата огляду: 2026-11-02
+Ролі: архітектор + аналітик + code-reviewer + code-quality
+Гілка роботи: sprint/s16 (від origin/dev = main = S15 tip)
+================================================================================
+
+1) СТАН СПРИНТІВ / ГІЛОК
+--------------------------------------------------------------------------------
+| Гілка              | Tip SHA   | Відносно інших                         |
+|--------------------|-----------|----------------------------------------|
+| origin/main        | b7990fe   | Release S15 (PR #34)                   |
+| origin/dev         | b7990fe   | = main                                 |
+| origin/sprint/s16  | b7990fe   | порожня (немає унікальних комітів/PR)  |
+
+Останній завершений спринт: S15 (shared NUL/text validation across modules).
+Мердж у dev/main: НЕ потрібен — уже синхронно.
+Наступний робочий спринт: S16 (A+C у роботі): workspace UI задач + фільтри/mine/deps list.
+
+Roadmap PRODUCT_ROADMAP.md (етапи продукту, не номери спринту):
+  M1 Аккаунт/проєкти     — ЗРОБЛЕНО (S9–S10)
+  M2 Серверні задачі     — ЗРОБЛЕНО (S11–S12)
+  M3 Залежності/черга    — ЗРОБЛЕНО (S13)
+  M4 Спільна робота      — ЧАСТКОВО (S14: comments+labels; файли/сповіщення — ні)
+  M5 Планування дат/CPM  — НЕ (лише readiness/order у planning.core)
+  M6 Портфель/метрики    — НЕ
+
+Висновок стадії: після S15; код готовий до S16. Продуктово — кінець M4-core, перед M5.
+
+
+2) ВЕРДИКТ CODE REVIEW
+--------------------------------------------------------------------------------
+## Вердикт: можна мержити базову лінію S15; локальний cleanup S16 — дрібний
+
+Коротко: модульний моноліт з чіткими `.api` контрактами і чистим `planning.core`
+адекватний поточному масштабу. Головний ризик — «заготовлені» модулі в ArchUnit
+(resource/scheduling/attachment/…) ще без коду; не плутати їх із мертвим кодом.
+
+### Blocker
+Немає на поточній лінії b7990fe.
+
+### Major
+1. UI серверних задач/графів ще не закриває MVP-сценарій README (бекенд є, workspace
+   частково). Це продуктовий gap, не баг бекенду.
+2. ProjectDeletionService — тонкий pass-through; навмисний extension point workflow.
+   Не видаляти до появи координації task/file delete.
+
+### Minor
+1. Повтор `Long.parseLong(jwt.getSubject())` у контролерах — локальний actor();
+   спільний shared helper не обовʼязковий (різні модулі).
+2. CommentService.delete робить scalar + findById після lock (як LabelService) —
+   навмисний TOCTOU-патерн, не «мертвий» дубль.
+
+### Idea
+1. Не зливати TaskProjectAccess і CollaborationAccess: різні exception contracts.
+2. Не виносити page-record у shared: page DTO належать модульним `.api`.
+
+### Praise
+1. ArchUnit фіксує залежності модулів і незалежність planning/task.domain.
+2. Optimistic concurrency: task.version + project.inputRevision розділені за змістом.
+3. JsonFields / PageRequests / NoNul — правильний shared без бізнес-логіки.
+4. Missing task vs inaccessible → однаковий TASK_NOT_FOUND (анти-enumeration).
+
+
+3) АДЕКВАТНІСТЬ АРХІТЕКТУРИ
+--------------------------------------------------------------------------------
+Стек: Java 21, Spring Boot 4.1, JPA, Liquibase (public), PostgreSQL, ddl-auto=validate,
+OAuth2 Resource Server (JWT) + cookie/CSRF browser sessions, React workspace + alpha.
+
+Стиль: модульний моноліт (НЕ мікросервіси) — правильно для 1 розробника і спільної БД.
+
+Шари всередині модуля:
+  web → application → persistence
+  api = публічний контракт між модулями
+  domain (task) / core (planning) = без Spring/JPA/HTTP
+
+Дозволені залежності (ArchitectureRulesTest):
+  identity ← []
+  project  ← identity
+  planning ← []  (лише JDK)
+  task     ← project, identity, planning (+ майбутні resource, outbox)
+  collaboration ← project, task, identity
+  workflow ← project, task, collaboration, …
+  security ← identity
+  alpha    ← planning
+  shared   ← []
+  workspace← []
+
+Trade-off: суворі `.api` границі vs трохи більше wiring. Вигода — тестування ядра
+без Spring і захист від циклів пакетів. Мікросервіси / CQRS / Outbox зараз надлишкові
+(Outbox зарезервований у карті модулів на майбутні notification/attachment).
+
+
+4) ПАТЕРНИ І НАВІЩО
+--------------------------------------------------------------------------------
+| Патерн                         | Де                         | Навіщо                                      |
+|--------------------------------|----------------------------|---------------------------------------------|
+| Hexagonal / Ports & Adapters   | *.api + application/persist| Ізоляція домену від HTTP/JPA                |
+| Facade (module API)            | *Operations interfaces     | Міжмодульний доступ лише через контракт     |
+| Strategy / Policy              | TaskLifecyclePolicy        | Чисті переходи статусів без I/O             |
+| Immutable Value Object         | TaskExecution, GraphSnapshot| Безпечні факти + відтворюваність            |
+| Kahn topological sort          | PriorityTopologicalSorter  | Детермінований порядок DAG                  |
+| Optimistic locking             | @Version / inputRevision   | Конкурентні правки без lost update          |
+| Guard / ContentGuard           | ProjectContentGuard SPI    | Project delete блокується наявністю задач   |
+| Adapter                        | AlphaController→planning   | Browser прототип без PostgreSQL CRUD        |
+| Exception → ProblemDetail      | ApiExceptionHandler        | Стабільні HTTP code + Cache-Control         |
+| ArchUnit rules                 | ArchitectureRulesTest      | Регресія границь модулів                    |
+
+Не використовується (і не треба зараз): Saga, Event Sourcing, повний CQRS, мікросервіси.
+
+
+5) ПСЕВДОГРАФІЧНИЙ UML (класи / інтерфейси)
+--------------------------------------------------------------------------------
+ПАКЕТИ (логічні модулі):
+
+  +------------------+     +------------------+     +------------------+
+  | identity.api     |<----| project.api      |<----| task.api         |
+  | IdentityOperations|    | ProjectOperations|     | TaskOperations   |
+  | UserView/Role    |     | ProjectCoordination|   | TaskDependencyOps|
+  +--------+---------+     | ProjectContentGuard|   | TaskPlanningOps  |
+           ^               +--------+---------+     +--------+---------+
+           |                        ^                        |
+  +--------+---------+     +--------+---------+     +--------+---------+
+  | identity.app      |     | project.app      |     | task.app         |
+  | UserService      |     | ProjectService   |     | TaskService      |
+  +--------+---------+     +--------+---------+     | TaskDependencySvc|
+           |                        |               | TaskPlanningSvc  |
+  +--------+---------+     +--------+---------+     | TaskGraphLoader  |
+  | identity.persist |     | project.persist  |     | TaskProjectAccess|
+  +------------------+     +------------------+     +--------+---------+
+                                                         |
+                              +------------------+       |
+                              | planning.core    |<------+
+                              | GraphSnapshot    |
+                              | PriorityTopoSort |
+                              | ReadinessCalc    |
+                              | TaskOrder        |
+                              +------------------+
+
+  task.domain (pure):
+    TaskLifecyclePolicy  -->  TaskStatus
+    TaskExecution        -->  ExecutionAttempt
+
+  collaboration:
+    CommentOperations / LabelOperations
+         ^                    ^
+    CommentService       LabelService
+         \                  /
+          CollaborationAccess --> ProjectCoordination, TaskOperations
+
+  workflow:
+    ProjectDeletionService --> ProjectOperations.deleteEmpty
+    TaskDeletionController --> TaskOperations.delete
+
+  security:
+    TokenService, IdentityJwtConverter, AuthController, BrowserSession*
+
+  alpha:
+    AlphaController --> planning.core ONLY (browser snapshot)
+
+ЗАЛЕЖНОСТІ ЗАПИСУ ЗАДАЧІ (спрощено):
+
+  TaskController
+       |
+       v
+  TaskService.execute()
+       |-- TaskProjectAccess.lock() --> ProjectCoordination.lockAndAuthorize(WRITE_TASKS)
+       |-- TaskLifecyclePolicy.nextStatus()
+       |-- tasks.incompletePredecessors()   // readiness під lock
+       |-- TaskExecution.start/complete/...
+       '-- ProjectCoordination.markInputChanged()  // inputRevision++
+
+
+6) КАРТА ДЛЯ ШІ (як оновлювати код без поломки)
+--------------------------------------------------------------------------------
+ПРАВИЛА ЗМІН:
+1. Нова фіча в існуючому модулі: api → application → persistence → web → тести.
+2. Новий модуль: додати в MODULE_DEPENDENCIES (ArchitectureRulesTest) ДО імпорту.
+3. Алгоритм графа — ТІЛЬКИ planning.core; не копіювати в JS (alpha викликає API).
+4. Не тягнути Entity/Repository через межі модулів — лише *.api records/interfaces.
+5. task.domain і planning.core — нуль Spring/JPA/HTTP (перевіряє ArchUnit).
+6. Секрети: ніколи .env у коміт; docs/ локально ігнорується.
+7. Цикл гілок: sprint/sNN → PR у dev → verify → merge → release PR → main.
+8. Конкурентність: зміни графа = inputRevision; метадані задачі = task.version.
+9. 404 для чужого/відсутнього ресурсу — однакові коди (TASK_NOT_FOUND тощо).
+10. Alpha profile + loopback: не змішувати localStorage ID з PostgreSQL ID.
+
+ТОЧКИ ВХОДУ:
+  Application: com.example.taskmanagement.TaskManagementAppApplication
+  HTTP: /api/** (JWT або cookie+CSRF), /alpha/** (profile), /workspace
+  OpenAPI: /v3/api-docs (alpha docs profile)
+  Compose/Docker: compose.yaml, Dockerfile
+  Frontend workspace: frontend/ + scripts/build-workspace.mjs
+  Migrations: src/main/resources/db/changelog (Liquibase, schema public)
+
+ДЕ ЩО МІНЯТИ:
+  Lifecycle переходів          → task.domain
+  DAG order / available / next → planning.core (+ TaskPlanningService adapter)
+  CRUD задач/залежностей       → task.application + persistence
+  Члени/власність проєкту      → project.application
+  Коментарі/мітки              → collaboration.*
+  Видалення проєкту/задачі     → workflow.* (координація)
+  Логін/сесії                  → identity + security
+  Парсинг JSON полів           → shared.web.JsonFields
+  Пагінація                    → shared.persistence.PageRequests
+  NUL у текстах                → shared.validation.NoNul
+
+
+7) НАВЧАЛЬНІ МАТЕРІАЛИ ПО КОДУ
+--------------------------------------------------------------------------------
+УРОК A — Чисте ядро графа (30 хв)
+  1. GraphSnapshot.of — валідація вузлів/ребер (self/dup/unknown).
+  2. PriorityTopologicalSorter — Kahn + PriorityQueue(TaskOrder).
+  3. ReadinessCalculator — available/next після executionOrder (цикл завжди ловиться).
+  Тест: PlanningOracleTest, ReadinessCalculatorTest.
+
+УРОК B — Lifecycle без БД (20 хв)
+  1. TaskLifecyclePolicy.nextStatus — матриця переходів.
+  2. TaskExecution — immutable attempts; retry зберігає FAILED attempt.
+  Тест: TaskExecutionTest.
+
+УРОК C — Транзакційний контур (45 хв)
+  1. ProjectCoordination.lockAndAuthorize під @Transactional.
+  2. TaskService.execute: lock → refresh/version → policy → predecessors → persist.
+  3. TaskDependencyService: editable successor тільки NOT_STARTED без attempts;
+     цикл через sorter на proposed edges.
+  Тест: TaskIntegrationTest, TaskDependencyIntegrationTest (integration).
+
+УРОК D — Границі модулів (20 хв)
+  Прочитати ArchitectureRulesTest.MODULE_DEPENDENCIES.
+  Спробувати «неправильно» імпортувати TaskEntity з collaboration — тест впаде.
+
+УРОК E — Alpha vs Server (15 хв)
+  AlphaController будує GraphSnapshot з тіла запиту і кличе той самий core.
+  Server TaskPlanningService вантажить знімок під lock, рахує ПІСЛЯ транзакції.
+
+
+8) AUDIT: ДУБЛІ / МЕРТВИЙ / НЕРОБОЧИЙ КОД
+--------------------------------------------------------------------------------
+ID-01 DUP-EXACT  JsonFields.text/number — спільний null/omit path
+  RISK LOW → ЗАСТОСОВАНО: private optional(...)
+
+ID-02 DUP-EXACT  TaskLabelController parseLong x3
+  RISK LOW → ЗАСТОСОВАНО: actor(jwt) як у сусідніх контролерах
+
+ID-03 DUP-SEMANTIC  CommentService delete empty-check
+  RISK LOW → ЗАСТОСОВАНО: orElseThrow замість if(isEmpty); семантика та сама
+
+ID-04 OVERENGINEER  ProjectDeletionService pass-through
+  RISK MEDIUM якщо видалити зарано → ЗАЛИШЕНО (workflow extension)
+
+ID-05 STRUCTURAL  ArchUnit modules без пакетів (resource, scheduling, attachment,
+  notification, integration.outbox)
+  RISK LOW — карта майбутнього, не dead code
+
+ID-06 DEAD  TODO/FIXME/UnsupportedOperation у main — НЕ ЗНАЙДЕНО
+
+ID-07 NEEDS_VERIFICATION  Повний `mvn verify` + Docker integration — залежить від
+  JAVA_HOME/Docker у середовищі агента
+
+Не обʼєднувати (різні контракти/еволюція):
+  TaskProjectAccess ≠ CollaborationAccess
+  Page DTO в кожному *Operations
+  Deletion controllers (різні API/сервіси)
+
+
+9) CLEANUP У ЦЬОМУ ПРОХОДІ (sprint/s16 working tree)
+--------------------------------------------------------------------------------
+Змінені файли:
+  src/main/java/.../shared/web/JsonFields.java
+  src/main/java/.../collaboration/web/TaskLabelController.java
+  src/main/java/.../collaboration/application/CommentService.java
+
+Поведінка API: без змін. Нових абстракцій/модулів не додано.
+
+
+10) ТЕСТИ — ЯК ГНАТИ
+--------------------------------------------------------------------------------
+Unit / fast (без integration group):
+  set JAVA_HOME=C:\Users\Admin\.jdks\corretto-21.0.12.1
+  .\mvnw.cmd -Pfast-tests -Dworkspace.prebuilt=true test
+
+Повний цикл перед merge у dev (за AGENTS.md):
+  .\mvnw.cmd clean verify
+  + DB/container/frontend checks за README
+
+Результат прогону (2026-11-02, Corretto 21):
+  -Pfast-tests (усі non-integration): Tests run: 80, Failures: 0, Errors: 0 — BUILD SUCCESS
+  Логи: TEST_RUN_CORE.txt, TEST_RUN_FAST.txt
+  Integration (@Tag integration) + Docker/PostgreSQL у цьому проході не ганялись.
+
+
+11) РЕКОМЕНДАЦІЯ НА S16+
+--------------------------------------------------------------------------------
+1. Не чіпати planning.core без oracle-тестів.
+2. M5: дати/календар/CPM — новий код у planning.core + тонкий task adapter.
+3. Server Task UI у workspace (закрити MVP acceptance з PRODUCT_ROADMAP).
+4. Attachments/notifications — лише з outbox, коли зʼявиться модуль.
+5. Видалити remote sprint/s16 і перестворити з dev, якщо потрібен чистий старт
+   з унікальними комітами (зараз tip = main).
+
+
+12) ШВИДКИЙ ЧЕКЛІСТ ДЛЯ ШІ ПЕРЕД КОМІТОМ
+--------------------------------------------------------------------------------
+[ ] Зміна лише в дозволеному модулі / через .api
+[ ] ArchUnit все ще зелений
+[ ] Немає Entity в контролерах
+[ ] planning/task.domain без Spring
+[ ] Версії: metadata vs inputRevision зрозумілі
+[ ] Тести на нове поведіння (не на реалізацію)
+[ ] README/OpenAPI оновлені якщо контракт змінився
+[ ] Немає .env / docs/ у коміті
+
+================================================================================
+Кінець карти. Оновлюй цей файл після кожного значущого спринта (iteration ID + SHA).
+================================================================================

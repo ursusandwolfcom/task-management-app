@@ -16,6 +16,7 @@ import com.example.taskmanagement.project.api.ProjectView;
 import com.example.taskmanagement.security.application.TokenService;
 import com.example.taskmanagement.security.web.BrowserSessionCookies;
 import com.example.taskmanagement.support.DatabaseFixtures;
+import com.example.taskmanagement.task.api.TaskBucket;
 import com.example.taskmanagement.task.api.TaskData;
 import com.example.taskmanagement.task.api.TaskOperations;
 import com.example.taskmanagement.task.api.TaskPriority;
@@ -65,8 +66,8 @@ class StoredTextIntegrationTest {
         owner = identity.register(new RegisterUser("text_owner", "text-owner@example.com", PASSWORD, "First", "Last"));
         project = projects.create(owner.id(), new ProjectData("Project", "Description",
                 LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1), "UTC"));
-        task = tasks.create(owner.id(), project.id(), new TaskData("Task", "Description", TaskPriority.HIGH,
-                15, null, null));
+        task = tasks.create(owner.id(), project.id(),
+                new TaskData("Task", "Description", TaskPriority.HIGH, 15, null, null, TaskBucket.WORK));
         project = projects.read(owner.id(), project.id());
         auth = "Bearer " + tokens.issue(identity.login(owner.username(), PASSWORD)).accessToken();
     }
@@ -85,8 +86,9 @@ class StoredTextIntegrationTest {
         assertThatThrownBy(() -> projects.create(owner.id(), new ProjectData(INVALID, "Description",
                 project.startDate(), project.endDate(), project.timezone())))
                 .isInstanceOf(ConstraintViolationException.class);
-        assertThatThrownBy(() -> tasks.create(owner.id(), project.id(), new TaskData(INVALID, "Description",
-                TaskPriority.HIGH, 15, null, null))).isInstanceOf(ConstraintViolationException.class);
+        assertThatThrownBy(() -> tasks.create(owner.id(), project.id(),
+                new TaskData(INVALID, "Description", TaskPriority.HIGH, 15, null, null, TaskBucket.INBOX)))
+                .isInstanceOf(ConstraintViolationException.class);
         assertThatThrownBy(() -> identity.register(new RegisterUser("text_other", "text-other@example.com",
                 PASSWORD, INVALID, "Last"))).isInstanceOf(ConstraintViolationException.class);
         assertThatThrownBy(() -> identity.updateProfile(owner.id(), new ProfileChange(owner.username(), owner.email(),
@@ -135,7 +137,8 @@ class StoredTextIntegrationTest {
         body.put("projectId", project.id());
         body.put(field, INVALID);
         reject(HttpMethod.POST, "/api/tasks", body);
-        assertThat(tasks.list(owner.id(), project.id(), 0, 20).totalElements()).isEqualTo(1);
+        assertThat(tasks.list(owner.id(), project.id(),
+                com.example.taskmanagement.task.api.TaskFilter.empty(), 0, 20).totalElements()).isEqualTo(1);
         assertThat(projects.read(owner.id(), project.id())).isEqualTo(project);
     }
 

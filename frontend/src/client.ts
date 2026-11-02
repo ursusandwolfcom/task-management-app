@@ -120,7 +120,19 @@ export function explain(error: unknown): string {
     MEMBER_ALREADY_EXISTS: 'Пользователь уже участвует в проекте.',
     OWNER_REMOVAL_FORBIDDEN: 'Сначала передайте владение другому участнику.',
     VALIDATION_ERROR: 'Проверьте поля формы, даты и часовой пояс.', MALFORMED_REQUEST: 'Проверьте формат полей.',
-    ACCOUNT_CHANGED: 'Аккаунт изменился в другой вкладке. Действие не отправлено.'
+    ACCOUNT_CHANGED: 'Аккаунт изменился в другой вкладке. Действие не отправлено.',
+    TASK_NOT_FOUND: 'Задача не найдена или недоступна.', ASSIGNEE_NOT_MEMBER: 'Исполнитель должен быть участником проекта.',
+    ASSIGNEE_REQUIRED: 'Назначьте исполнителя перед стартом.', INVALID_TASK_TRANSITION: 'Это действие недоступно в текущем статусе.',
+    DEPENDENCIES_NOT_COMPLETED: 'Сначала завершите предшествующие задачи.',
+    TASK_NOT_IN_WORK: 'Старт доступен только из бокса Work. Переместите задачу и повторите.',
+    ASSIGNMENT_CHANGE_FORBIDDEN: 'Исполнителя нельзя менять в этом статусе.',
+    TASK_DELETE_FORBIDDEN: 'Удалить можно только задачу без истории выполнения.', TASK_HAS_DEPENDENTS: 'Сначала удалите зависимости от этой задачи.',
+    SELF_DEPENDENCY: 'Задача не может зависеть от себя.', CYCLIC_DEPENDENCY: 'Зависимость создаёт цикл.',
+    DEPENDENCY_ALREADY_EXISTS: 'Такая зависимость уже есть.', DEPENDENCY_CHANGE_FORBIDDEN: 'Зависимости меняются только до первого старта.',
+    DEPENDENCY_NOT_FOUND: 'Зависимость не найдена.', CROSS_PROJECT_DEPENDENCY: 'Зависимость только внутри одного проекта.',
+    GRAPH_TOO_LARGE: 'Граф слишком большой для этой операции.', COMMENT_NOT_FOUND: 'Комментарий не найден.',
+    LABEL_NOT_FOUND: 'Метка не найдена.', LABEL_ALREADY_EXISTS: 'Метка с таким именем уже есть.',
+    CROSS_PROJECT_LABEL: 'Метка принадлежит другому проекту.'
   };
   return messages[error.code] ?? 'Сервер отклонил действие. Форма сохранена; попробуйте после проверки данных.';
 }

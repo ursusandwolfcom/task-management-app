@@ -4,6 +4,7 @@ import com.example.taskmanagement.planning.core.DependencyEdge;
 import com.example.taskmanagement.planning.core.ExecutionFacts;
 import com.example.taskmanagement.planning.core.GraphSnapshot;
 import com.example.taskmanagement.planning.core.TaskNode;
+import com.example.taskmanagement.task.api.TaskBucket;
 import com.example.taskmanagement.task.api.TaskView;
 import com.example.taskmanagement.task.domain.TaskStatus;
 import java.util.List;
@@ -34,7 +35,10 @@ record TaskGraphInput(long projectId, long inputRevision, List<TaskView> tasks, 
     }
 
     ExecutionFacts facts() {
-        return new ExecutionFacts(idsWithStatus(TaskStatus.COMPLETED), idsWithStatus(TaskStatus.NOT_STARTED));
+        // Ready queue considers only WORK; completed predecessors may sit in any bucket.
+        return new ExecutionFacts(idsWithStatus(TaskStatus.COMPLETED), tasks.stream()
+                .filter(task -> task.status() == TaskStatus.NOT_STARTED && task.bucket() == TaskBucket.WORK)
+                .map(TaskView::id).collect(Collectors.toSet()));
     }
 
     Map<Long, TaskView> viewsById() {

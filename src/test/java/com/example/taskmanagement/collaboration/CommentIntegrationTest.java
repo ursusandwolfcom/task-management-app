@@ -17,6 +17,7 @@ import com.example.taskmanagement.project.api.ProjectOperations;
 import com.example.taskmanagement.project.api.ProjectView;
 import com.example.taskmanagement.security.application.TokenService;
 import com.example.taskmanagement.support.DatabaseFixtures;
+import com.example.taskmanagement.task.api.TaskBucket;
 import com.example.taskmanagement.task.api.TaskData;
 import com.example.taskmanagement.task.api.TaskOperations;
 import com.example.taskmanagement.task.api.TaskPriority;
@@ -61,7 +62,8 @@ class CommentIntegrationTest {
         project = projects.create(owner.id(), new ProjectData("Project", "", LocalDate.of(2026, 1, 1),
                 LocalDate.of(2027, 1, 1), "UTC"));
         project = projects.addMember(owner.id(), project.id(), member.id(), project.version());
-        task = tasks.create(owner.id(), project.id(), new TaskData("Task", "", TaskPriority.HIGH, 15, null, null));
+        task = tasks.create(owner.id(), project.id(),
+                new TaskData("Task", "", TaskPriority.HIGH, 15, null, null, TaskBucket.WORK));
     }
 
     @Test

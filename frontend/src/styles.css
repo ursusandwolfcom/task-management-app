@@ -82,6 +82,22 @@ dt { color:var(--muted); font-size:12px; } dd { margin:6px 0 20px; font-size:14p
 @media (max-width:1080px) { .workspace-layout { grid-template-columns:190px minmax(0,1fr); } .sidebar { padding:28px 16px; }
   .brand { font-size:17px; } .main-content { padding:32px 24px; } .topbar { padding-left:24px; } .topbar > p { display:none; }
   .details-grid { grid-template-columns:minmax(0,1fr); } .auth-layout { gap:40px; padding:70px 40px; } .auth-story h1 { font-size:50px; } }
+.bucket-tabs { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 18px; }
+.bucket-tabs button { font-size:12px; padding:8px 12px; }
+.bucket-tabs button.active { background:var(--accent-bg); color:var(--on-accent); border-color:transparent; font-weight:650; }
+.filter-bar { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:16px; }
+.filter-card { margin-bottom:22px; } .filter-card.nested { border:1px dashed var(--border); padding:16px; border-radius:10px; margin:18px 0; }
+.field.compact { margin-bottom:0; } .tasks-panel { margin-top:24px; }
+.task-list { list-style:none; padding:0; margin:0; display:grid; gap:8px; }
+.task-list li > a, .task-list.compact li { display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:12px 14px;
+  border:1px solid var(--border); border-radius:10px; color:var(--text); background:var(--raised); }
+.task-list li > a:hover { border-color:var(--accent); text-decoration:none; }
+.task-list li small { width:100%; } .queue-box { margin-bottom:18px; padding:14px; border-radius:10px; background:var(--raised); }
+.action-row { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+.attempt-list { list-style:none; padding:0; margin:0; } .attempt-list li { padding:12px 0; border-bottom:1px solid var(--border); }
+.label-row { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+.label-chip { cursor:pointer; } .inline-form fieldset { display:flex; gap:12px; align-items:end; flex-wrap:wrap; }
+.inline-form .field { flex:1; min-width:160px; margin-bottom:0; }
 @media (max-width:700px) { .workspace-layout { grid-template-columns:minmax(0,1fr); } .sidebar { padding:18px 20px; border-right:0; border-bottom:1px solid var(--border); gap:20px; }
   .sidebar-label,.sidebar-bottom { display:none; } .sidebar nav { display:flex; gap:10px; } .sidebar nav a { padding:8px 12px; }
   .topbar { padding:16px 20px; min-height:72px; } .account-summary { width:100%; justify-content:space-between; }
