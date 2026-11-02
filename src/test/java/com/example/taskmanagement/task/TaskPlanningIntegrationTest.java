@@ -142,6 +142,11 @@ class TaskPlanningIntegrationTest {
                 .andExpect(jsonPath("$.content[0].projectId").value(project.id()))
                 .andExpect(jsonPath("$.content[0].risk").value("ON_TRACK"))
                 .andExpect(jsonPath("$.content[0].openTasks").value(1));
+        mvc.perform(get("/api/portfolio/workload").header("Authorization", bearer(member)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.assignees[0].userId").value(owner.id()))
+                .andExpect(jsonPath("$.assignees[0].openTasks").value(1))
+                .andExpect(jsonPath("$.assignees[0].estimatedMinutes").value(480));
     }
 
     @Test
