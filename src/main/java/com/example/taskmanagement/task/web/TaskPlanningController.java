@@ -5,9 +5,11 @@ import com.example.taskmanagement.task.api.TaskPlanningOperations.AvailableTasks
 import com.example.taskmanagement.task.api.TaskPlanningOperations.ExecutionOrder;
 import com.example.taskmanagement.task.api.TaskPlanningOperations.NextTask;
 import com.example.taskmanagement.task.api.TaskPlanningOperations.ProjectGantt;
+import com.example.taskmanagement.task.api.TaskPlanningOperations.WhatIfRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +17,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -70,6 +74,16 @@ public class TaskPlanningController {
                     + "GET never mutates tasks; X-Project-Input-Revision mirrors the snapshot.")
     public ResponseEntity<ProjectGantt> gantt(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long id) {
         var result = planning.gantt(actor(jwt), id);
+        return response(result, result.inputRevision());
+    }
+
+    @PostMapping("/gantt/what-if")
+    @Operation(summary = "What-if CPM with estimate overrides; does not save tasks",
+            description = "Same calendar rules as /gantt. Unknown taskId → 404 TASK_NOT_FOUND; "
+                    + "duplicate override → 400 VALIDATION_ERROR. Persisted estimates stay unchanged.")
+    public ResponseEntity<ProjectGantt> whatIf(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long id,
+            @Valid @RequestBody WhatIfRequest body) {
+        var result = planning.whatIf(actor(jwt), id, body);
         return response(result, result.inputRevision());
     }
 

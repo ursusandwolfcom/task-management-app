@@ -1,5 +1,10 @@
 package com.example.taskmanagement.task.api;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import java.time.Instant;
 import java.util.List;
 
@@ -62,6 +67,16 @@ public interface TaskPlanningOperations {
         }
     }
 
+    /** Optional estimate override; null minutes means a zero-length milestone for the scenario. */
+    record EstimateOverride(@Positive long taskId, @Min(15) @Max(525600) Integer estimatedMinutes) {
+    }
+
+    record WhatIfRequest(@NotNull @Valid List<EstimateOverride> estimates) {
+        public WhatIfRequest {
+            estimates = List.copyOf(estimates);
+        }
+    }
+
     ExecutionOrder executionOrder(long actorId, long projectId);
 
     AvailableTasks availableTasks(long actorId, long projectId);
@@ -69,4 +84,7 @@ public interface TaskPlanningOperations {
     NextTask nextTask(long actorId, long projectId);
 
     ProjectGantt gantt(long actorId, long projectId);
+
+    /** CPM with in-memory estimate overrides; never persists task changes. */
+    ProjectGantt whatIf(long actorId, long projectId, @NotNull @Valid WhatIfRequest request);
 }

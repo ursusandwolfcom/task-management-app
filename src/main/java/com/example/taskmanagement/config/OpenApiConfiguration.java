@@ -138,7 +138,8 @@ public class OpenApiConfiguration {
     public GroupedOpenApi taskOpenApi() {
         return GroupedOpenApi.builder().group("tasks").pathsToMatch("/api/tasks/**", "/api/projects/*/tasks",
                         "/api/projects/*/execution-order", "/api/projects/*/available-tasks",
-                        "/api/projects/*/next-task", "/api/projects/*/gantt", "/api/portfolio")
+                        "/api/projects/*/next-task", "/api/projects/*/gantt",
+                        "/api/projects/*/gantt/what-if", "/api/portfolio")
                 .addOpenApiCustomizer(api -> {
                     api.getPaths().entrySet().removeIf(entry -> !entry.getKey().startsWith("/api/tasks")
                             && !entry.getKey().equals("/api/portfolio")
@@ -185,7 +186,8 @@ public class OpenApiConfiguration {
 
     private static boolean planningRoute(String route) {
         return route.endsWith("/execution-order") || route.endsWith("/available-tasks")
-                || route.endsWith("/next-task") || route.endsWith("/gantt");
+                || route.endsWith("/next-task") || route.endsWith("/gantt")
+                || route.endsWith("/gantt/what-if");
     }
 
     private static io.swagger.v3.oas.models.media.Schema<?> labelMetadata(boolean create) {

@@ -3,6 +3,7 @@ package com.example.taskmanagement.task;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -112,6 +113,23 @@ class TaskPlanningIntegrationTest {
                 .andExpect(jsonPath("$.tasks").isEmpty())
                 .andExpect(jsonPath("$.timezone").value("UTC"))
                 .andExpect(header().string("X-Project-Input-Revision", Long.toString(project.inputRevision())));
+    }
+
+    @Test
+    void whatIfRecalculatesWithoutPersistingEstimates() throws Exception {
+        var first = tasks.create(owner.id(), project.id(),
+                new TaskData("Base", "", TaskPriority.MEDIUM, 480, null, owner.id(), TaskBucket.WORK));
+        var baseline = planning.gantt(member.id(), project.id()).durationMinutes();
+        var scenario = planning.whatIf(member.id(), project.id(),
+                new TaskPlanningOperations.WhatIfRequest(List.of(
+                        new TaskPlanningOperations.EstimateOverride(first.id(), 960))));
+        assertThat(scenario.durationMinutes()).isEqualTo(960);
+        assertThat(baseline).isEqualTo(480);
+        assertThat(tasks.read(owner.id(), first.id()).estimatedMinutes()).isEqualTo(480);
+        mvc.perform(post(route("gantt/what-if")).header("Authorization", bearer(member))
+                        .contentType("application/json")
+                        .content("{\"estimates\":[{\"taskId\":" + first.id() + ",\"estimatedMinutes\":960}]}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.durationMinutes").value(960));
     }
 
     @Test
