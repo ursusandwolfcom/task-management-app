@@ -4,11 +4,11 @@ import { Notifications } from './Notifications.tsx';
 import { Portfolio } from './Portfolio.tsx';
 import { CreateProject, ProjectDetail, ProjectList } from './Projects.tsx';
 import { MyTasks, TaskDetail } from './Tasks.tsx';
-import { useCommand } from './hooks.ts';
+import { useCommand, useLoad } from './hooks.ts';
 import { userId } from './json.ts';
 import { useSession } from './session.tsx';
 import { Alert, Loading } from './ui.tsx';
-import type { User } from './types.ts';
+import type { NotificationPage, User } from './types.ts';
 
 const themes = [ ['gray', 'Тёмная'], ['light', 'Светлая'], ['dark', 'Сине-серая'], ['graphite', 'Графит'],
   ['taupe', 'Тауп'], ['forest', 'Лесная'], ['ivory', 'Слоновая кость'], ['pearl', 'Жемчужная'] ];
@@ -51,6 +51,16 @@ function Content({ user, route }: { user: User; route: string }) {
   return <section className="card"><h1>Страница не найдена</h1><a href="#/projects">Вернуться к проектам</a></section>;
 }
 
+function NavUnread({ user }: { user: User }) {
+  const { client, generation } = useSession();
+  const unread = useLoad(`${user.id}:${generation}:nav-unread`, signal =>
+    client.request<NotificationPage>(user.id, '/api/notifications?page=0&size=1&unreadOnly=true',
+      'GET', undefined, signal));
+  const count = unread.value?.unreadCount;
+  if (count == null || Number(count) === 0) return null;
+  return <span className="nav-unread" aria-label={`Непрочитанных: ${String(count)}`}>{String(count)}</span>;
+}
+
 export function App() {
   const { user, lastUser, loading, error, client } = useSession();
   const [route, setRoute] = useState(window.location.hash.slice(1) || '/projects');
@@ -70,7 +80,8 @@ export function App() {
           <a href="#/overview" aria-current={route === '/overview' ? 'page' : undefined}><span aria-hidden="true">◈</span>Обзор</a>
           <a href="#/projects" aria-current={route.startsWith('/projects') ? 'page' : undefined}><span aria-hidden="true">◇</span>Проекты</a>
           <a href="#/tasks" aria-current={route === '/tasks' || route.startsWith('/tasks/') ? 'page' : undefined}><span aria-hidden="true">▣</span>Мои задачи</a>
-          <a href="#/notifications" aria-current={route === '/notifications' ? 'page' : undefined}><span aria-hidden="true">◉</span>Уведомления</a>
+          <a href="#/notifications" aria-current={route === '/notifications' ? 'page' : undefined}>
+            <span aria-hidden="true">◉</span>Уведомления{user ? <NavUnread user={lastUser} /> : null}</a>
           <a href="#/profile" aria-current={route === '/profile' ? 'page' : undefined}><span aria-hidden="true">○</span>Профиль</a>
         </nav><div className="sidebar-bottom"><span className="small-dot" /> Ваша команда. Ваши проекты.</div>
       </aside>
