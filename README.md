@@ -1,4 +1,54 @@
-# Task Management System
+# ProjectFlow
+
+> Планирование и выполнение командной работы: что делать дальше, кто отвечает, что блокирует сроки.
+
+[![CI](https://github.com/ursusandwolfcom/task-management-app/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ursusandwolfcom/task-management-app/actions/workflows/ci.yml)
+[![Java 21](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)](#local-development)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-модульный%20монолит-6DB33F?logo=springboot&logoColor=white)](#local-development)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Liquibase-4169E1?logo=postgresql&logoColor=white)](#local-development)
+[![React](https://img.shields.io/badge/Workspace-React%20%2B%20TypeScript-61DAFB?logo=react&logoColor=black)](#local-development)
+
+## Демо для заказчика
+
+Готовый **рабочий демо-срез** на ветке `main`: полный MVP-сценарий плюс планирование, портфель, файлы и in-app уведомления. Это не production-deploy и не весь исходный assignment end-to-end — честный объём см. [Deferred](#deferred-explicit-technical-debt).
+
+### За 10 минут
+
+| # | Что показать | Зачем |
+|---|--------------|--------|
+| 1 | Регистрация / вход (cookie-сессия) | Один аккаунт = одни данные в двух вкладках |
+| 2 | Проект → участник → задачи **A → B** | Зависимости и права на живых данных |
+| 3 | «Мои задачи»: B заблокирована, A готова | Очередь с причиной, не «магический» статус |
+| 4 | Завершить A → B открывается; fail → retry | История попыток сохраняется |
+| 5 | Gantt / what-if по оценкам | CPM Mon–Fri 09–17, сценарий без записи в БД |
+| 6 | Обзор портфеля + загрузка исполнителей | Риск и нагрузка → переход к работе |
+| 7 | Комментарий, метка, вложение, уведомление | Совместная работа в карточке задачи |
+
+### Что уже в демо
+
+```text
+Аккаунт и проекты     Задачи и lifecycle     DAG / очередь / next
+Комментарии и метки   Вложения (локальный диск)   In-app уведомления (outbox)
+CPM + Gantt + what-if Портфель рисков + workload  Workspace UI (темы, CSRF)
+```
+
+### Что сознательно позже
+
+Dropbox, email/Telegram, resource leveling, праздники в календаре, финансовые KPI — перечислены в таблице **Deferred** ниже. В демо их **не** обещать.
+
+### Как запустить демо
+
+```bash
+# PostgreSQL + приложение (см. Local development)
+./mvnw spring-boot:run
+# Workspace: откройте UI профиля workspace и пройдите сценарий выше
+```
+
+Подробные контракты API — в разделах ниже. Alpha (`/alpha`) — отдельный браузерный прототип, не путать с серверным workspace.
+
+---
+
+# Technical reference
 
 ## Task lifecycle
 
