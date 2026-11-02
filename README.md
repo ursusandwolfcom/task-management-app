@@ -38,10 +38,13 @@ Dropbox, email/Telegram, resource leveling, праздники в календа
 
 ### Как запустить демо
 
-```bash
-# PostgreSQL + приложение (см. Local development)
-./mvnw spring-boot:run
-# Workspace: откройте UI профиля workspace и пройдите сценарий выше
+Полный пошаговый скрипт с таймингом: **[DEMO.md](DEMO.md)**.
+
+```powershell
+docker compose up -d --wait
+.\mvnw.cmd -q -DskipTests package
+java -jar target/task-management-app-0.0.1-SNAPSHOT.jar --spring.profiles.active=workspace
+# UI: http://127.0.0.1:8080/app/
 ```
 
 Подробные контракты API — в разделах ниже. Alpha (`/alpha`) — отдельный браузерный прототип, не путать с серверным workspace.
@@ -191,6 +194,12 @@ Project members, owners and ADMIN can upload files through `POST /api/attachment
 PostgreSQL (Liquibase 009); bytes live under `attachment.storage-dir` (local disk) via
 `AttachmentObjectStore`.
 
+`GET /api/attachments?taskId=` lists newest first; `GET /api/attachments/{id}/content` downloads;
+`DELETE /api/attachments/{id}` requires the uploader, current project owner or ADMIN with live
+access. Uploads/deletes use the project write lock and do not change task or planning revisions.
+Task deletion cascades attachment rows; orphaned disk files may remain after storage failures.
+Workspace task detail shows the attachment panel. Browser-cookie writes require CSRF.
+
 ## Deferred (explicit technical debt)
 
 These items are **not** implemented; they need disproportionate product/ops work relative to
@@ -205,12 +214,6 @@ the current MVP slice and will land later when credentials, channel choice and c
 | Financial / actual-effort KPI | Estimates are planning inputs, not timesheets |
 
 Do not treat README assignment notes that mention Dropbox/email as shipped behavior.
-
-`GET /api/attachments?taskId=` lists newest first; `GET /api/attachments/{id}/content` downloads;
-`DELETE /api/attachments/{id}` requires the uploader, current project owner or ADMIN with live
-access. Uploads/deletes use the project write lock and do not change task or planning revisions.
-Task deletion cascades attachment rows; orphaned disk files may remain after storage failures.
-Workspace task detail shows the attachment panel. Browser-cookie writes require CSRF.
 
 ## Comments and project labels
 
