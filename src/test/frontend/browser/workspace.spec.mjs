@@ -104,24 +104,28 @@ test('two tabs restore expired access once, preserve drafts and respond to logou
   const user = identity(); await registerApi(context.request, user); await login(page, user);
   const id = await createProject(page, `Сессия ${user.username}`);
   const second = await context.newPage(); await second.goto(`/app/#/projects/${id}`);
-  await expect(second.getByLabel('Название проекта', { exact: true })).toBeVisible();
+  const projectName = page.getByLabel('Название проекта', { exact: true });
+  const secondName = second.getByLabel('Название проекта', { exact: true });
+  // Project detail also loads task/queue APIs under the shared session lock across tabs.
+  const ready = { timeout: 45_000 };
+  await expect(secondName).toBeVisible(ready);
   let refreshes = 0;
   context.on('request', request => { if (request.url().endsWith('/api/session/refresh')) refreshes++; });
   await context.clearCookies({ name: '__Host-pf-access' });
   await Promise.all([page.reload(), second.reload()]);
-  await expect(page.getByLabel('Название проекта', { exact: true })).toBeVisible();
-  await expect(second.getByLabel('Название проекта', { exact: true })).toBeVisible();
+  await expect(projectName).toBeVisible(ready);
+  await expect(secondName).toBeVisible(ready);
   expect(refreshes).toBe(1);
-  await page.getByLabel('Название проекта', { exact: true }).fill('Сохранить после повторного входа');
+  await projectName.fill('Сохранить после повторного входа');
   await context.clearCookies({ name: '__Host-pf-access' }); await context.clearCookies({ name: '__Host-pf-refresh' });
   await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
-  await expect(page.getByLabel('Email или логин', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Email или логин', { exact: true })).toBeVisible(ready);
   await page.getByLabel('Пароль', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Войти', exact: true }).click();
-  await expect(page.getByLabel('Название проекта', { exact: true })).toHaveValue('Сохранить после повторного входа');
+  await expect(projectName).toHaveValue('Сохранить после повторного входа', ready);
   await second.getByRole('button', { name: 'Выйти', exact: true }).click();
-  await expect(page.getByLabel('Email или логин', { exact: true })).toBeVisible();
-  await expect(second.getByLabel('Email или логин', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Email или логин', { exact: true })).toBeVisible(ready);
+  await expect(second.getByLabel('Email или логин', { exact: true })).toBeVisible(ready);
 });
 
 test('uncertain writes never retry, password revokes sessions and project removal is explicit', async ({ page, context }) => {
