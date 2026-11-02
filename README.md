@@ -125,13 +125,36 @@ These routes are included in `/v3/api-docs/tasks` when the alpha documentation p
 Liquibase migration 005 adds a covering `(project_id, task_id, depends_on_task_id)` index
 for bounded, ordered project-edge reads; previous migrations remain unchanged.
 
+## In-app notifications
+
+Task assignment and new comments enqueue durable `outbox_messages` rows (`task.assigned`,
+`comment.created`) in the same write transaction. `GET /api/notifications` drains a small
+outbox batch into per-user in-app notifications, then returns a page with `unreadCount`.
+`POST /api/notifications/{id}/read` and `POST /api/notifications/read-all` mark items read.
+Channel is in-app only for this release. Liquibase 010. Workspace route: `#/notifications`.
+
 ## Task attachments
 
 Project members, owners and ADMIN can upload files through `POST /api/attachments?taskId={id}`
 (`multipart/form-data`, field `file`). Limits for this release: max **5 MiB**; content types
 `application/pdf`, `image/png`, `image/jpeg`, `image/webp`, `text/plain`. Metadata is stored in
-PostgreSQL (Liquibase 009); bytes live under `attachment.storage-dir` (local disk). Dropbox is
-deferred behind `AttachmentObjectStore`.
+PostgreSQL (Liquibase 009); bytes live under `attachment.storage-dir` (local disk) via
+`AttachmentObjectStore`.
+
+## Deferred (explicit technical debt)
+
+These items are **not** implemented; they need disproportionate product/ops work relative to
+the current MVP slice and will land later when credentials, channel choice and capacity exist:
+
+| Item | Why deferred |
+|------|----------------|
+| Dropbox (or other cloud) attachment storage | Needs app keys, token lifecycle and delete sync; local disk covers the API/UI path now |
+| Email / Telegram notifications | Channel and event policy unresolved; in-app + outbox is the durable hook |
+| Resource calendars / leveling | Unlimited parallel resources by design until a resource module exists |
+| Working-calendar holidays / breaks | CPM uses Mon–Fri 09–17 only |
+| Financial / actual-effort KPI | Estimates are planning inputs, not timesheets |
+
+Do not treat README assignment notes that mention Dropbox/email as shipped behavior.
 
 `GET /api/attachments?taskId=` lists newest first; `GET /api/attachments/{id}/content` downloads;
 `DELETE /api/attachments/{id}` requires the uploader, current project owner or ADMIN with live

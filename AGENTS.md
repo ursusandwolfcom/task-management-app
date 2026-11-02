@@ -11,8 +11,10 @@ The user selected this workflow: `sprint/sNN` → `dev` → `main`.
 - Keep exactly three working branches locally and on origin: main, dev and the current
   sprint branch. Once work is preserved in the current sprint or integrated into main/dev,
   close superseded PRs, remove obsolete clean worktrees and delete obsolete branches.
-  Delete the completed sprint branch before creating the next one; a brief transition
-  with two branches is expected. Never delete a branch with unpreserved unique work.
+  Delete the completed sprint branch locally and on origin immediately after it is merged
+  to `dev` (do not leave stale `sprint/sNN` remotes). Delete it before creating the next
+  sprint; a brief transition with two sprint branches is expected. Never delete a branch
+  with unpreserved unique work.
 - Work in the sprint branch with small meaningful commits and a sprint PR targeting `dev`.
 - Acceleration (user-approved): batch fixes into one push before opening/updating a PR;
   run targeted Maven/npm checks while iterating and one full `clean verify` on the

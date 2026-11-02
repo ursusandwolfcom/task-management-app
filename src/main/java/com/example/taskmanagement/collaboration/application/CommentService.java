@@ -8,12 +8,17 @@ import com.example.taskmanagement.collaboration.persistence.CommentEntity;
 import com.example.taskmanagement.collaboration.persistence.CommentRepository;
 import com.example.taskmanagement.identity.api.IdentityOperations;
 import com.example.taskmanagement.identity.api.UserRole;
+import com.example.taskmanagement.integration.outbox.api.OutboxEvents;
+import com.example.taskmanagement.integration.outbox.api.OutboxOperations;
 import com.example.taskmanagement.shared.persistence.PageRequests;
+import com.example.taskmanagement.task.api.TaskOperations;
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
+import java.util.LinkedHashMap;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 @Validated
@@ -22,21 +27,36 @@ public class CommentService implements CommentOperations {
     private final CommentRepository comments;
     private final CollaborationAccess access;
     private final IdentityOperations identity;
+    private final TaskOperations tasks;
+    private final OutboxOperations outbox;
+    private final ObjectMapper json;
     private final Clock clock;
 
     public CommentService(CommentRepository comments, CollaborationAccess access, IdentityOperations identity,
-            Clock clock) {
+            TaskOperations tasks, OutboxOperations outbox, ObjectMapper json, Clock clock) {
         this.comments = comments;
         this.access = access;
         this.identity = identity;
+        this.tasks = tasks;
+        this.outbox = outbox;
+        this.json = json;
         this.clock = clock;
     }
 
     @Override
     public CommentView create(long actorId, CommentData data) {
         var project = access.lockTask(actorId, data.taskId());
-        return comments.saveAndFlush(new CommentEntity(project.id(), data.taskId(), actorId, data.text(),
+        var created = comments.saveAndFlush(new CommentEntity(project.id(), data.taskId(), actorId, data.text(),
                 clock.instant().truncatedTo(ChronoUnit.MICROS))).view();
+        var task = tasks.read(actorId, data.taskId());
+        var body = new LinkedHashMap<String, Object>();
+        body.put("authorId", actorId);
+        body.put("assigneeId", task.assigneeId());
+        body.put("projectId", project.id());
+        body.put("taskId", data.taskId());
+        body.put("preview", data.text());
+        outbox.append(OutboxEvents.COMMENT_CREATED, json.writeValueAsString(body));
+        return created;
     }
 
     @Override

@@ -26,3 +26,6 @@ databaseChangeLog:
   - include:
       file: changes/009-create-attachments.yaml
       relativeToChangelogFile: true
+  - include:
+      file: changes/010-create-outbox-notifications.yaml
+      relativeToChangelogFile: true

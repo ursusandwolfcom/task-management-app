@@ -2,6 +2,7 @@ package com.example.taskmanagement.config;
 
 import com.example.taskmanagement.attachment.api.AttachmentException;
 import com.example.taskmanagement.collaboration.api.CollaborationException;
+import com.example.taskmanagement.notification.api.NotificationException;
 import com.example.taskmanagement.planning.core.GraphValidationException;
 import com.example.taskmanagement.identity.api.IdentityException;
 import com.example.taskmanagement.project.api.ProjectException;
@@ -23,6 +24,17 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 /** Shared HTTP representation; pure graph and lifecycle modules remain unaware of HTTP. */
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
+
+    @ExceptionHandler(NotificationException.class)
+    public ResponseEntity<ProblemDetail> notificationProblem(NotificationException exception) {
+        HttpStatus status = switch (exception.reason()) {
+            case NOTIFICATION_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case FORBIDDEN -> HttpStatus.FORBIDDEN;
+            case VALIDATION_ERROR -> HttpStatus.BAD_REQUEST;
+        };
+        return uncachedProblem(status, exception.reason().name(),
+                "The notification operation could not be completed.");
+    }
 
     @ExceptionHandler(AttachmentException.class)
     public ResponseEntity<ProblemDetail> attachmentProblem(AttachmentException exception) {

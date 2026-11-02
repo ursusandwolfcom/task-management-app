@@ -2,6 +2,8 @@ package com.example.taskmanagement.task.application;
 
 import com.example.taskmanagement.identity.api.IdentityOperations;
 import com.example.taskmanagement.identity.api.UserRole;
+import com.example.taskmanagement.integration.outbox.api.OutboxEvents;
+import com.example.taskmanagement.integration.outbox.api.OutboxOperations;
 import com.example.taskmanagement.shared.persistence.PageRequests;
 import com.example.taskmanagement.project.api.ProjectCoordination;
 import com.example.taskmanagement.project.api.ProjectCoordination.Permission;
@@ -25,11 +27,13 @@ import jakarta.persistence.EntityManager;
 import jakarta.validation.Validator;
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
+import java.util.LinkedHashMap;
 import java.util.Objects;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 @Validated
@@ -41,19 +45,24 @@ public class TaskService implements TaskOperations {
     private final ProjectCoordination coordination;
     private final TaskProjectAccess access;
     private final IdentityOperations identity;
+    private final OutboxOperations outbox;
+    private final ObjectMapper json;
     private final EntityManager entityManager;
     private final Validator validator;
     private final Clock clock;
 
     public TaskService(TaskRepository tasks, TaskQueryRepository queries, AttemptRepository attempts,
             ProjectCoordination coordination, TaskProjectAccess access, IdentityOperations identity,
-            EntityManager entityManager, Validator validator, Clock clock) {
+            OutboxOperations outbox, ObjectMapper json, EntityManager entityManager, Validator validator,
+            Clock clock) {
         this.tasks = tasks;
         this.queries = queries;
         this.attempts = attempts;
         this.coordination = coordination;
         this.access = access;
         this.identity = identity;
+        this.outbox = outbox;
+        this.json = json;
         this.entityManager = entityManager;
         this.validator = validator;
         this.clock = clock;
@@ -65,7 +74,11 @@ public class TaskService implements TaskOperations {
         validateData(projectId, data);
         var task = tasks.saveAndFlush(new TaskEntity(projectId, data));
         coordination.markInputChanged(actorId, projectId);
-        return task.view();
+        var created = task.view();
+        if (created.assigneeId() != null) {
+            outbox.append(OutboxEvents.TASK_ASSIGNED, payload(actorId, created));
+        }
+        return created;
     }
 
     @Override
@@ -106,7 +119,11 @@ public class TaskService implements TaskOperations {
         task.update(data);
         tasks.saveAndFlush(task);
         coordination.markInputChanged(actorId, project.id());
-        return task.view();
+        var updated = task.view();
+        if (!Objects.equals(previous.assigneeId(), updated.assigneeId()) && updated.assigneeId() != null) {
+            outbox.append(OutboxEvents.TASK_ASSIGNED, payload(actorId, updated));
+        }
+        return updated;
     }
 
     @Override
@@ -205,6 +222,16 @@ public class TaskService implements TaskOperations {
         if (data.assigneeId() != null && !coordination.isMember(projectId, data.assigneeId())) {
             throw error(TaskException.Reason.ASSIGNEE_NOT_MEMBER);
         }
+    }
+
+    private String payload(long actorId, TaskView task) {
+        var body = new LinkedHashMap<String, Object>();
+        body.put("actorId", actorId);
+        body.put("assigneeId", task.assigneeId());
+        body.put("projectId", task.projectId());
+        body.put("taskId", task.id());
+        body.put("taskName", task.name());
+        return json.writeValueAsString(body);
     }
 
     private static PageRequest paging(int page, int size, String property) {

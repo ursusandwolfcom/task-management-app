@@ -2,28 +2,29 @@
 AI_PROJECT_MAP — Task Management App (ProjectFlow)
 Дата огляду: 2026-11-02
 Ролі: архітектор + аналітик + code-reviewer + code-quality
-Гілка роботи: sprint/s23 (M4-tail attachments; S16–S22 на main)
+Гілка роботи: sprint/s24 (outbox + in-app notifications; S23 на dev)
 ================================================================================
 
 1) СТАН СПРИНТІВ / ГІЛОК
 --------------------------------------------------------------------------------
 | Гілка              | Tip SHA   | Відносно інших                         |
 |--------------------|-----------|----------------------------------------|
-| origin/main/dev    | 00ecaaf   | Release S22 workload                   |
-| sprint/s23         | (WIP)     | Task attachments local store           |
+| origin/main        | 00ecaaf   | Release S22                            |
+| origin/dev         | c920cf7   | + S23 attachments                      |
+| sprint/s24         | (WIP)     | outbox + in-app notifications          |
 
-Останній на main: S22 assignee workload. Наступний після S23: notifications/outbox.
+Batch release S23+S24 → main після зеленого S24.
 
 Roadmap PRODUCT_ROADMAP.md (етапи продукту, не номери спринту):
   M1 Аккаунт/проєкти     — ЗРОБЛЕНО (S9–S10)
   M2 Серверні задачі     — ЗРОБЛЕНО (S11–S12)
   M3 Залежності/черга    — ЗРОБЛЕНО (S13)
-  M4 Спільна робота      — ЧАСТКОВО (S14 comments/labels; S23 attachments; сповіщення — ні)
+  M4 Спільна робота      — ЧАСТКОВО (S14+S23; S24 in-app notify; email/Telegram — ні)
   M5 Планування дат/CPM  — ЗРОБЛЕНО (S18–S19, what-if S21)
   M6 Портфель/метрики    — ЧАСТКОВО (S20 risk + S22 workload)
 
-Допущення S23: max 5 MiB; pdf/png/jpeg/webp/txt; local disk (`AttachmentObjectStore`); Dropbox відкладено.
-Висновок: MVP M1–M3 готовий; M4-tail attachments у роботі; notifications — S24+.
+Допущення S24: канал in-app; події task.assigned + comment.created через transactional outbox.
+Висновок: MVP M1–M3 готовий; M4 майже закритий in-app; зовнішні канали відкладені.
 
 
 2) ВЕРДИКТ CODE REVIEW
