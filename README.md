@@ -99,8 +99,9 @@ Project members, owners and ADMIN can read a coherent graph snapshot through:
   actual predecessors are all COMPLETED; blockingReasons list blocked WORK candidates.
 - `GET /api/projects/{id}/next-task`: the first available task, or 204 if none is available.
 - `GET /api/projects/{id}/gantt`: working-time CPM bars (early/late start/finish, float,
-  critical tasks/edges). Calendar is Mon–Fri 09:00–17:00 in the project IANA timezone;
-  missing estimates are zero-length milestones; resources are unlimited (no leveling).
+  critical tasks/edges, deadlineOverrun vs task dueDate / project endDate). Calendar is
+  Mon–Fri 09:00–17:00 in the project IANA timezone; missing estimates are zero-length
+  milestones; resources are unlimited (no leveling). Overrun flags do not change criticality.
 
 All four endpoints use the Java planning core, return `Cache-Control: no-store` and
 `X-Project-Input-Revision` (also on 204), and never update execution facts or project revisions.

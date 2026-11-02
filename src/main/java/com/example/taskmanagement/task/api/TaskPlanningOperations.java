@@ -35,7 +35,8 @@ public interface TaskPlanningOperations {
             Instant lateStart,
             Instant lateFinish,
             long floatMinutes,
-            boolean critical) {
+            boolean critical,
+            boolean deadlineOverrun) {
     }
 
     record CriticalDependency(long predecessorId, long successorId) {
@@ -50,6 +51,7 @@ public interface TaskPlanningOperations {
             Instant projectStart,
             Instant projectFinish,
             long durationMinutes,
+            boolean projectDeadlineOverrun,
             List<GanttTask> tasks,
             List<Long> criticalTaskIds,
             List<CriticalDependency> criticalEdges) {

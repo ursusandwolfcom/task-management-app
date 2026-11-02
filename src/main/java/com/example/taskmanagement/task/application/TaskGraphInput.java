@@ -19,6 +19,7 @@ record TaskGraphInput(
         long inputRevision,
         long calendarRevision,
         LocalDate startDate,
+        LocalDate endDate,
         String timezone,
         List<TaskView> tasks,
         List<DependencyEdge> edges) {
