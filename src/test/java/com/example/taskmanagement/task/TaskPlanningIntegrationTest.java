@@ -107,6 +107,32 @@ class TaskPlanningIntegrationTest {
         mvc.perform(get(route("next-task")).header("Authorization", auth))
                 .andExpect(status().isNoContent()).andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(header().string("X-Project-Input-Revision", Long.toString(project.inputRevision())));
+        mvc.perform(get(route("gantt")).header("Authorization", auth))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.durationMinutes").value(0))
+                .andExpect(jsonPath("$.tasks").isEmpty())
+                .andExpect(jsonPath("$.timezone").value("UTC"))
+                .andExpect(header().string("X-Project-Input-Revision", Long.toString(project.inputRevision())));
+    }
+
+    @Test
+    void ganttUsesWorkingCalendarAndMarksCriticalChain() throws Exception {
+        var first = tasks.create(owner.id(), project.id(),
+                new TaskData("Day one", "", TaskPriority.MEDIUM, 480, null, owner.id(), TaskBucket.WORK));
+        var second = tasks.create(owner.id(), project.id(),
+                new TaskData("Day two", "", TaskPriority.MEDIUM, 480, null, owner.id(), TaskBucket.WORK));
+        var side = tasks.create(owner.id(), project.id(),
+                new TaskData("Half day", "", TaskPriority.LOW, 240, null, owner.id(), TaskBucket.WORK));
+        edge(second, first);
+        edge(side, first);
+        var gantt = planning.gantt(member.id(), project.id());
+        assertThat(gantt.durationMinutes()).isEqualTo(960);
+        assertThat(gantt.criticalTaskIds()).containsExactly(first.id(), second.id());
+        assertThat(gantt.criticalEdges()).containsExactly(
+                new TaskPlanningOperations.CriticalDependency(first.id(), second.id()));
+        mvc.perform(get(route("gantt")).header("Authorization", bearer(member)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.durationMinutes").value(960))
+                .andExpect(jsonPath("$.calendarRevision").value(project.calendarRevision()));
     }
 
     @Test

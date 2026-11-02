@@ -98,8 +98,11 @@ Project members, owners and ADMIN can read a coherent graph snapshot through:
 - `GET /api/projects/{id}/available-tasks`: ordered NOT_STARTED tasks in bucket WORK whose
   actual predecessors are all COMPLETED; blockingReasons list blocked WORK candidates.
 - `GET /api/projects/{id}/next-task`: the first available task, or 204 if none is available.
+- `GET /api/projects/{id}/gantt`: working-time CPM bars (early/late start/finish, float,
+  critical tasks/edges). Calendar is Mon–Fri 09:00–17:00 in the project IANA timezone;
+  missing estimates are zero-length milestones; resources are unlimited (no leveling).
 
-All three endpoints use the Java planning core, return `Cache-Control: no-store` and
+All four endpoints use the Java planning core, return `Cache-Control: no-store` and
 `X-Project-Input-Revision` (also on 204), and never update execution facts or project revisions.
 The snapshot loads under the same project lock as task writers; calculations run after
 the read transaction releases the lock. FAILED/CANCELLED predecessors remain blockers.

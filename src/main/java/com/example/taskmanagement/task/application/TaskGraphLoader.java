@@ -43,7 +43,8 @@ public class TaskGraphLoader {
         if (edges.size() > maxDependencies) {
             throw new TaskException(TaskException.Reason.GRAPH_TOO_LARGE);
         }
-        return new TaskGraphInput(projectId, project.inputRevision(), nodes, edges);
+        return new TaskGraphInput(projectId, project.inputRevision(), project.calendarRevision(),
+                project.startDate(), project.timezone(), nodes, edges);
     }
 
     int maxDependencies() {

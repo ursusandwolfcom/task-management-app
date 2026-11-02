@@ -4,6 +4,7 @@ import com.example.taskmanagement.task.api.TaskPlanningOperations;
 import com.example.taskmanagement.task.api.TaskPlanningOperations.AvailableTasks;
 import com.example.taskmanagement.task.api.TaskPlanningOperations.ExecutionOrder;
 import com.example.taskmanagement.task.api.TaskPlanningOperations.NextTask;
+import com.example.taskmanagement.task.api.TaskPlanningOperations.ProjectGantt;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -59,6 +60,16 @@ public class TaskPlanningController {
             return ResponseEntity.noContent().cacheControl(CacheControl.noStore())
                     .header(REVISION, Long.toString(result.inputRevision())).build();
         }
+        return response(result, result.inputRevision());
+    }
+
+    @GetMapping("/gantt")
+    @Operation(summary = "Calculate working-time CPM / Gantt bars for the project graph",
+            description = "Mon–Fri 09:00–17:00 in the project timezone. Missing estimates are zero-length "
+                    + "milestones. Unlimited parallel resources; no resource leveling. "
+                    + "GET never mutates tasks; X-Project-Input-Revision mirrors the snapshot.")
+    public ResponseEntity<ProjectGantt> gantt(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long id) {
+        var result = planning.gantt(actor(jwt), id);
         return response(result, result.inputRevision());
     }
 
