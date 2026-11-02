@@ -52,3 +52,13 @@ export interface ProjectGantt {
   projectDeadlineOverrun: boolean;
   tasks: GanttTask[]; criticalTaskIds: bigint[]; criticalEdges: CriticalDependency[];
 }
+export type PortfolioRisk = 'ON_TRACK' | 'AT_RISK' | 'OVERDUE';
+export interface ProjectRisk {
+  projectId: bigint; name: string; status: string; timezone: string; endDate: string;
+  openTasks: bigint; criticalTasks: bigint; durationMinutes: bigint;
+  projectDeadlineOverrun: boolean; hasTaskDeadlineOverrun: boolean; risk: PortfolioRisk;
+}
+export interface PortfolioPage {
+  calculatedAt: string; content: ProjectRisk[]; page: number; size: number;
+  totalElements: bigint; totalPages: number;
+}

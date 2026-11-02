@@ -115,6 +115,18 @@ class TaskPlanningIntegrationTest {
     }
 
     @Test
+    void portfolioMarksOverdueProjectFromWorkingCalendar() throws Exception {
+        tasks.create(owner.id(), project.id(),
+                new TaskData("Long", "", TaskPriority.MEDIUM, 480, null, owner.id(), TaskBucket.WORK));
+        // Project ends 2027-01-01; one working day from 2026-01-01 stays ON_TRACK.
+        mvc.perform(get("/api/portfolio").header("Authorization", bearer(member)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].projectId").value(project.id()))
+                .andExpect(jsonPath("$.content[0].risk").value("ON_TRACK"))
+                .andExpect(jsonPath("$.content[0].openTasks").value(1));
+    }
+
+    @Test
     void ganttUsesWorkingCalendarAndMarksCriticalChain() throws Exception {
         var first = tasks.create(owner.id(), project.id(),
                 new TaskData("Day one", "", TaskPriority.MEDIUM, 480, null, owner.id(), TaskBucket.WORK));
