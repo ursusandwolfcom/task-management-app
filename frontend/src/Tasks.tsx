@@ -145,13 +145,15 @@ export function ProjectSchedule({ user, project }: { user: User; project: Projec
     <Alert error={query.error} />{query.loading && <Loading />}
     {query.value && <>
       <p className="count-label">ДЛИТЕЛЬНОСТЬ: {String(query.value.durationMinutes)} мин ·
-        критических задач: {String(query.value.criticalTaskIds.length)}</p>
+        критических задач: {String(query.value.criticalTaskIds.length)}
+        {query.value.projectDeadlineOverrun ? ' · ПРОЕКТ ПРОСРОЧЕН' : ''}</p>
       {query.value.tasks.length === 0 ? <Empty title="Нет задач для плана">
         Создайте задачи с оценкой, чтобы увидеть ранние/поздние даты.
       </Empty> : <ul className="task-list">{query.value.tasks.map(task =>
         <li key={String(task.taskId)}><a href={`#/tasks/${task.taskId}`}>
           <strong>Задача {String(task.taskId)}</strong>
           {task.critical && <span className="badge">критическая</span>}
+          {task.deadlineOverrun && <span className="badge">срок</span>}
           <small>{formatInstant(task.earlyStart)} → {formatInstant(task.earlyFinish)}
             · запас {String(task.floatMinutes)} мин</small>
         </a></li>)}</ul>}

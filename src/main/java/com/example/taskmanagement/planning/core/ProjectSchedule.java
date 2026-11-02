@@ -9,6 +9,7 @@ public record ProjectSchedule(
         Instant projectStart,
         Instant projectFinish,
         long durationMinutes,
+        boolean projectDeadlineOverrun,
         List<TaskSchedule> tasks,
         List<Long> criticalTaskIds,
         List<DependencyEdge> criticalEdges) {

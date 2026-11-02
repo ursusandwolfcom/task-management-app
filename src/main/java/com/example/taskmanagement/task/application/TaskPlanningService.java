@@ -58,17 +58,18 @@ public class TaskPlanningService implements TaskPlanningOperations {
     public ProjectGantt gantt(long actorId, long projectId) {
         var input = loader.load(actorId, projectId);
         var calendar = new WorkingCalendar(ZoneId.of(input.timezone()));
-        var planned = criticalPath.schedule(input.graph(), calendar, calendar.projectOrigin(input.startDate()));
+        var planned = criticalPath.schedule(input.graph(), calendar, calendar.projectOrigin(input.startDate()),
+                input.endDate());
         var tasks = planned.tasks().stream()
                 .map(task -> new GanttTask(task.taskId(), task.durationMinutes(), task.earlyStart(),
                         task.earlyFinish(), task.lateStart(), task.lateFinish(), task.floatMinutes(),
-                        task.critical()))
+                        task.critical(), task.deadlineOverrun()))
                 .toList();
         var edges = planned.criticalEdges().stream()
                 .map(edge -> new CriticalDependency(edge.predecessorId(), edge.successorId()))
                 .toList();
         return new ProjectGantt(projectId, input.inputRevision(), input.calendarRevision(), input.timezone(),
                 Instant.now(), planned.projectStart(), planned.projectFinish(), planned.durationMinutes(),
-                tasks, planned.criticalTaskIds(), edges);
+                planned.projectDeadlineOverrun(), tasks, planned.criticalTaskIds(), edges);
     }
 }

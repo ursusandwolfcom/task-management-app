@@ -1,6 +1,7 @@
 package com.example.taskmanagement.planning.core;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -10,6 +11,7 @@ import java.util.Objects;
 /**
  * Earliest/latest schedule with unlimited parallel resources. Missing estimates are zero-length
  * milestones. Arithmetic uses working-minute offsets from the project origin, then maps to Instants.
+ * Task/project due dates flag overrun without changing the critical path.
  */
 public final class CriticalPathCalculator {
 
@@ -20,12 +22,17 @@ public final class CriticalPathCalculator {
     }
 
     public ProjectSchedule schedule(GraphSnapshot graph, WorkingCalendar calendar, Instant projectOrigin) {
+        return schedule(graph, calendar, projectOrigin, null);
+    }
+
+    public ProjectSchedule schedule(GraphSnapshot graph, WorkingCalendar calendar, Instant projectOrigin,
+            LocalDate projectDeadline) {
         Objects.requireNonNull(graph, "graph");
         Objects.requireNonNull(calendar, "calendar");
         Objects.requireNonNull(projectOrigin, "projectOrigin");
         var origin = calendar.normalizeStart(projectOrigin);
         if (graph.nodes().isEmpty()) {
-            return new ProjectSchedule(origin, origin, 0L, List.of(), List.of(), List.of());
+            return new ProjectSchedule(origin, origin, 0L, false, List.of(), List.of(), List.of());
         }
         var order = sorter.executionOrder(graph);
         var duration = new HashMap<Long, Long>();
@@ -61,15 +68,18 @@ public final class CriticalPathCalculator {
         for (var node : order) {
             long floatMinutes = lateStart.get(node.id()) - earlyStart.get(node.id());
             boolean critical = floatMinutes == 0L;
+            Instant finishInstant = calendar.addWorkingMinutes(origin, earlyFinish.get(node.id()));
+            boolean overrun = isOverrun(node.dueDate(), finishInstant, calendar);
             tasks.add(new TaskSchedule(
                     node.id(),
                     duration.get(node.id()),
                     calendar.addWorkingMinutes(origin, earlyStart.get(node.id())),
-                    calendar.addWorkingMinutes(origin, earlyFinish.get(node.id())),
+                    finishInstant,
                     calendar.addWorkingMinutes(origin, lateStart.get(node.id())),
                     calendar.addWorkingMinutes(origin, lateFinish.get(node.id())),
                     floatMinutes,
-                    critical));
+                    critical,
+                    overrun));
             if (critical) {
                 criticalIds.add(node.id());
             }
@@ -82,7 +92,18 @@ public final class CriticalPathCalculator {
                 .sorted(Comparator.comparingLong(DependencyEdge::predecessorId)
                         .thenComparingLong(DependencyEdge::successorId))
                 .toList();
-        return new ProjectSchedule(origin, calendar.addWorkingMinutes(origin, projectDuration),
-                projectDuration, tasks, criticalIds, criticalEdges);
+        Instant projectFinish = calendar.addWorkingMinutes(origin, projectDuration);
+        boolean projectOverrun = isOverrun(projectDeadline, projectFinish, calendar);
+        return new ProjectSchedule(origin, projectFinish, projectDuration, projectOverrun, tasks, criticalIds,
+                criticalEdges);
+    }
+
+    /** Due date is calendar day inclusive; finish after that local day end is overrun. */
+    static boolean isOverrun(LocalDate deadline, Instant finish, WorkingCalendar calendar) {
+        if (deadline == null) {
+            return false;
+        }
+        var finishDay = finish.atZone(calendar.zone()).toLocalDate();
+        return finishDay.isAfter(deadline);
     }
 }

@@ -2,7 +2,10 @@ package com.example.taskmanagement.planning.core;
 
 import java.time.Instant;
 
-/** Planned working-time window for one task. Float is lateStart − earlyStart in working minutes. */
+/**
+ * Planned working-time window for one task. Float is lateStart − earlyStart in working minutes.
+ * deadlineOverrun does not redefine criticality.
+ */
 public record TaskSchedule(
         long taskId,
         long durationMinutes,
@@ -11,7 +14,8 @@ public record TaskSchedule(
         Instant lateStart,
         Instant lateFinish,
         long floatMinutes,
-        boolean critical) {
+        boolean critical,
+        boolean deadlineOverrun) {
 
     public TaskSchedule {
         if (taskId <= 0) {
