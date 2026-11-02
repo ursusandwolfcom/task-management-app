@@ -139,10 +139,10 @@ public class OpenApiConfiguration {
         return GroupedOpenApi.builder().group("tasks").pathsToMatch("/api/tasks/**", "/api/projects/*/tasks",
                         "/api/projects/*/execution-order", "/api/projects/*/available-tasks",
                         "/api/projects/*/next-task", "/api/projects/*/gantt",
-                        "/api/projects/*/gantt/what-if", "/api/portfolio")
+                        "/api/projects/*/gantt/what-if", "/api/portfolio", "/api/portfolio/workload")
                 .addOpenApiCustomizer(api -> {
                     api.getPaths().entrySet().removeIf(entry -> !entry.getKey().startsWith("/api/tasks")
-                            && !entry.getKey().equals("/api/portfolio")
+                            && !entry.getKey().startsWith("/api/portfolio")
                             && !entry.getKey().endsWith("/tasks") && !planningRoute(entry.getKey()));
                     api.getPaths().entrySet().removeIf(entry -> entry.getKey().contains("/labels"));
                     api.info(new Info().title("ProjectFlow tasks API").version("0.0.1")

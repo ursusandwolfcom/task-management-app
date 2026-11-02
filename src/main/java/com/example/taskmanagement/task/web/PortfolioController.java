@@ -2,6 +2,7 @@ package com.example.taskmanagement.task.web;
 
 import com.example.taskmanagement.task.api.PortfolioOperations;
 import com.example.taskmanagement.task.api.PortfolioOperations.PortfolioPage;
+import com.example.taskmanagement.task.api.PortfolioOperations.WorkloadSnapshot;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.constraints.Max;
@@ -36,5 +37,14 @@ public class PortfolioController {
             @RequestParam(defaultValue = "20") @PositiveOrZero @Max(50) int size) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
                 .body(portfolio.overview(Long.parseLong(jwt.getSubject()), page, size));
+    }
+
+    @GetMapping("/workload")
+    @Operation(summary = "Assignee open-work load across accessible projects",
+            description = "Counts NOT_STARTED/IN_PROGRESS/FAILED assigned tasks, summed estimates, and "
+                    + "calendar overdue by dueDate. No leveling; GET never mutates data.")
+    public ResponseEntity<WorkloadSnapshot> workload(@AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(portfolio.workload(Long.parseLong(jwt.getSubject())));
     }
 }

@@ -35,5 +35,17 @@ public interface PortfolioOperations {
         }
     }
 
+    record AssigneeLoad(long userId, long openTasks, long estimatedMinutes, long overdueTasks) {
+    }
+
+    record WorkloadSnapshot(Instant calculatedAt, List<AssigneeLoad> assignees) {
+        public WorkloadSnapshot {
+            assignees = List.copyOf(assignees);
+        }
+    }
+
     PortfolioPage overview(long actorId, int page, int size);
+
+    /** Open assigned work across accessible projects; no resource calendar leveling. */
+    WorkloadSnapshot workload(long actorId);
 }
