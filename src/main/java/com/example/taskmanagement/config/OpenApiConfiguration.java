@@ -138,9 +138,10 @@ public class OpenApiConfiguration {
     public GroupedOpenApi taskOpenApi() {
         return GroupedOpenApi.builder().group("tasks").pathsToMatch("/api/tasks/**", "/api/projects/*/tasks",
                         "/api/projects/*/execution-order", "/api/projects/*/available-tasks",
-                        "/api/projects/*/next-task")
+                        "/api/projects/*/next-task", "/api/projects/*/gantt", "/api/portfolio")
                 .addOpenApiCustomizer(api -> {
                     api.getPaths().entrySet().removeIf(entry -> !entry.getKey().startsWith("/api/tasks")
+                            && !entry.getKey().equals("/api/portfolio")
                             && !entry.getKey().endsWith("/tasks") && !planningRoute(entry.getKey()));
                     api.getPaths().entrySet().removeIf(entry -> entry.getKey().contains("/labels"));
                     api.info(new Info().title("ProjectFlow tasks API").version("0.0.1")
@@ -183,7 +184,8 @@ public class OpenApiConfiguration {
     }
 
     private static boolean planningRoute(String route) {
-        return route.endsWith("/execution-order") || route.endsWith("/available-tasks") || route.endsWith("/next-task");
+        return route.endsWith("/execution-order") || route.endsWith("/available-tasks")
+                || route.endsWith("/next-task") || route.endsWith("/gantt");
     }
 
     private static io.swagger.v3.oas.models.media.Schema<?> labelMetadata(boolean create) {
