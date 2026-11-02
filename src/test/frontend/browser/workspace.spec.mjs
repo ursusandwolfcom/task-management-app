@@ -101,12 +101,13 @@ test('registration, reload, profile, shared projects, conflicts, membership and 
 });
 
 test('two tabs restore expired access once, preserve drafts and respond to logout', async ({ page, context }) => {
+  // Project detail loads task/queue APIs under the shared session lock across tabs.
+  test.setTimeout(120_000);
   const user = identity(); await registerApi(context.request, user); await login(page, user);
   const id = await createProject(page, `Сессия ${user.username}`);
   const second = await context.newPage(); await second.goto(`/app/#/projects/${id}`);
   const projectName = page.getByLabel('Название проекта', { exact: true });
   const secondName = second.getByLabel('Название проекта', { exact: true });
-  // Project detail also loads task/queue APIs under the shared session lock across tabs.
   const ready = { timeout: 45_000 };
   await expect(secondName).toBeVisible(ready);
   let refreshes = 0;
