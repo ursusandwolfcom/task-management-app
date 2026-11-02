@@ -57,6 +57,40 @@ public class TaskQueryRepository {
         return page(where.toString(), args, paging);
     }
 
+    /**
+     * Open assigned tasks in projects the actor can see (or all projects for admin).
+     * Overdue = due_date before today and status not completed/cancelled.
+     */
+    public List<AssigneeLoadRow> workload(long actorId, boolean admin) {
+        var sql = new StringBuilder("""
+                select t.assignee_id as user_id,
+                       count(*) as open_tasks,
+                       coalesce(sum(t.estimated_minutes), 0) as estimated_minutes,
+                       sum(case when t.due_date is not null and t.due_date < current_date
+                                 and t.status not in ('COMPLETED', 'CANCELLED') then 1 else 0 end) as overdue_tasks
+                from task_management.tasks t
+                where t.assignee_id is not null
+                  and t.status in ('NOT_STARTED', 'IN_PROGRESS', 'FAILED')
+                """);
+        var args = new ArrayList<Object>();
+        if (!admin) {
+            sql.append("""
+                     and exists (select 1 from task_management.project_members m
+                                 where m.project_id = t.project_id and m.user_id = ?)
+                    """);
+            args.add(actorId);
+        }
+        sql.append(" group by t.assignee_id order by open_tasks desc, user_id asc");
+        return jdbc.query(sql.toString(), (row, index) -> new AssigneeLoadRow(
+                row.getLong("user_id"),
+                row.getLong("open_tasks"),
+                row.getLong("estimated_minutes"),
+                row.getLong("overdue_tasks")), args.toArray());
+    }
+
+    public record AssigneeLoadRow(long userId, long openTasks, long estimatedMinutes, long overdueTasks) {
+    }
+
     private Page<TaskView> page(String where, List<Object> args, Pageable paging) {
         Long total = jdbc.queryForObject("select count(*) from task_management.tasks t" + where, Long.class,
                 args.toArray());

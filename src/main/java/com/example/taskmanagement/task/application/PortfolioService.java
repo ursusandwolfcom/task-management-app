@@ -1,11 +1,14 @@
 package com.example.taskmanagement.task.application;
 
+import com.example.taskmanagement.identity.api.IdentityOperations;
+import com.example.taskmanagement.identity.api.UserRole;
 import com.example.taskmanagement.planning.core.CriticalPathCalculator;
 import com.example.taskmanagement.planning.core.PriorityTopologicalSorter;
 import com.example.taskmanagement.planning.core.WorkingCalendar;
 import com.example.taskmanagement.project.api.ProjectOperations;
 import com.example.taskmanagement.task.api.PortfolioOperations;
 import com.example.taskmanagement.task.domain.TaskStatus;
+import com.example.taskmanagement.task.persistence.TaskQueryRepository;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -23,11 +26,16 @@ public class PortfolioService implements PortfolioOperations {
 
     private final ProjectOperations projects;
     private final TaskGraphLoader loader;
+    private final TaskQueryRepository queries;
+    private final IdentityOperations identity;
     private final CriticalPathCalculator criticalPath = new CriticalPathCalculator(new PriorityTopologicalSorter());
 
-    public PortfolioService(ProjectOperations projects, TaskGraphLoader loader) {
+    public PortfolioService(ProjectOperations projects, TaskGraphLoader loader, TaskQueryRepository queries,
+            IdentityOperations identity) {
         this.projects = projects;
         this.loader = loader;
+        this.queries = queries;
+        this.identity = identity;
     }
 
     @Override
@@ -50,5 +58,15 @@ public class PortfolioService implements PortfolioOperations {
         }
         return new PortfolioPage(Instant.now(), cards, listed.page(), listed.size(), listed.totalElements(),
                 listed.totalPages());
+    }
+
+    @Override
+    public WorkloadSnapshot workload(long actorId) {
+        boolean admin = identity.currentRole(actorId) == UserRole.ADMIN;
+        var rows = queries.workload(actorId, admin).stream()
+                .map(row -> new AssigneeLoad(row.userId(), row.openTasks(), row.estimatedMinutes(),
+                        row.overdueTasks()))
+                .toList();
+        return new WorkloadSnapshot(Instant.now(), rows);
     }
 }

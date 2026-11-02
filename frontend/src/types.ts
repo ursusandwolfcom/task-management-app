@@ -62,3 +62,7 @@ export interface PortfolioPage {
   calculatedAt: string; content: ProjectRisk[]; page: number; size: number;
   totalElements: bigint; totalPages: number;
 }
+export interface AssigneeLoad {
+  userId: bigint; openTasks: bigint; estimatedMinutes: bigint; overdueTasks: bigint;
+}
+export interface WorkloadSnapshot { calculatedAt: string; assignees: AssigneeLoad[] }
