@@ -138,25 +138,44 @@ export function ProjectSchedule({ user, project }: { user: User; project: Projec
   const { client, generation } = useSession();
   const query = useLoad(`${user.id}:${generation}:${project.id}:${project.inputRevision}:gantt`,
     signal => client.request<ProjectGantt>(user.id, `/api/projects/${project.id}/gantt`, 'GET', undefined, signal));
+  const [scenario, setScenario] = useState<ProjectGantt>();
+  const [overrideId, setOverrideId] = useState('');
+  const [overrideMinutes, setOverrideMinutes] = useState('960');
+  const command = useCommand();
+  const shown = scenario ?? query.value;
+  function runWhatIf(event: FormEvent) {
+    event.preventDefault();
+    void command.run(async () => {
+      const body = { estimates: [{ taskId: userId(overrideId), estimatedMinutes: Number(overrideMinutes) }] };
+      setScenario(await client.request<ProjectGantt>(user.id, `/api/projects/${project.id}/gantt/what-if`, 'POST', body));
+    });
+  }
   return <section className="card tasks-panel">
     <div className="section-toolbar"><h2>План / Gantt</h2>
-      <button disabled={query.loading} onClick={query.reload}>Обновить</button></div>
-    <p className="muted">Пн–Пт 09:00–17:00 · {project.timezone}. Без выравнивания ресурсов.</p>
+      <button disabled={query.loading} onClick={() => { setScenario(undefined); query.reload(); }}>Обновить</button></div>
+    <p className="muted">Пн–Пт 09:00–17:00 · {project.timezone}. Сценарий «что если» не сохраняет оценки.</p>
     <Alert error={query.error} />{query.loading && <Loading />}
-    {query.value && <>
-      <p className="count-label">ДЛИТЕЛЬНОСТЬ: {String(query.value.durationMinutes)} мин ·
-        критических задач: {String(query.value.criticalTaskIds.length)}
-        {query.value.projectDeadlineOverrun ? ' · ПРОЕКТ ПРОСРОЧЕН' : ''}</p>
-      {query.value.tasks.length === 0 ? <Empty title="Нет задач для плана">
+    {shown && <>
+      <p className="count-label">{scenario ? 'СЦЕНАРИЙ' : 'БАЗОВЫЙ ПЛАН'} · ДЛИТЕЛЬНОСТЬ: {String(shown.durationMinutes)} мин ·
+        критических задач: {String(shown.criticalTaskIds.length)}
+        {shown.projectDeadlineOverrun ? ' · ПРОЕКТ ПРОСРОЧЕН' : ''}</p>
+      {shown.tasks.length === 0 ? <Empty title="Нет задач для плана">
         Создайте задачи с оценкой, чтобы увидеть ранние/поздние даты.
-      </Empty> : <ul className="task-list">{query.value.tasks.map(task =>
+      </Empty> : <ul className="task-list">{shown.tasks.map(task =>
         <li key={String(task.taskId)}><a href={`#/tasks/${task.taskId}`}>
           <strong>Задача {String(task.taskId)}</strong>
           {task.critical && <span className="badge">критическая</span>}
           {task.deadlineOverrun && <span className="badge">срок</span>}
           <small>{formatInstant(task.earlyStart)} → {formatInstant(task.earlyFinish)}
-            · запас {String(task.floatMinutes)} мин</small>
+            · запас {String(task.floatMinutes)} мин · оценка {String(task.durationMinutes)}</small>
         </a></li>)}</ul>}
+      <form className="inline-form" onSubmit={runWhatIf}><fieldset disabled={command.busy}>
+        <Field label="ID задачи" required value={overrideId} onChange={event => setOverrideId(event.target.value)} />
+        <Field label="Оценка (мин)" required value={overrideMinutes}
+          onChange={event => setOverrideMinutes(event.target.value)} />
+        <button type="submit">{command.busy ? 'Расчёт…' : 'Что если'}</button>
+        {scenario && <button type="button" onClick={() => setScenario(undefined)}>Сбросить сценарий</button>}
+      </fieldset><Alert error={command.error} /></form>
     </>}
   </section>;
 }
