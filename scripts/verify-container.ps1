@@ -141,7 +141,7 @@ function Start-TaskPersistenceSmoke {
         name = 'Container task persistence'; startDate = '2026-10-14'; endDate = '2027-10-14'; timezone = 'UTC'
     }
     $task = Invoke-TaskSmokeApi '/api/tasks' 'Post' @{
-        projectId = $project.id; name = 'Persisted attempt'; priority = 'HIGH'
+        projectId = $project.id; name = 'Persisted attempt'; priority = 'HIGH'; bucket = 'WORK'
         estimatedMinutes = 525600; assigneeId = $ownerProfile.id
     }
     $task = Invoke-TaskSmokeApi ('/api/tasks/' + $task.id + '/start') 'Post' @{ version = $task.version }
@@ -154,7 +154,7 @@ function Start-TaskPersistenceSmoke {
     }
     $successor = Invoke-TaskSmokeApi '/api/tasks' 'Post' @{
         projectId = $project.id; name = 'Persisted blocked successor'; priority = 'CRITICAL'
-        estimatedMinutes = 15; assigneeId = $ownerProfile.id
+        bucket = 'WORK'; estimatedMinutes = 15; assigneeId = $ownerProfile.id
     }
     $project = Invoke-TaskSmokeApi ('/api/projects/' + $project.id)
     $change = Invoke-TaskSmokeApi ('/api/tasks/' + $successor.id + '/dependencies') 'Post' @{
