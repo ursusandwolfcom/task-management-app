@@ -19,6 +19,8 @@ export interface ClientOptions {
 /** All cookie-changing commands and authenticated operations share an origin-wide Web Lock. */
 export class Client {
   readonly options: ClientOptions;
+  /** Avoid repeating /users/me under the lock for a burst of GETs after one restore. */
+  private verified: { actor: bigint; at: number } | null = null;
   constructor(options: ClientOptions) { this.options = options; }
 
   async raw<T>(path: string, method = 'GET', body?: unknown, csrf?: Csrf, signal?: AbortSignal): Promise<T> {
@@ -54,7 +56,9 @@ export class Client {
 
   async restore(): Promise<User | null> {
     return this.options.lock(async () => {
-      const user = await this.restoreLocked(); this.options.session(user); return user;
+      const user = await this.restoreLocked();
+      this.verified = user ? { actor: user.id, at: Date.now() } : null;
+      this.options.session(user); return user;
     });
   }
 
@@ -62,6 +66,7 @@ export class Client {
     return this.options.lock(async () => {
       const csrf = await this.raw<Csrf>('/api/session/csrf');
       const session = await this.raw<Session>('/api/session/login', 'POST', credentials, csrf);
+      this.verified = { actor: session.user.id, at: Date.now() };
       this.options.session(session.user); this.options.announce('changed'); return session.user;
     });
   }
@@ -77,18 +82,27 @@ export class Client {
     return this.options.lock(async () => {
       const csrf = await this.raw<Csrf>('/api/session/csrf');
       await this.raw<void>('/api/session/logout', 'POST', undefined, csrf);
+      this.verified = null;
       this.options.session(null, true); this.options.announce('signed-out');
     });
   }
 
-  private async requireActor(actor: bigint, signal?: AbortSignal): Promise<User> {
+  private async requireActor(actor: bigint, signal?: AbortSignal, force = false): Promise<void> {
     signal?.throwIfAborted();
+    const fresh = this.verified && this.verified.actor === actor && Date.now() - this.verified.at < 2_000;
+    if (!force && fresh) return;
     // Recheck under the lock: another tab may have refreshed or switched accounts.
     const user = await this.restoreLocked();
     this.options.session(user);
-    if (!user) throw new ApiError(401, 'INVALID_SESSION');
-    if (user.id !== actor) throw new ApiError(409, 'ACCOUNT_CHANGED');
-    return user;
+    if (!user) {
+      this.verified = null;
+      throw new ApiError(401, 'INVALID_SESSION');
+    }
+    if (user.id !== actor) {
+      this.verified = null;
+      throw new ApiError(409, 'ACCOUNT_CHANGED');
+    }
+    this.verified = { actor, at: Date.now() };
   }
 
   async request<T>(actor: bigint, path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
@@ -99,22 +113,29 @@ export class Client {
       try {
         return await this.raw<T>(path, method, body, undefined, signal);
       } catch (error) {
-        if (error instanceof ApiError && error.status === 401) this.options.session(null);
+        if (error instanceof ApiError && error.status === 401) {
+          this.verified = null;
+          this.options.session(null);
+        }
         throw error;
       }
     }
     return this.options.lock(async () => {
-      await this.requireActor(actor, signal);
+      await this.requireActor(actor, signal, true);
       const csrf = await this.raw<Csrf>('/api/session/csrf');
       try {
         const result = await this.raw<T>(path, method, body, csrf, signal);
         if (path === '/api/users/me/password' && method === 'POST') {
+          this.verified = null;
           this.options.session(null, true); this.options.announce('signed-out');
         }
         return result;
       } catch (error) {
         // Never replay a command. The user can restore the session and explicitly resubmit the preserved form.
-        if (error instanceof ApiError && error.status === 401) this.options.session(null);
+        if (error instanceof ApiError && error.status === 401) {
+          this.verified = null;
+          this.options.session(null);
+        }
         throw error;
       }
     });
