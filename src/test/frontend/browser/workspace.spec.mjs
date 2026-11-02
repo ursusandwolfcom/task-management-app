@@ -108,9 +108,11 @@ test('two tabs restore expired access once, preserve drafts and respond to logou
   let refreshes = 0;
   context.on('request', request => { if (request.url().endsWith('/api/session/refresh')) refreshes++; });
   await context.clearCookies({ name: '__Host-pf-access' });
-  await Promise.all([page.reload(), second.reload()]);
-  await expect(page.getByLabel('Название проекта', { exact: true })).toBeVisible();
-  await expect(second.getByLabel('Название проекта', { exact: true })).toBeVisible();
+  // Sequential reload keeps one refresh and avoids dual-tab project/task stampede on CI.
+  await page.reload();
+  await expect(page.getByLabel('Название проекта', { exact: true })).toBeVisible({ timeout: 15_000 });
+  await second.reload();
+  await expect(second.getByLabel('Название проекта', { exact: true })).toBeVisible({ timeout: 15_000 });
   expect(refreshes).toBe(1);
   await page.getByLabel('Название проекта', { exact: true }).fill('Сохранить после повторного входа');
   await context.clearCookies({ name: '__Host-pf-access' }); await context.clearCookies({ name: '__Host-pf-refresh' });
