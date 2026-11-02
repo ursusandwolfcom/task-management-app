@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Auth, Profile } from './Account.tsx';
+import { Portfolio } from './Portfolio.tsx';
 import { CreateProject, ProjectDetail, ProjectList } from './Projects.tsx';
 import { MyTasks, TaskDetail } from './Tasks.tsx';
 import { useCommand } from './hooks.ts';
@@ -30,6 +31,7 @@ function Theme() {
 }
 
 function Content({ user, route }: { user: User; route: string }) {
+  if (route === '/overview') return <Portfolio user={user} />;
   if (route === '/projects') return <ProjectList user={user} />;
   if (route === '/projects/new') return <CreateProject user={user} />;
   if (route === '/tasks') return <MyTasks user={user} />;
@@ -63,6 +65,7 @@ export function App() {
     {lastUser && <div className="workspace-layout" hidden={!user} key={String(lastUser.id)}>
       <aside className="sidebar"><a className="brand" href="#/projects"><span className="brand-mark">PF</span>ProjectFlow</a>
         <p className="sidebar-label">РАБОЧЕЕ ПРОСТРАНСТВО</p><nav aria-label="Основная навигация">
+          <a href="#/overview" aria-current={route === '/overview' ? 'page' : undefined}><span aria-hidden="true">◈</span>Обзор</a>
           <a href="#/projects" aria-current={route.startsWith('/projects') ? 'page' : undefined}><span aria-hidden="true">◇</span>Проекты</a>
           <a href="#/tasks" aria-current={route === '/tasks' || route.startsWith('/tasks/') ? 'page' : undefined}><span aria-hidden="true">▣</span>Мои задачи</a>
           <a href="#/profile" aria-current={route === '/profile' ? 'page' : undefined}><span aria-hidden="true">○</span>Профиль</a>

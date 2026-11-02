@@ -99,8 +99,10 @@ dt { color:var(--muted); font-size:12px; } dd { margin:6px 0 20px; font-size:14p
 .label-row { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
 .label-chip { cursor:pointer; } .inline-form fieldset { display:flex; gap:12px; align-items:end; flex-wrap:wrap; }
 .inline-form .field { flex:1; min-width:160px; margin-bottom:0; }
-@media (max-width:700px) { .workspace-layout { grid-template-columns:minmax(0,1fr); } .sidebar { padding:18px 20px; border-right:0; border-bottom:1px solid var(--border); gap:20px; }
-  .sidebar-label,.sidebar-bottom { display:none; } .sidebar nav { display:flex; gap:10px; } .sidebar nav a { padding:8px 12px; }
+@media (max-width:700px) { .workspace-layout { grid-template-columns:minmax(0,1fr); max-width:100%; overflow-x:clip; }
+  .sidebar { padding:18px 20px; border-right:0; border-bottom:1px solid var(--border); gap:20px; min-width:0; }
+  .sidebar-label,.sidebar-bottom { display:none; }
+  .sidebar nav { display:flex; flex-wrap:wrap; gap:8px; } .sidebar nav a { padding:8px 10px; font-size:13px; }
   .topbar { padding:16px 20px; min-height:72px; } .account-summary { width:100%; justify-content:space-between; }
   .main-content { padding:28px 20px; } h1 { font-size:28px; } .page-heading { align-items:flex-start; gap:12px; }
   .page-heading .button { font-size:12px; padding:10px; } .card { padding:22px; } .form-grid { grid-template-columns:1fr; gap:0; }

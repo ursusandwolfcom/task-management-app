@@ -105,6 +105,10 @@ Project members, owners and ADMIN can read a coherent graph snapshot through:
 
 All four endpoints use the Java planning core, return `Cache-Control: no-store` and
 `X-Project-Input-Revision` (also on 204), and never update execution facts or project revisions.
+
+`GET /api/portfolio` returns a paged risk overview for accessible projects: `ON_TRACK`,
+`AT_RISK` (any task deadline overrun) or `OVERDUE` (project end overrun), plus open/critical
+task counts and planned duration. Workspace route `#/overview` shows the same cards.
 The snapshot loads under the same project lock as task writers; calculations run after
 the read transaction releases the lock. FAILED/CANCELLED predecessors remain blockers.
 Readiness does not check assignment, execution rights or resource calendars, and does not
