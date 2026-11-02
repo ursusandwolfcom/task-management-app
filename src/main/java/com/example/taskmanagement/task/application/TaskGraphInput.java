@@ -7,13 +7,21 @@ import com.example.taskmanagement.planning.core.TaskNode;
 import com.example.taskmanagement.task.api.TaskBucket;
 import com.example.taskmanagement.task.api.TaskView;
 import com.example.taskmanagement.task.domain.TaskStatus;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /** Detached immutable facts, captured under the project lock and calculated after the read transaction. */
-record TaskGraphInput(long projectId, long inputRevision, List<TaskView> tasks, List<DependencyEdge> edges) {
+record TaskGraphInput(
+        long projectId,
+        long inputRevision,
+        long calendarRevision,
+        LocalDate startDate,
+        String timezone,
+        List<TaskView> tasks,
+        List<DependencyEdge> edges) {
     TaskGraphInput {
         tasks = List.copyOf(tasks);
         edges = List.copyOf(edges);

@@ -41,3 +41,13 @@ export interface Predecessors {
 }
 export interface Comment { id: bigint; projectId: bigint; taskId: bigint; authorId: bigint; text: string; createdAt: string }
 export interface Label { id: bigint; projectId: bigint; name: string; color: string; version: bigint }
+export interface GanttTask {
+  taskId: bigint; durationMinutes: bigint; earlyStart: string; earlyFinish: string;
+  lateStart: string; lateFinish: string; floatMinutes: bigint; critical: boolean;
+}
+export interface CriticalDependency { predecessorId: bigint; successorId: bigint }
+export interface ProjectGantt {
+  projectId: bigint; inputRevision: bigint; calendarRevision: bigint; timezone: string;
+  calculatedAt: string; projectStart: string; projectFinish: string; durationMinutes: bigint;
+  tasks: GanttTask[]; criticalTaskIds: bigint[]; criticalEdges: CriticalDependency[];
+}

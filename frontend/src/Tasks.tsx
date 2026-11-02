@@ -8,7 +8,7 @@ import { emptyTaskQuery, taskQueryString } from './taskQuery.ts';
 import { Alert, Empty, Field, Loading, Notice, PageHeader, Pagination } from './ui.tsx';
 import type {
   AvailableTasks, Comment, ExecutionAttempt, Label, Page, Predecessors, Project,
-  Task, TaskBucket, TaskFields, TaskPriority, TaskQuery, User
+  ProjectGantt, Task, TaskBucket, TaskFields, TaskPriority, TaskQuery, User
 } from './types.ts';
 
 const statuses: Record<string, string> = {
@@ -127,6 +127,36 @@ export function MyTasks({ user }: { user: User }) {
       <Pagination page={page} total={query.value.totalPages} onChange={setPage} />
     </>}
   </>;
+}
+
+function formatInstant(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('ru-RU', { timeZone: 'UTC' }) + ' UTC';
+}
+
+export function ProjectSchedule({ user, project }: { user: User; project: Project }) {
+  const { client, generation } = useSession();
+  const query = useLoad(`${user.id}:${generation}:${project.id}:${project.inputRevision}:gantt`,
+    signal => client.request<ProjectGantt>(user.id, `/api/projects/${project.id}/gantt`, 'GET', undefined, signal));
+  return <section className="card tasks-panel">
+    <div className="section-toolbar"><h2>План / Gantt</h2>
+      <button disabled={query.loading} onClick={query.reload}>Обновить</button></div>
+    <p className="muted">Пн–Пт 09:00–17:00 · {project.timezone}. Без выравнивания ресурсов.</p>
+    <Alert error={query.error} />{query.loading && <Loading />}
+    {query.value && <>
+      <p className="count-label">ДЛИТЕЛЬНОСТЬ: {String(query.value.durationMinutes)} мин ·
+        критических задач: {String(query.value.criticalTaskIds.length)}</p>
+      {query.value.tasks.length === 0 ? <Empty title="Нет задач для плана">
+        Создайте задачи с оценкой, чтобы увидеть ранние/поздние даты.
+      </Empty> : <ul className="task-list">{query.value.tasks.map(task =>
+        <li key={String(task.taskId)}><a href={`#/tasks/${task.taskId}`}>
+          <strong>Задача {String(task.taskId)}</strong>
+          {task.critical && <span className="badge">критическая</span>}
+          <small>{formatInstant(task.earlyStart)} → {formatInstant(task.earlyFinish)}
+            · запас {String(task.floatMinutes)} мин</small>
+        </a></li>)}</ul>}
+    </>}
+  </section>;
 }
 
 export function ProjectTasks({ user, project, manage }: { user: User; project: Project; manage: boolean }) {

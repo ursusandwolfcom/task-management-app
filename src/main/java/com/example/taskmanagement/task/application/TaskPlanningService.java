@@ -1,9 +1,13 @@
 package com.example.taskmanagement.task.application;
 
+import com.example.taskmanagement.planning.core.CriticalPathCalculator;
 import com.example.taskmanagement.planning.core.PriorityTopologicalSorter;
 import com.example.taskmanagement.planning.core.ReadinessCalculator;
 import com.example.taskmanagement.planning.core.TaskNode;
+import com.example.taskmanagement.planning.core.WorkingCalendar;
 import com.example.taskmanagement.task.api.TaskPlanningOperations;
+import java.time.Instant;
+import java.time.ZoneId;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +19,7 @@ public class TaskPlanningService implements TaskPlanningOperations {
     private final TaskGraphLoader loader;
     private final PriorityTopologicalSorter sorter = new PriorityTopologicalSorter();
     private final ReadinessCalculator readiness = new ReadinessCalculator(sorter);
+    private final CriticalPathCalculator criticalPath = new CriticalPathCalculator(sorter);
 
     public TaskPlanningService(TaskGraphLoader loader) {
         this.loader = loader;
@@ -47,5 +52,23 @@ public class TaskPlanningService implements TaskPlanningOperations {
         var views = input.viewsById();
         var next = readiness.nextTask(input.graph(), input.facts()).map(node -> views.get(node.id())).orElse(null);
         return new NextTask(projectId, input.inputRevision(), next);
+    }
+
+    @Override
+    public ProjectGantt gantt(long actorId, long projectId) {
+        var input = loader.load(actorId, projectId);
+        var calendar = new WorkingCalendar(ZoneId.of(input.timezone()));
+        var planned = criticalPath.schedule(input.graph(), calendar, calendar.projectOrigin(input.startDate()));
+        var tasks = planned.tasks().stream()
+                .map(task -> new GanttTask(task.taskId(), task.durationMinutes(), task.earlyStart(),
+                        task.earlyFinish(), task.lateStart(), task.lateFinish(), task.floatMinutes(),
+                        task.critical()))
+                .toList();
+        var edges = planned.criticalEdges().stream()
+                .map(edge -> new CriticalDependency(edge.predecessorId(), edge.successorId()))
+                .toList();
+        return new ProjectGantt(projectId, input.inputRevision(), input.calendarRevision(), input.timezone(),
+                Instant.now(), planned.projectStart(), planned.projectFinish(), planned.durationMinutes(),
+                tasks, planned.criticalTaskIds(), edges);
     }
 }
