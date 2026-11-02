@@ -22,6 +22,11 @@ Effort is a whole number from **15 to 525600 minutes**, inclusive: one year mean
 365 physical days, independent of the future working calendar. An assignee must
 be a member of the task's project.
 
+Tasks also have a workbench `bucket`: INBOX, INCUBATOR, WORK or ARCHIVE. The bucket
+is independent of lifecycle status; create may place a task in any bucket (JSON omit
+defaults to INBOX). Moves between buckets are free. Ready-queue queries and `start`
+apply only to WORK; other buckets are triage/archive views.
+
 `GET/PUT/PATCH /api/tasks/{id}` reads or updates metadata. Updates require the
 task's expected version; projectId is immutable. PUT replaces optional metadata,
 PATCH retains omitted fields and explicit null clears optional fields. Status,
@@ -32,9 +37,10 @@ the metadata snapshot and the version under the write lock; a mismatch returns
 409 VERSION_CONFLICT without changing omitted fields.
 
 `POST /api/tasks/{id}/start|complete|fail|retry` takes `{"version":0}` and is
-available to the assignee, owner or ADMIN. Start requires an assignee and every
-actual predecessor COMPLETED. Only owner or ADMIN can cancel using
-`POST /api/tasks/{id}/cancel`. Terminal COMPLETED/CANCELLED tasks cannot restart.
+available to the assignee, owner or ADMIN. Start requires bucket WORK, an assignee
+and every actual predecessor COMPLETED; otherwise 409 TASK_NOT_IN_WORK. Only owner
+or ADMIN can cancel using `POST /api/tasks/{id}/cancel`. Terminal COMPLETED/CANCELLED
+tasks cannot restart.
 Retry preserves failed attempts; the next start creates another. UTC actualStart/
 actualEnd describe the most recent attempt, including its retained facts after retry.
 `GET /api/tasks/{id}/attempts` returns history newest first.
@@ -47,17 +53,25 @@ deleted; a member with any assigned task cannot be removed until reassignment or
 unassignment. These checks share the same project lock as task writes.
 
 Task/attempt lists accept page 0..1000000 and size 1..100 (defaults 0/20), newest
-first. Missing and inaccessible tasks both return 404 TASK_NOT_FOUND. Conflicts
-return stable 409 codes: VERSION_CONFLICT, ASSIGNEE_NOT_MEMBER, ASSIGNEE_REQUIRED,
-INVALID_TASK_TRANSITION, DEPENDENCIES_NOT_COMPLETED, ASSIGNMENT_CHANGE_FORBIDDEN,
-TASK_DELETE_FORBIDDEN and TASK_HAS_DEPENDENTS. Project guards return
-MEMBER_HAS_ASSIGNMENTS or PROJECT_NOT_EMPTY. Bearer authentication and browser
-cookies follow the existing session rules; cookie writes require CSRF.
+first. Project task lists accept optional filters `status`, `assigneeId`, `dueFrom`,
+`dueTo`, `labelId` and `bucket` (due range requires a non-null dueDate; `dueFrom`
+after `dueTo` is 400 VALIDATION_ERROR). `GET /api/tasks/mine` lists tasks assigned
+to the caller across member projects (ADMIN: all projects), with the same filters
+except `assigneeId` is always the authenticated user. Missing and inaccessible tasks
+both return 404 TASK_NOT_FOUND. Conflicts return stable 409 codes: VERSION_CONFLICT,
+ASSIGNEE_NOT_MEMBER, ASSIGNEE_REQUIRED, INVALID_TASK_TRANSITION, DEPENDENCIES_NOT_COMPLETED,
+TASK_NOT_IN_WORK, ASSIGNMENT_CHANGE_FORBIDDEN, TASK_DELETE_FORBIDDEN and
+TASK_HAS_DEPENDENTS. Project guards return MEMBER_HAS_ASSIGNMENTS or PROJECT_NOT_EMPTY.
+Bearer authentication and browser cookies follow the existing session rules; cookie
+writes require CSRF.
 
 Liquibase migration 004 adds tasks, execution attempts and same-project dependency
-constraints. Server Task UI, alpha import and resource reservations are subsequent work.
-Alpha browser tasks remain prototype data.
+constraints. The React workspace exposes project task boards, filters, lifecycle
+actions, dependency editing, attempt history, comments/labels and «Мои задачи».
+Alpha import and resource reservations remain subsequent work. Alpha browser tasks
+remain prototype data.
 
+`GET /api/tasks/{id}/dependencies` returns predecessor IDs with `X-Project-Input-Revision`.
 Project participants, owners and ADMIN edit incoming dependencies through
 `POST /api/tasks/{id}/dependencies` with `{"dependsOnTaskId":123,"inputRevision":4}`
 and `DELETE /api/tasks/{id}/dependencies/{dependsOnTaskId}?inputRevision=4`.
@@ -81,8 +95,8 @@ Cookie writes require CSRF. Removing an edge can repair an oversized graph.
 Project members, owners and ADMIN can read a coherent graph snapshot through:
 
 - `GET /api/projects/{id}/execution-order`: projectId, inputRevision and ordered taskIds.
-- `GET /api/projects/{id}/available-tasks`: ordered NOT_STARTED tasks with all actual
-  predecessors COMPLETED; blockingReasons identify incomplete predecessor IDs for blocked candidates.
+- `GET /api/projects/{id}/available-tasks`: ordered NOT_STARTED tasks in bucket WORK whose
+  actual predecessors are all COMPLETED; blockingReasons list blocked WORK candidates.
 - `GET /api/projects/{id}/next-task`: the first available task, or 204 if none is available.
 
 All three endpoints use the Java planning core, return `Cache-Control: no-store` and
@@ -280,7 +294,9 @@ These protections use Spring Security's [standard cookie CSRF repository and mas
 Coordinate refresh requests between tabs: only one use of a refresh token succeeds.
 A rejected/replayed refresh returns 401 without deleting cookies, preserving a concurrent
 winner's new credentials. Do not automatically replay a business write after a network error.
-The workspace at `/app/` provides account forms and server project screens. The alpha UI
+The workspace at `/app/` provides account forms, server project screens, project tasks
+(with readiness queue and filters), task cards (lifecycle, dependencies, attempt history,
+comments, labels) and «Мои задачи». The alpha UI
 still uses its separate local projects and does not log in automatically.
 
 ### Browser workspace

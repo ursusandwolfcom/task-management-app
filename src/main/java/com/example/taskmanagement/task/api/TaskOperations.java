@@ -24,7 +24,10 @@ public interface TaskOperations {
 
     TaskView read(long actorId, long taskId);
 
-    TaskPage list(long actorId, long projectId, int page, int size);
+    TaskPage list(long actorId, long projectId, @NotNull TaskFilter filter, int page, int size);
+
+    /** Tasks assigned to the actor across accessible projects (ADMIN sees all assigned to self). */
+    TaskPage listAssigned(long actorId, @NotNull TaskFilter filter, int page, int size);
 
     TaskView replace(long actorId, long taskId, @NotNull @Valid TaskData data, @PositiveOrZero long version);
 

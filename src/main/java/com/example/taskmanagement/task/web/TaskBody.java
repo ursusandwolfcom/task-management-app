@@ -1,5 +1,6 @@
 package com.example.taskmanagement.task.web;
 
+import com.example.taskmanagement.task.api.TaskBucket;
 import com.example.taskmanagement.task.api.TaskData;
 import com.example.taskmanagement.task.api.TaskException;
 import com.example.taskmanagement.task.api.TaskPriority;
@@ -13,7 +14,7 @@ import tools.jackson.databind.JsonNode;
 /** Strict field parsing: explicit null clears optional metadata; omission retains it only for PATCH. */
 final class TaskBody {
     private static final Set<String> FIELDS = Set.of("projectId", "name", "description", "priority",
-            "estimatedMinutes", "dueDate", "assigneeId", "version");
+            "estimatedMinutes", "dueDate", "assigneeId", "bucket", "version");
 
     private TaskBody() {
     }
@@ -32,10 +33,12 @@ final class TaskBody {
         Long estimate = fields.number("estimatedMinutes", previous == null || previous.estimatedMinutes() == null
                 ? null : previous.estimatedMinutes().longValue());
         Long assignee = fields.number("assigneeId", previous == null ? null : previous.assigneeId());
+        String bucket = fields.text("bucket", previous == null ? TaskBucket.INBOX.name() : previous.bucket().name());
         try {
             return new TaskData(name, description, priority == null ? null : TaskPriority.valueOf(priority),
                     estimate == null ? null : Math.toIntExact(estimate),
-                    due == null ? null : LocalDate.parse(due), assignee);
+                    due == null ? null : LocalDate.parse(due), assignee,
+                    bucket == null ? null : TaskBucket.valueOf(bucket));
         } catch (IllegalArgumentException | ArithmeticException | DateTimeParseException invalidValue) {
             throw invalid();
         }

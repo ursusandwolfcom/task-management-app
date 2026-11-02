@@ -20,6 +20,7 @@ import com.example.taskmanagement.project.api.ProjectView;
 import com.example.taskmanagement.security.application.TokenService;
 import com.example.taskmanagement.support.ConcurrentCalls;
 import com.example.taskmanagement.support.DatabaseFixtures;
+import com.example.taskmanagement.task.api.TaskBucket;
 import com.example.taskmanagement.task.api.TaskData;
 import com.example.taskmanagement.task.api.TaskDependencyOperations;
 import com.example.taskmanagement.task.api.TaskException;
@@ -219,7 +220,7 @@ class TaskDependencyIntegrationTest {
         var visible = tasks.create(owner.id(), shared.id(), taskData());
         var secret = projects.create(outsider.id(), data());
         var hidden = tasks.create(outsider.id(), secret.id(),
-                new TaskData("Hidden", "", TaskPriority.HIGH, 15, null, outsider.id()));
+                new TaskData("Hidden", "", TaskPriority.HIGH, 15, null, outsider.id(), TaskBucket.WORK));
         assertReason(() -> dependencies.add(owner.id(), successor.id(), visible.id(), revision()),
                 TaskException.Reason.CROSS_PROJECT_DEPENDENCY);
         assertReason(() -> dependencies.add(member.id(), successor.id(), visible.id(), revision()),
@@ -416,7 +417,7 @@ class TaskDependencyIntegrationTest {
     }
 
     private TaskData taskData() {
-        return new TaskData("Task", "", TaskPriority.HIGH, 15, null, owner.id());
+        return new TaskData("Task", "", TaskPriority.HIGH, 15, null, owner.id(), TaskBucket.WORK);
     }
 
     private static ProjectData data() {

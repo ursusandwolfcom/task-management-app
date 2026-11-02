@@ -1,16 +1,20 @@
 package com.example.taskmanagement.task.web;
 
+import com.example.taskmanagement.task.api.TaskBucket;
 import com.example.taskmanagement.task.api.TaskData;
 import com.example.taskmanagement.task.api.TaskException;
+import com.example.taskmanagement.task.api.TaskFilter;
 import com.example.taskmanagement.task.api.TaskOperations;
 import com.example.taskmanagement.task.api.TaskOperations.AttemptPage;
 import com.example.taskmanagement.task.api.TaskOperations.TaskPage;
 import com.example.taskmanagement.task.api.TaskView;
 import com.example.taskmanagement.task.domain.TaskLifecyclePolicy.Command;
+import com.example.taskmanagement.task.domain.TaskStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.constraints.Positive;
 import java.net.URI;
+import java.time.LocalDate;
 import java.util.Set;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
@@ -53,20 +57,42 @@ public class TaskController {
                 .cacheControl(CacheControl.noStore()).body(task);
     }
 
+    @GetMapping("/api/tasks/mine")
+    @Operation(summary = "List tasks assigned to the caller across accessible projects",
+            description = "Newest first. Optional filters: status, dueFrom, dueTo, labelId, bucket. "
+                    + "assigneeId is ignored (always the authenticated user).")
+    public ResponseEntity<TaskPage> mine(@AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) TaskStatus status,
+            @RequestParam(required = false) LocalDate dueFrom,
+            @RequestParam(required = false) LocalDate dueTo,
+            @RequestParam(required = false) @Positive Long labelId,
+            @RequestParam(required = false) TaskBucket bucket,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+        return response(tasks.listAssigned(actor(jwt),
+                filter(status, null, dueFrom, dueTo, labelId, bucket), page, size));
+    }
+
     @GetMapping({"/api/tasks", "/api/projects/{projectId}/tasks"})
     @Operation(summary = "List project tasks, newest first; page 0..1000000, size 1..100",
             description = "projectId is required as a query parameter on /api/tasks. "
+                    + "Optional filters: status, assigneeId, dueFrom, dueTo, labelId, bucket. "
                     + "Conflicting path/query project IDs are rejected.")
     public ResponseEntity<TaskPage> list(@AuthenticationPrincipal Jwt jwt,
             @PathVariable(required = false) @Positive Long projectId,
             @RequestParam(name = "projectId", required = false) @Positive Long filter,
+            @RequestParam(required = false) TaskStatus status,
+            @RequestParam(required = false) @Positive Long assigneeId,
+            @RequestParam(required = false) LocalDate dueFrom,
+            @RequestParam(required = false) LocalDate dueTo,
+            @RequestParam(required = false) @Positive Long labelId,
+            @RequestParam(required = false) TaskBucket bucket,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
         if ((projectId == null && filter == null)
                 || (projectId != null && filter != null && !projectId.equals(filter))) {
-            throw new com.example.taskmanagement.task.api.TaskException(
-                    com.example.taskmanagement.task.api.TaskException.Reason.VALIDATION_ERROR);
+            throw new TaskException(TaskException.Reason.VALIDATION_ERROR);
         }
-        return response(tasks.list(actor(jwt), projectId == null ? filter : projectId, page, size));
+        return response(tasks.list(actor(jwt), projectId == null ? filter : projectId,
+                filter(status, assigneeId, dueFrom, dueTo, labelId, bucket), page, size));
     }
 
     @GetMapping("/api/tasks/{id}")
@@ -127,6 +153,14 @@ public class TaskController {
 
     private static long actor(Jwt jwt) {
         return Long.parseLong(jwt.getSubject());
+    }
+
+    private static TaskFilter filter(TaskStatus status, Long assigneeId, LocalDate dueFrom, LocalDate dueTo,
+            Long labelId, TaskBucket bucket) {
+        if (dueFrom != null && dueTo != null && dueFrom.isAfter(dueTo)) {
+            throw new TaskException(TaskException.Reason.VALIDATION_ERROR);
+        }
+        return new TaskFilter(status, assigneeId, dueFrom, dueTo, labelId, bucket);
     }
 
     private static <T> ResponseEntity<T> response(T body) {

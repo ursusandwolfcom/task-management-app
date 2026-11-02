@@ -21,6 +21,7 @@ import com.example.taskmanagement.project.api.ProjectCoordination;
 import com.example.taskmanagement.security.application.TokenService;
 import com.example.taskmanagement.support.ConcurrentCalls;
 import com.example.taskmanagement.support.DatabaseFixtures;
+import com.example.taskmanagement.task.api.TaskBucket;
 import com.example.taskmanagement.task.api.TaskData;
 import com.example.taskmanagement.task.api.TaskException;
 import com.example.taskmanagement.task.api.TaskOperations;
@@ -127,7 +128,8 @@ class TaskIntegrationTest {
             }
         }
         assertThat(tasks.read(member.id(), task.id())).isEqualTo(task);
-        assertThat(tasks.list(member.id(), project.id(), 0, 20).totalElements()).isEqualTo(1);
+        assertThat(tasks.list(member.id(), project.id(),
+                com.example.taskmanagement.task.api.TaskFilter.empty(), 0, 20).totalElements()).isEqualTo(1);
         assertThat(projects.read(owner.id(), project.id()).inputRevision()).isEqualTo(revision);
     }
 
@@ -182,7 +184,8 @@ class TaskIntegrationTest {
                     .isInstanceOf(jakarta.validation.ConstraintViolationException.class);
             assertThat(projects.read(owner.id(), project.id()).inputRevision()).isEqualTo(before);
         }
-        assertThat(tasks.list(owner.id(), project.id(), 0, 20).totalElements()).isEqualTo(3);
+        assertThat(tasks.list(owner.id(), project.id(),
+                com.example.taskmanagement.task.api.TaskFilter.empty(), 0, 20).totalElements()).isEqualTo(3);
     }
 
     @Test
@@ -331,7 +334,7 @@ class TaskIntegrationTest {
     @Test
     void bothCreateAndListRoutesUseSameContractAndRejectConflictingProjectIds() throws Exception {
         var payload = Map.of("projectId", project.id(), "name", "API task", "priority", "HIGH",
-                "estimatedMinutes", 15, "assigneeId", member.id());
+                "estimatedMinutes", 15, "assigneeId", member.id(), "bucket", "WORK");
         var created = mvc.perform(post("/api/tasks").header("Authorization", bearer(member))
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(payload)))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("NOT_STARTED"))
@@ -475,11 +478,11 @@ class TaskIntegrationTest {
     void preservesFinitePostgresqlDateBoundsAndRejectsOutsideWithoutMutation() {
         for (var date : List.of(LocalDate.of(-4713, 11, 24), LocalDate.of(5874897, 12, 31))) {
             var task = tasks.create(owner.id(), project.id(),
-                    new TaskData("Date", "", TaskPriority.LOW, 15, date, null));
+                    new TaskData("Date", "", TaskPriority.LOW, 15, date, null, TaskBucket.WORK));
             assertThat(tasks.read(owner.id(), task.id()).dueDate()).isEqualTo(date);
         }
         assertReason(() -> tasks.create(owner.id(), project.id(),
-                new TaskData("Invalid", "", TaskPriority.LOW, 15, LocalDate.of(5874898, 1, 1), null)),
+                new TaskData("Invalid", "", TaskPriority.LOW, 15, LocalDate.of(5874898, 1, 1), null, TaskBucket.WORK)),
                 TaskException.Reason.VALIDATION_ERROR);
     }
 
@@ -538,7 +541,8 @@ class TaskIntegrationTest {
     }
 
     private static TaskData data(String name, Integer estimate, Long assignee) {
-        return new TaskData(name, "Description", TaskPriority.HIGH, estimate, LocalDate.of(2026, 12, 31), assignee);
+        return new TaskData(name, "Description", TaskPriority.HIGH, estimate, LocalDate.of(2026, 12, 31),
+                assignee, TaskBucket.WORK);
     }
 
     private void edge(TaskView task, TaskView predecessor) {

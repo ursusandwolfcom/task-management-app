@@ -24,6 +24,7 @@ import com.example.taskmanagement.project.api.ProjectView;
 import com.example.taskmanagement.security.application.TokenService;
 import com.example.taskmanagement.support.ConcurrentCalls;
 import com.example.taskmanagement.support.DatabaseFixtures;
+import com.example.taskmanagement.task.api.TaskBucket;
 import com.example.taskmanagement.task.api.TaskData;
 import com.example.taskmanagement.task.api.TaskOperations;
 import com.example.taskmanagement.task.api.TaskPriority;
@@ -76,7 +77,8 @@ class LabelIntegrationTest {
         outsider = register("label_outsider");
         project = projects.create(owner.id(), projectData());
         project = projects.addMember(owner.id(), project.id(), member.id(), project.version());
-        task = tasks.create(owner.id(), project.id(), new TaskData("Task", "", TaskPriority.HIGH, 15, null, null));
+        task = tasks.create(owner.id(), project.id(),
+                new TaskData("Task", "", TaskPriority.HIGH, 15, null, null, TaskBucket.WORK));
     }
 
     @Test

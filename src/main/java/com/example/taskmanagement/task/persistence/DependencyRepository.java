@@ -31,4 +31,11 @@ public class DependencyRepository {
                 + "where project_id = ? and task_id = ? and depends_on_task_id = ?",
                 projectId, taskId, dependsOnTaskId) == 1;
     }
+
+    public List<Long> predecessors(long taskId) {
+        return jdbc.queryForList("""
+                select depends_on_task_id from task_management.task_dependencies
+                where task_id = ? order by depends_on_task_id
+                """, Long.class, taskId);
+    }
 }

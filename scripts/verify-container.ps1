@@ -75,7 +75,7 @@ function Assert-HttpStatus([string]$Path, [int]$Expected) {
 function Assert-MigrationHistory {
     $count = Invoke-Compose @('exec', '-T', 'postgres', 'psql', '-U', 'task_management_check',
         '-d', 'task_management_check', '-tAc', 'SELECT count(*) FROM public.databasechangelog;')
-    if (($count | Out-String).Trim() -ne '7') { throw 'Liquibase tracking history was not preserved in public' }
+    if (($count | Out-String).Trim() -ne '8') { throw 'Liquibase tracking history was not preserved in public' }
 }
 
 function Assert-IdentityBootstrap {
@@ -141,7 +141,7 @@ function Start-TaskPersistenceSmoke {
         name = 'Container task persistence'; startDate = '2026-10-14'; endDate = '2027-10-14'; timezone = 'UTC'
     }
     $task = Invoke-TaskSmokeApi '/api/tasks' 'Post' @{
-        projectId = $project.id; name = 'Persisted attempt'; priority = 'HIGH'
+        projectId = $project.id; name = 'Persisted attempt'; priority = 'HIGH'; bucket = 'WORK'
         estimatedMinutes = 525600; assigneeId = $ownerProfile.id
     }
     $task = Invoke-TaskSmokeApi ('/api/tasks/' + $task.id + '/start') 'Post' @{ version = $task.version }
@@ -154,7 +154,7 @@ function Start-TaskPersistenceSmoke {
     }
     $successor = Invoke-TaskSmokeApi '/api/tasks' 'Post' @{
         projectId = $project.id; name = 'Persisted blocked successor'; priority = 'CRITICAL'
-        estimatedMinutes = 15; assigneeId = $ownerProfile.id
+        bucket = 'WORK'; estimatedMinutes = 15; assigneeId = $ownerProfile.id
     }
     $project = Invoke-TaskSmokeApi ('/api/projects/' + $project.id)
     $change = Invoke-TaskSmokeApi ('/api/tasks/' + $successor.id + '/dependencies') 'Post' @{
@@ -282,7 +282,7 @@ try {
     Assert-MigrationHistory
     Assert-IdentityBootstrap
     Start-TaskPersistenceSmoke
-    Write-Output 'Container startup: health UP, identity protected, alpha disabled, UID 10001, UTC, migrations 7.'
+    Write-Output 'Container startup: health UP, identity protected, alpha disabled, UID 10001, UTC, migrations 8.'
 
     $restartTime = [DateTime]::UtcNow.ToString('o')
     Invoke-Compose @('restart', 'app')
@@ -291,11 +291,11 @@ try {
     Assert-MigrationHistory
     $restartLog = Invoke-Compose @('logs', '--no-color', '--since', $restartTime, 'app') | Out-String
     $restartLog | Set-Content -LiteralPath (Join-Path $logDirectory 'restart.log') -Encoding UTF8
-    if ($restartLog -notmatch 'Run:\s+0' -or $restartLog -notmatch 'Previously run:\s+7') {
+    if ($restartLog -notmatch 'Run:\s+0' -or $restartLog -notmatch 'Previously run:\s+8') {
         throw 'Restart reapplied migrations or did not preserve Liquibase history'
     }
     Complete-TaskPersistenceSmoke
-    Write-Output 'Container restart: health UP, Liquibase 0 new / 7 existing migrations.'
+    Write-Output 'Container restart: health UP, Liquibase 0 new / 8 existing migrations.'
 } finally {
     try {
         # Only this run's randomly named, disposable Compose project may be removed.

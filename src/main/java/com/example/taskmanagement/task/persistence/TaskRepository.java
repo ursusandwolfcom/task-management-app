@@ -12,7 +12,7 @@ import org.springframework.data.repository.query.Param;
 public interface TaskRepository extends JpaRepository<TaskEntity, Long> {
     @Query("""
             select new com.example.taskmanagement.task.api.TaskView(t.id, t.projectId, t.name, t.description,
-                t.priority, t.estimatedMinutes, t.dueDate, t.assigneeId, t.status,
+                t.priority, t.estimatedMinutes, t.dueDate, t.assigneeId, t.bucket, t.status,
                 t.actualStart, t.actualEnd, t.attemptCount, t.version)
             from TaskEntity t where t.projectId = :projectId order by t.id
             """)

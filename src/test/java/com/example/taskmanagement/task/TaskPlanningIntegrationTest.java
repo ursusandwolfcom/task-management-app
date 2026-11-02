@@ -18,6 +18,7 @@ import com.example.taskmanagement.project.api.ProjectView;
 import com.example.taskmanagement.security.application.TokenService;
 import com.example.taskmanagement.support.ConcurrentCalls;
 import com.example.taskmanagement.support.DatabaseFixtures;
+import com.example.taskmanagement.task.api.TaskBucket;
 import com.example.taskmanagement.task.api.TaskData;
 import com.example.taskmanagement.task.api.TaskException;
 import com.example.taskmanagement.task.api.TaskOperations;
@@ -181,13 +182,13 @@ class TaskPlanningIntegrationTest {
     @Test
     void dueDateAndIdBreakPriorityTiesIncludingFinitePostgresqlBounds() {
         var late = tasks.create(owner.id(), project.id(), new TaskData("Late", "", TaskPriority.HIGH,
-                null, LocalDate.of(5874897, 12, 31), null));
+                null, LocalDate.of(5874897, 12, 31), null, TaskBucket.WORK));
         var first = tasks.create(owner.id(), project.id(), new TaskData("First", "", TaskPriority.HIGH,
-                null, LocalDate.of(-4713, 11, 24), null));
+                null, LocalDate.of(-4713, 11, 24), null, TaskBucket.WORK));
         var second = tasks.create(owner.id(), project.id(), new TaskData("Second", "", TaskPriority.HIGH,
-                null, LocalDate.of(-4713, 11, 24), null));
+                null, LocalDate.of(-4713, 11, 24), null, TaskBucket.WORK));
         var noDate = tasks.create(owner.id(), project.id(), new TaskData("No date", "", TaskPriority.HIGH,
-                null, null, null));
+                null, null, null, TaskBucket.WORK));
         assertThat(planning.availableTasks(member.id(), project.id()).tasks()).extracting(TaskView::id)
                 .containsExactly(first.id(), second.id(), late.id(), noDate.id());
         assertThat(planning.nextTask(member.id(), project.id()).task().id()).isEqualTo(first.id());
@@ -328,7 +329,8 @@ class TaskPlanningIntegrationTest {
     }
 
     private TaskView create(String name, TaskPriority priority) {
-        return tasks.create(owner.id(), project.id(), new TaskData(name, "", priority, 15, null, owner.id()));
+        return tasks.create(owner.id(), project.id(),
+                new TaskData(name, "", priority, 15, null, owner.id(), TaskBucket.WORK));
     }
 
     private void edge(TaskView successor, TaskView predecessor) {

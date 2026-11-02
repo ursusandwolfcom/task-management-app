@@ -6,8 +6,10 @@ import com.example.taskmanagement.shared.persistence.PageRequests;
 import com.example.taskmanagement.project.api.ProjectCoordination;
 import com.example.taskmanagement.project.api.ProjectCoordination.Permission;
 import com.example.taskmanagement.project.api.ProjectView;
+import com.example.taskmanagement.task.api.TaskBucket;
 import com.example.taskmanagement.task.api.TaskData;
 import com.example.taskmanagement.task.api.TaskException;
+import com.example.taskmanagement.task.api.TaskFilter;
 import com.example.taskmanagement.task.api.TaskOperations;
 import com.example.taskmanagement.task.api.TaskView;
 import com.example.taskmanagement.task.domain.TaskExecution;
@@ -17,6 +19,7 @@ import com.example.taskmanagement.task.domain.TaskStatus;
 import com.example.taskmanagement.task.persistence.AttemptEntity;
 import com.example.taskmanagement.task.persistence.AttemptRepository;
 import com.example.taskmanagement.task.persistence.TaskEntity;
+import com.example.taskmanagement.task.persistence.TaskQueryRepository;
 import com.example.taskmanagement.task.persistence.TaskRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.validation.Validator;
@@ -33,6 +36,7 @@ import org.springframework.validation.annotation.Validated;
 @Transactional
 public class TaskService implements TaskOperations {
     private final TaskRepository tasks;
+    private final TaskQueryRepository queries;
     private final AttemptRepository attempts;
     private final ProjectCoordination coordination;
     private final TaskProjectAccess access;
@@ -41,10 +45,11 @@ public class TaskService implements TaskOperations {
     private final Validator validator;
     private final Clock clock;
 
-    public TaskService(TaskRepository tasks, AttemptRepository attempts, ProjectCoordination coordination,
-            TaskProjectAccess access, IdentityOperations identity, EntityManager entityManager,
-            Validator validator, Clock clock) {
+    public TaskService(TaskRepository tasks, TaskQueryRepository queries, AttemptRepository attempts,
+            ProjectCoordination coordination, TaskProjectAccess access, IdentityOperations identity,
+            EntityManager entityManager, Validator validator, Clock clock) {
         this.tasks = tasks;
+        this.queries = queries;
         this.attempts = attempts;
         this.coordination = coordination;
         this.access = access;
@@ -72,11 +77,20 @@ public class TaskService implements TaskOperations {
 
     @Override
     @Transactional(readOnly = true)
-    public TaskPage list(long actorId, long projectId, int page, int size) {
+    public TaskPage list(long actorId, long projectId, TaskFilter filter, int page, int size) {
         access.readProject(actorId, projectId);
-        var result = tasks.findByProjectId(projectId, paging(page, size, "id"));
-        return new TaskPage(result.getContent().stream().map(TaskEntity::view).toList(),
-                page, size, result.getTotalElements(), result.getTotalPages());
+        var result = queries.inProject(projectId, filter == null ? TaskFilter.empty() : filter,
+                paging(page, size, "id"));
+        return new TaskPage(result.getContent(), page, size, result.getTotalElements(), result.getTotalPages());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TaskPage listAssigned(long actorId, TaskFilter filter, int page, int size) {
+        boolean admin = identity.currentRole(actorId) == UserRole.ADMIN;
+        var result = queries.assigned(actorId, admin, filter == null ? TaskFilter.empty() : filter,
+                paging(page, size, "id"));
+        return new TaskPage(result.getContent(), page, size, result.getTotalElements(), result.getTotalPages());
     }
 
     @Override
@@ -104,6 +118,9 @@ public class TaskService implements TaskOperations {
             TaskLifecyclePolicy.nextStatus(task.view().status(), command);
         } catch (IllegalStateException invalid) {
             throw error(TaskException.Reason.INVALID_TASK_TRANSITION);
+        }
+        if (command == Command.START && task.view().bucket() != TaskBucket.WORK) {
+            throw error(TaskException.Reason.TASK_NOT_IN_WORK);
         }
         if (command == Command.START && task.view().assigneeId() == null) {
             throw error(TaskException.Reason.ASSIGNEE_REQUIRED);

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Auth, Profile } from './Account.tsx';
 import { CreateProject, ProjectDetail, ProjectList } from './Projects.tsx';
+import { MyTasks, TaskDetail } from './Tasks.tsx';
 import { useCommand } from './hooks.ts';
 import { userId } from './json.ts';
 import { useSession } from './session.tsx';
@@ -31,10 +32,16 @@ function Theme() {
 function Content({ user, route }: { user: User; route: string }) {
   if (route === '/projects') return <ProjectList user={user} />;
   if (route === '/projects/new') return <CreateProject user={user} />;
+  if (route === '/tasks') return <MyTasks user={user} />;
   if (route === '/profile') return <Profile user={user} />;
-  const match = /^\/projects\/([1-9]\d{0,18})$/.exec(route);
-  if (match) {
-    try { return <ProjectDetail key={match[1]} user={user} id={userId(match[1])} />; }
+  const project = /^\/projects\/([1-9]\d{0,18})$/.exec(route);
+  if (project) {
+    try { return <ProjectDetail key={project[1]} user={user} id={userId(project[1])} />; }
+    catch { /* Invalid route must not become a rounded server ID. */ }
+  }
+  const task = /^\/tasks\/([1-9]\d{0,18})$/.exec(route);
+  if (task) {
+    try { return <TaskDetail key={task[1]} user={user} id={userId(task[1])} />; }
     catch { /* Invalid route must not become a rounded server ID. */ }
   }
   return <section className="card"><h1>Страница не найдена</h1><a href="#/projects">Вернуться к проектам</a></section>;
@@ -57,6 +64,7 @@ export function App() {
       <aside className="sidebar"><a className="brand" href="#/projects"><span className="brand-mark">PF</span>ProjectFlow</a>
         <p className="sidebar-label">РАБОЧЕЕ ПРОСТРАНСТВО</p><nav aria-label="Основная навигация">
           <a href="#/projects" aria-current={route.startsWith('/projects') ? 'page' : undefined}><span aria-hidden="true">◇</span>Проекты</a>
+          <a href="#/tasks" aria-current={route === '/tasks' || route.startsWith('/tasks/') ? 'page' : undefined}><span aria-hidden="true">▣</span>Мои задачи</a>
           <a href="#/profile" aria-current={route === '/profile' ? 'page' : undefined}><span aria-hidden="true">○</span>Профиль</a>
         </nav><div className="sidebar-bottom"><span className="small-dot" /> Ваша команда. Ваши проекты.</div>
       </aside>

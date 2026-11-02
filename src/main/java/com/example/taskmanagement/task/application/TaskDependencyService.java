@@ -39,6 +39,13 @@ public class TaskDependencyService implements TaskDependencyOperations {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Predecessors list(long actorId, long taskId) {
+        var project = access.readable(actorId, taskId);
+        return new Predecessors(taskId, project.id(), project.inputRevision(), dependencies.predecessors(taskId));
+    }
+
+    @Override
     public Change add(long actorId, long taskId, long dependsOnTaskId, long inputRevision) {
         long projectId = editable(actorId, taskId, dependsOnTaskId, inputRevision);
         var input = loader.load(actorId, projectId);

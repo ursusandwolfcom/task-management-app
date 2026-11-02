@@ -31,14 +31,14 @@ public class TaskLabelController {
     public ResponseEntity<LabelPage> list(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long taskId,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(labels.taskLabels(Long.parseLong(jwt.getSubject()), taskId, page, size));
+                .body(labels.taskLabels(actor(jwt), taskId, page, size));
     }
 
     @PutMapping("/{labelId}")
     @ApiResponse(responseCode = "204", description = "Task-label association present; repeated calls are idempotent")
     public ResponseEntity<Void> link(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long taskId,
             @PathVariable @Positive long labelId) {
-        labels.link(Long.parseLong(jwt.getSubject()), taskId, labelId);
+        labels.link(actor(jwt), taskId, labelId);
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
     }
 
@@ -46,7 +46,11 @@ public class TaskLabelController {
     @ApiResponse(responseCode = "204", description = "Task-label association absent; repeated calls are idempotent")
     public ResponseEntity<Void> unlink(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long taskId,
             @PathVariable @Positive long labelId) {
-        labels.unlink(Long.parseLong(jwt.getSubject()), taskId, labelId);
+        labels.unlink(actor(jwt), taskId, labelId);
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
+    }
+
+    private static long actor(Jwt jwt) {
+        return Long.parseLong(jwt.getSubject());
     }
 }
