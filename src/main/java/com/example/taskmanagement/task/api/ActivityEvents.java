@@ -15,6 +15,8 @@ public final class ActivityEvents {
     public static final String LABEL_UNLINKED = "label.unlinked";
     public static final String ATTACHMENT_UPLOADED = "attachment.uploaded";
     public static final String ATTACHMENT_DELETED = "attachment.deleted";
+    public static final String DEPENDENCY_ADDED = "dependency.added";
+    public static final String DEPENDENCY_REMOVED = "dependency.removed";
 
     private ActivityEvents() {
     }

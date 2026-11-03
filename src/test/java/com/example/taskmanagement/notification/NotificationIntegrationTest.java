@@ -22,6 +22,7 @@ import com.example.taskmanagement.task.api.TaskData;
 import com.example.taskmanagement.task.api.TaskOperations;
 import com.example.taskmanagement.task.api.TaskPriority;
 import com.example.taskmanagement.task.api.TaskView;
+import com.example.taskmanagement.task.domain.TaskLifecyclePolicy.Command;
 import java.time.LocalDate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -85,6 +86,23 @@ class NotificationIntegrationTest {
 
         mvc.perform(post("/api/notifications/read-all").header("Authorization", bearer(member)))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void startByOwnerNotifiesAssigneeAndCompleteByAssigneeNotifiesOwner() {
+        notifications.projectPending(20);
+        notifications.markAllRead(member.id());
+        notifications.markAllRead(owner.id());
+
+        task = tasks.execute(owner.id(), task.id(), Command.START, task.version());
+        assertThat(notifications.projectPending(20)).isGreaterThanOrEqualTo(1);
+        assertThat(notifications.list(member.id(), true, 0, 20).content())
+                .anyMatch(item -> item.eventType().equals("task.started"));
+
+        task = tasks.execute(member.id(), task.id(), Command.COMPLETE, task.version());
+        assertThat(notifications.projectPending(20)).isGreaterThanOrEqualTo(1);
+        assertThat(notifications.list(owner.id(), true, 0, 20).content())
+                .anyMatch(item -> item.eventType().equals("task.completed"));
     }
 
     private UserView register(String name) {
