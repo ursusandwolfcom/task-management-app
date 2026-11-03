@@ -10,7 +10,7 @@
 
 ## Демо для заказчика
 
-Готовый **рабочий демо-срез** на ветке `main`: MVP, планирование (праздники, обед), портфель, файлы, in-app и опциональный Telegram. Это не production-deploy — честный объём см. [Deferred](#deferred-explicit-technical-debt).
+Готовый **рабочий демо-срез** на ветке `main`: MVP, планирование (праздники, обед), портфель, файлы, in-app и опциональные Telegram/Email. Это не production-deploy — честный объём см. [Deferred](#deferred-explicit-technical-debt).
 
 ### За 10 минут
 
