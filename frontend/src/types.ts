@@ -48,6 +48,7 @@ export interface Label { id: bigint; projectId: bigint; name: string; color: str
 export interface GanttTask {
   taskId: bigint; durationMinutes: bigint; earlyStart: string; earlyFinish: string;
   lateStart: string; lateFinish: string; floatMinutes: bigint; critical: boolean; deadlineOverrun: boolean;
+  resourceContention: boolean;
 }
 export interface CriticalDependency { predecessorId: bigint; successorId: bigint }
 export interface ProjectGantt {
@@ -67,7 +68,7 @@ export interface PortfolioPage {
   totalElements: bigint; totalPages: number;
 }
 export interface AssigneeLoad {
-  userId: bigint; openTasks: bigint; estimatedMinutes: bigint; overdueTasks: bigint;
+  userId: bigint; openTasks: bigint; estimatedMinutes: bigint; overdueTasks: bigint; contendedTasks: bigint;
 }
 export interface WorkloadSnapshot { calculatedAt: string; assignees: AssigneeLoad[] }
 export interface NotificationItem {

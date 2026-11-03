@@ -164,7 +164,7 @@ export function ProjectSchedule({ user, project }: { user: User; project: Projec
   return <section className="card tasks-panel">
     <div className="section-toolbar"><h2>План / Gantt</h2>
       <button disabled={query.loading} onClick={() => { setScenario(undefined); query.reload(); }}>Обновить</button></div>
-    <p className="muted">Пн–Пт 09:00–17:00, обед 13–14 · {project.timezone}. «Что если» не сохраняет оценки.</p>
+    <p className="muted">Пн–Пт 09:00–17:00, обед 13–14 · {project.timezone}. Soft warn при пересечении планов одного исполнителя.</p>
     <Alert error={query.error} />{query.loading && <Loading />}
     {shown && <>
       <p className="count-label">{scenario ? 'СЦЕНАРИЙ' : 'БАЗОВЫЙ ПЛАН'} · ДЛИТЕЛЬНОСТЬ: {String(shown.durationMinutes)} мин ·
@@ -177,6 +177,7 @@ export function ProjectSchedule({ user, project }: { user: User; project: Projec
           <strong>Задача {String(task.taskId)}</strong>
           {task.critical && <span className="badge">критическая</span>}
           {task.deadlineOverrun && <span className="badge">срок</span>}
+          {task.resourceContention && <span className="badge">перегруз</span>}
           <small>{formatInstant(task.earlyStart)} → {formatInstant(task.earlyFinish)}
             · запас {String(task.floatMinutes)} мин · оценка {String(task.durationMinutes)}</small>
         </a></li>)}</ul>}
