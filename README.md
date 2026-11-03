@@ -10,7 +10,7 @@
 
 ## Демо для заказчика
 
-Готовый **рабочий демо-срез** на ветке `main`: полный MVP-сценарий плюс планирование, портфель, файлы и in-app уведомления. Это не production-deploy и не весь исходный assignment end-to-end — честный объём см. [Deferred](#deferred-explicit-technical-debt).
+Готовый **рабочий демо-срез** на ветке `main`: MVP, планирование (праздники, обед), портфель, файлы, in-app и опциональный Telegram. Это не production-deploy — честный объём см. [Deferred](#deferred-explicit-technical-debt).
 
 ### За 10 минут
 
@@ -236,7 +236,7 @@ the current MVP slice and will land later when credentials, channel choice and c
 | Item | Why deferred |
 |------|----------------|
 | Dropbox (or other cloud) attachment storage | Needs app keys, token lifecycle and delete sync; local disk covers the API/UI path now |
-| Email notifications | Channel policy unresolved; Telegram v1 + in-app outbox cover push |
+| Email notifications | Policy draft pending; Telegram v1 + in-app cover push |
 | Hard resource leveling / calendars | Soft contention flags on Gantt/workload only; dates are not shifted |
 | Per-project / per-assignee break windows | Global fixed lunch 13:00–14:00 is shipped; custom windows deferred |
 | Financial / actual-effort KPI | Estimates are planning inputs, not timesheets |
