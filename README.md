@@ -10,7 +10,7 @@
 
 ## Демо для заказчика
 
-Готовый **рабочий демо-срез** на ветке `main`: MVP, планирование (праздники, обед), портфель, файлы, in-app и опциональные Telegram/Email. Это не production-deploy — честный объём см. [Deferred](#deferred-explicit-technical-debt).
+Готовый **рабочий демо-срез** на ветке `main` (S45): MVP, планирование, портфель, timesheets, FTE, файлы, in-app / Telegram / Email / Dropbox. На `dev` уже S46 (per-assignee breaks). Это не production-deploy — остаток см. [Deferred](#deferred-explicit-technical-debt).
 
 ### За 10 минут
 
@@ -34,7 +34,7 @@ CPM + Gantt + what-if Портфель рисков + workload  Workspace UI (т
 
 ### Что сознательно позже
 
-Hard leveling и финансовые KPI — в таблице **Deferred**. Праздники, обед, soft contention, Telegram, Email v1 и Dropbox storage (опционально) уже поддерживаются.
+Осталось из Deferred: email themes (S47) и Dropbox team-folder mode (S48). Hard leveling, KPI, holidays, breaks, FTE, timesheets, Telegram/Email/Dropbox OAuth уже в срезе.
 
 ### Как запустить демо
 
@@ -222,7 +222,7 @@ Workspace: `#/notifications`.
 | S31 | Telegram outbox channel (Liquibase 013) |
 | S30 | Notification UX + project holidays (012) |
 
-Release batch S32–S34 → `main` (#65); S35 Email → `main` (#67); S37–S40 → `main`.
+Release batches → `main`: S32–S34 (#65), S35 (#67), S37–S40, S41–S42 (`s41-s42`), S43–S45 (`s43-s45`). S46 on `dev` pending next release.
 
 ## Task activity history
 
