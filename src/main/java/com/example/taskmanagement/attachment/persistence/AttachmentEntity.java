@@ -29,7 +29,7 @@ public class AttachmentEntity {
     private long sizeBytes;
     @Column(name = "storage_key", nullable = false, length = 64, updatable = false)
     private String storageKey;
-    @Column(name = "external_id", length = 128, updatable = false)
+    @Column(name = "external_id", length = 128)
     private String externalId;
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -56,6 +56,14 @@ public class AttachmentEntity {
 
     public String externalId() {
         return externalId;
+    }
+
+    public void setExternalId(String externalId) {
+        this.externalId = externalId;
+    }
+
+    public long sizeBytes() {
+        return sizeBytes;
     }
 
     public AttachmentView view() {

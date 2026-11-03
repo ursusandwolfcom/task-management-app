@@ -6,30 +6,36 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 @Configuration(proxyBeanMethods = false)
 public class AttachmentStorageConfiguration {
     @Bean
-    @ConditionalOnProperty(name = "attachment.storage", havingValue = "local", matchIfMissing = true)
-    AttachmentObjectStore localAttachmentObjectStore(@Value("${attachment.storage-dir}") String storageDir)
+    LocalAttachmentObjectStore localAttachmentObjectStore(@Value("${attachment.storage-dir}") String storageDir)
             throws IOException {
         return new LocalAttachmentObjectStore(storageDir);
     }
 
     @Bean
-    @ConditionalOnProperty(name = "attachment.storage", havingValue = "dropbox")
-    DropboxFileClient dropboxFileClient(@Value("${dropbox.access-token:}") String accessToken) {
-        String token = accessToken == null ? "" : accessToken.strip();
-        if (token.isEmpty()) {
-            throw new IllegalStateException("attachment.storage=dropbox requires DROPBOX_ACCESS_TOKEN");
-        }
-        return new SdkDropboxFileClient(token);
+    @Primary
+    @ConditionalOnProperty(name = "attachment.storage", havingValue = "local", matchIfMissing = true)
+    AttachmentObjectStore localPrimaryAttachmentObjectStore(LocalAttachmentObjectStore local) {
+        return local;
     }
 
     @Bean
     @ConditionalOnProperty(name = "attachment.storage", havingValue = "dropbox")
-    AttachmentObjectStore dropboxAttachmentObjectStore(DropboxFileClient client,
-            @Value("${dropbox.app-folder:/projectflow}") String appFolder) {
-        return new DropboxAttachmentObjectStore(client, appFolder);
+    DropboxFileClient dropboxFileClient(@Value("${dropbox.access-token:}") String accessToken,
+            @Value("${dropbox.refresh-token:}") String refreshToken, @Value("${dropbox.app-key:}") String appKey,
+            @Value("${dropbox.app-secret:}") String appSecret) {
+        return new SdkDropboxFileClient(accessToken, refreshToken, appKey, appSecret);
+    }
+
+    @Bean
+    @Primary
+    @ConditionalOnProperty(name = "attachment.storage", havingValue = "dropbox")
+    AttachmentObjectStore dropboxPrimaryAttachmentObjectStore(DropboxFileClient client,
+            LocalAttachmentObjectStore local, @Value("${dropbox.app-folder:/projectflow}") String appFolder) {
+        return new DualAttachmentObjectStore(new DropboxAttachmentObjectStore(client, appFolder), local);
     }
 }
