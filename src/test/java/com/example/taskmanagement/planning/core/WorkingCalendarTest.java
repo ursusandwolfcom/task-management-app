@@ -4,8 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
@@ -75,5 +77,29 @@ class WorkingCalendarTest {
         assertEquals(ZonedDateTime.of(2026, 11, 5, 9, 0, 0, 0, ZoneId.of("UTC")).toInstant(),
                 withHoliday.normalizeStart(
                         ZonedDateTime.of(2026, 11, 4, 12, 0, 0, 0, ZoneId.of("UTC")).toInstant()));
+    }
+
+    @Test
+    void customBreakWindowsShortenNetDay() {
+        var shortLunch = new WorkingCalendar(ZoneId.of("UTC"), Set.of(),
+                List.of(new BreakWindow(LocalTime.of(12, 0), LocalTime.of(12, 30))));
+        assertEquals(450, shortLunch.minutesPerDay());
+        Instant morning = ZonedDateTime.of(2026, 11, 2, 11, 0, 0, 0, ZoneId.of("UTC")).toInstant();
+        assertEquals(ZonedDateTime.of(2026, 11, 2, 12, 30, 0, 0, ZoneId.of("UTC")).toInstant(),
+                shortLunch.normalizeStart(
+                        ZonedDateTime.of(2026, 11, 2, 12, 15, 0, 0, ZoneId.of("UTC")).toInstant()));
+        assertEquals(ZonedDateTime.of(2026, 11, 2, 12, 0, 0, 0, ZoneId.of("UTC")).toInstant(),
+                shortLunch.addWorkingMinutes(morning, 60));
+        assertEquals(ZonedDateTime.of(2026, 11, 2, 12, 31, 0, 0, ZoneId.of("UTC")).toInstant(),
+                shortLunch.addWorkingMinutes(morning, 61));
+    }
+
+    @Test
+    void emptyBreakListMeansFullEightHourDay() {
+        var open = new WorkingCalendar(ZoneId.of("UTC"), Set.of(), List.of());
+        assertEquals(480, open.minutesPerDay());
+        Instant monday = open.projectOrigin(LocalDate.of(2026, 11, 2));
+        assertEquals(ZonedDateTime.of(2026, 11, 2, 17, 0, 0, 0, ZoneId.of("UTC")).toInstant(),
+                open.addWorkingMinutes(monday, 480));
     }
 }

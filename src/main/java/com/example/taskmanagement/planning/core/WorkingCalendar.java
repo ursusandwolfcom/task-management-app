@@ -7,12 +7,16 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
 /**
- * Mon–Fri 09:00–17:00 in a project IANA zone, minus holidays and a fixed lunch break
- * 13:00–14:00. Intervals are [start, end). Resource contention is out of scope.
+ * Mon–Fri 09:00–17:00 in a project IANA zone, minus holidays and break windows.
+ * Default break is lunch 13:00–14:00 (420 net minutes/day). Intervals are [start, end).
+ * Resource contention is out of scope.
  */
 public final class WorkingCalendar {
 
@@ -20,19 +24,29 @@ public final class WorkingCalendar {
     public static final LocalTime BREAK_START = LocalTime.of(13, 0);
     public static final LocalTime BREAK_END = LocalTime.of(14, 0);
     public static final LocalTime DAY_END = LocalTime.of(17, 0);
-    /** Net working minutes per weekday after the fixed lunch break. */
+    public static final List<BreakWindow> DEFAULT_BREAKS = List.of(new BreakWindow(BREAK_START, BREAK_END));
+    /** Net working minutes per weekday after the default lunch break. */
     public static final int MINUTES_PER_DAY = 7 * 60;
 
     private final ZoneId zone;
     private final Set<LocalDate> holidays;
+    private final List<BreakWindow> breaks;
+    private final int minutesPerDay;
 
     public WorkingCalendar(ZoneId zone) {
         this(zone, Set.of());
     }
 
     public WorkingCalendar(ZoneId zone, Set<LocalDate> holidays) {
+        this(zone, holidays, DEFAULT_BREAKS);
+    }
+
+    public WorkingCalendar(ZoneId zone, Set<LocalDate> holidays, List<BreakWindow> breaks) {
         this.zone = Objects.requireNonNull(zone, "zone");
         this.holidays = Set.copyOf(Objects.requireNonNull(holidays, "holidays"));
+        this.breaks = normalizeBreaks(Objects.requireNonNull(breaks, "breaks"));
+        long breakMinutes = this.breaks.stream().mapToLong(BreakWindow::minutes).sum();
+        this.minutesPerDay = (int) (Duration.between(DAY_START, DAY_END).toMinutes() - breakMinutes);
     }
 
     public ZoneId zone() {
@@ -41,6 +55,14 @@ public final class WorkingCalendar {
 
     public Set<LocalDate> holidays() {
         return holidays;
+    }
+
+    public List<BreakWindow> breaks() {
+        return breaks;
+    }
+
+    public int minutesPerDay() {
+        return minutesPerDay;
     }
 
     /** Project calendar origin: first working 09:00 on or after startDate in the project zone. */
@@ -60,8 +82,10 @@ public final class WorkingCalendar {
         if (time.isBefore(DAY_START)) {
             return local.with(DAY_START).toInstant();
         }
-        if (!time.isBefore(BREAK_START) && time.isBefore(BREAK_END)) {
-            return local.with(BREAK_END).toInstant();
+        for (BreakWindow window : breaks) {
+            if (!time.isBefore(window.start()) && time.isBefore(window.end())) {
+                return local.with(window.end()).toInstant();
+            }
         }
         if (!time.isBefore(DAY_END)) {
             return nextDayStart(local.toLocalDate().plusDays(1));
@@ -118,14 +142,21 @@ public final class WorkingCalendar {
     }
 
     private Instant advancePastSegment(ZonedDateTime local, LocalTime segmentEnd) {
-        if (segmentEnd.equals(BREAK_START)) {
-            return local.with(BREAK_END).toInstant();
+        for (BreakWindow window : breaks) {
+            if (segmentEnd.equals(window.start())) {
+                return local.with(window.end()).toInstant();
+            }
         }
         return nextDayStart(local.toLocalDate().plusDays(1));
     }
 
-    private static LocalTime segmentEnd(LocalTime time) {
-        return time.isBefore(BREAK_START) ? BREAK_START : DAY_END;
+    private LocalTime segmentEnd(LocalTime time) {
+        for (BreakWindow window : breaks) {
+            if (time.isBefore(window.start())) {
+                return window.start();
+            }
+        }
+        return DAY_END;
     }
 
     private Instant nextDayStart(LocalDate date) {
@@ -139,5 +170,19 @@ public final class WorkingCalendar {
     private boolean isWorkingDay(LocalDate day) {
         DayOfWeek week = day.getDayOfWeek();
         return week != DayOfWeek.SATURDAY && week != DayOfWeek.SUNDAY && !holidays.contains(day);
+    }
+
+    public static List<BreakWindow> normalizeBreaks(List<BreakWindow> input) {
+        var sorted = input.stream().sorted(Comparator.comparing(BreakWindow::start)).toList();
+        List<BreakWindow> normalized = new ArrayList<>(sorted.size());
+        LocalTime previousEnd = null;
+        for (BreakWindow window : sorted) {
+            if (previousEnd != null && window.start().isBefore(previousEnd)) {
+                throw new IllegalArgumentException("Break windows must not overlap");
+            }
+            normalized.add(window);
+            previousEnd = window.end();
+        }
+        return List.copyOf(normalized);
     }
 }

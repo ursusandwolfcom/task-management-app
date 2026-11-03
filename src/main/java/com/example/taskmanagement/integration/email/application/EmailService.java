@@ -35,11 +35,13 @@ public class EmailService implements EmailOperations {
     private final Clock clock;
     private final String mailHost;
     private final String appPublicBase;
+    private final String brand;
 
     public EmailService(EmailPreferenceOperations preferences, OutboxConsumerOperations outbox, EmailSender sender,
             EmailDigestEntryRepository digests, ObjectMapper json, Clock clock,
             @Value("${spring.mail.host:}") String mailHost,
-            @Value("${mail.app-public-base:}") String appPublicBase) {
+            @Value("${mail.app-public-base:}") String appPublicBase,
+            @Value("${mail.brand-name:ProjectFlow}") String brand) {
         this.preferences = preferences;
         this.outbox = outbox;
         this.sender = sender;
@@ -48,6 +50,7 @@ public class EmailService implements EmailOperations {
         this.clock = clock;
         this.mailHost = blankToEmpty(mailHost);
         this.appPublicBase = blankToEmpty(appPublicBase);
+        this.brand = blankToEmpty(brand).isEmpty() ? "ProjectFlow" : blankToEmpty(brand);
     }
 
     @Override
@@ -118,7 +121,9 @@ public class EmailService implements EmailOperations {
             }
             body.append('\n');
         }
-        sender.send(preference.address(), "ProjectFlow: дайджест (" + entries.size() + ")", body.toString().strip());
+        String text = body.toString().strip();
+        String subject = brand + ": дайджест (" + entries.size() + ")";
+        dispatch(preference.address(), subject, text);
         digests.deleteByUserId(userId);
         return true;
     }
@@ -146,12 +151,16 @@ public class EmailService implements EmailOperations {
                 queued.add(new EmailDigestEntryEntity(userId, truncate(rendered.title(), 200),
                         truncate(rendered.body(), 2000), now));
             } else {
-                sender.send(target.address(), rendered.title(), rendered.body());
+                dispatch(target.address(), rendered.title(), rendered.body());
             }
         }
         if (!queued.isEmpty()) {
             digests.saveAll(queued);
         }
+    }
+
+    private void dispatch(String to, String subject, String textBody) {
+        sender.send(to, subject, textBody, EmailHtmlFormatter.wrap(brand, subject, textBody));
     }
 
     private JsonNode parse(String payload) {

@@ -1,5 +1,6 @@
 package com.example.taskmanagement.task.application;
 
+import com.example.taskmanagement.planning.core.BreakWindow;
 import com.example.taskmanagement.project.api.ProjectCoordination;
 import com.example.taskmanagement.task.api.TaskException;
 import com.example.taskmanagement.task.persistence.DependencyRepository;
@@ -43,9 +44,12 @@ public class TaskGraphLoader {
         if (edges.size() > maxDependencies) {
             throw new TaskException(TaskException.Reason.GRAPH_TOO_LARGE);
         }
+        var breaks = coordination.breaks(projectId).stream()
+                .map(window -> new BreakWindow(window.start(), window.end()))
+                .toList();
         return new TaskGraphInput(projectId, project.inputRevision(), project.calendarRevision(),
                 project.startDate(), project.endDate(), project.timezone(), coordination.holidays(projectId),
-                nodes, edges);
+                breaks, nodes, edges);
     }
 
     int maxDependencies() {
