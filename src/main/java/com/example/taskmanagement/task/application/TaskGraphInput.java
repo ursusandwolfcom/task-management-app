@@ -10,6 +10,7 @@ import com.example.taskmanagement.task.domain.TaskStatus;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -21,9 +22,11 @@ record TaskGraphInput(
         LocalDate startDate,
         LocalDate endDate,
         String timezone,
+        Set<LocalDate> holidays,
         List<TaskView> tasks,
         List<DependencyEdge> edges) {
     TaskGraphInput {
+        holidays = Set.copyOf(holidays);
         tasks = List.copyOf(tasks);
         edges = List.copyOf(edges);
     }

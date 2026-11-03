@@ -34,7 +34,7 @@ CPM + Gantt + what-if Портфель рисков + workload  Workspace UI (т
 
 ### Что сознательно позже
 
-Dropbox, email/Telegram, resource leveling, праздники в календаре, финансовые KPI — перечислены в таблице **Deferred** ниже. В демо их **не** обещать.
+Dropbox, email/Telegram, resource leveling, перерывы внутри дня, финансовые KPI — перечислены в таблице **Deferred** ниже. В демо их **не** обещать. Праздничные дни проекта уже поддерживаются.
 
 ### Как запустить демо
 
@@ -213,6 +213,15 @@ access. Uploads/deletes use the project write lock and do not change task or pla
 Task deletion cascades attachment rows; orphaned disk files may remain after storage failures.
 Workspace task detail shows the attachment panel. Browser-cookie writes require CSRF.
 
+## Project holidays
+
+`GET /api/projects/{id}/holidays` returns the project's non-working weekday dates.
+`PUT /api/projects/{id}/holidays` with `{"dates":["2026-11-04"],"version":N}` replaces the
+full set (owner/ADMIN, optimistic `version`). Dates must lie within the project start/end
+range; the write bumps `calendarRevision` so Gantt/CPM reload. Liquibase 012.
+`WorkingCalendar` skips these dates in addition to Sat/Sun. Workspace project detail has a
+«Праздничные дни» panel.
+
 ## Deferred (explicit technical debt)
 
 These items are **not** implemented; they need disproportionate product/ops work relative to
@@ -223,7 +232,7 @@ the current MVP slice and will land later when credentials, channel choice and c
 | Dropbox (or other cloud) attachment storage | Needs app keys, token lifecycle and delete sync; local disk covers the API/UI path now |
 | Email / Telegram notifications | Channel and event policy unresolved; in-app + outbox is the durable hook |
 | Resource calendars / leveling | Unlimited parallel resources by design until a resource module exists |
-| Working-calendar holidays / breaks | CPM uses Mon–Fri 09–17 only |
+| Working-calendar breaks (lunch etc.) | CPM uses Mon–Fri 09–17; project holidays are supported via API |
 | Financial / actual-effort KPI | Estimates are planning inputs, not timesheets |
 
 Do not treat README assignment notes that mention Dropbox/email as shipped behavior.

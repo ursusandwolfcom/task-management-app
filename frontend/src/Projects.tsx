@@ -105,7 +105,8 @@ export function ProjectDetail({ user, id }: { user: User; id: bigint }) {
       <ProjectTasks key={`tasks-${project.inputRevision}-${hashRoute().params.toString()}`}
         user={user} project={project} manage={Boolean(manage)}
         initialFilters={taskQueryFromParams(hashRoute().params)} />
-      <ProjectSchedule key={`gantt-${project.inputRevision}`} user={user} project={project} />
+      <ProjectHolidays user={user} project={project} manage={Boolean(manage)} onChanged={query.reload} />
+      <ProjectSchedule key={`gantt-${project.inputRevision}-${project.calendarRevision}`} user={user} project={project} />
       {manage && <section className="danger-section"><div><h2>Удалить проект</h2><p className="muted">Удаление доступно только для пустого проекта.</p></div>
         <button className="danger" disabled={command.busy} onClick={() => {
           if (!window.confirm(`Удалить проект «${project.name}»? Это действие нельзя отменить.`)) return;
@@ -141,6 +142,46 @@ function ProjectEditor({ user, initial, onSaved }: { user: User; initial: Projec
     <p>{latest.name}</p><p className="description-full">{latest.description}</p><p>{latest.startDate} — {latest.endDate} · {latest.timezone}</p>
     <button onClick={() => { setBase(latest); setFields(fieldsOf(latest)); setLatest(undefined); command.clear(); }}>
       Редактировать актуальную версию</button></div>}</>;
+}
+
+function ProjectHolidays({ user, project, manage, onChanged }: {
+  user: User; project: Project; manage: boolean; onChanged: () => void
+}) {
+  const { client, generation } = useSession();
+  const [draft, setDraft] = useState('');
+  const command = useCommand();
+  const query = useLoad(`${user.id}:${generation}:${project.id}:holidays:${project.calendarRevision}`, signal =>
+    client.request<string[]>(user.id, `/api/projects/${project.id}/holidays`, 'GET', undefined, signal));
+  const dates = query.value ?? [];
+  return <section className="card"><h2>Праздничные дни</h2>
+    <p className="muted">Нерабочие будни для CPM/Gantt (Пн–Пт 09–17). Перерыв внутри дня пока не поддерживается.</p>
+    <Alert error={query.error || command.error} />{query.loading && <Loading />}
+    <Notice>{command.notice}</Notice>
+    <ul className="member-list">{dates.map(day => <li key={day}>
+      <strong>{date(day)}</strong>
+      {manage && <button className="text-button danger-text" disabled={command.busy} onClick={() =>
+        void command.run(async () => {
+          const next = dates.filter(item => item !== day);
+          await client.request<Project>(user.id, `/api/projects/${project.id}/holidays`, 'PUT',
+            { dates: next, version: project.version });
+          command.setNotice('Праздник удалён.'); onChanged(); query.reload();
+        })}>Удалить</button>}
+    </li>)}</ul>
+    {dates.length === 0 && !query.loading && <Empty title="Праздников нет">Календарь использует только выходные.</Empty>}
+    {manage && <form className="team-form" onSubmit={event => { event.preventDefault();
+      void command.run(async () => {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(draft)) throw new ApiError(400, 'VALIDATION_ERROR');
+        const next = Array.from(new Set([...dates, draft])).sort();
+        await client.request<Project>(user.id, `/api/projects/${project.id}/holidays`, 'PUT',
+          { dates: next, version: project.version });
+        setDraft(''); command.setNotice('Праздник добавлен.'); onChanged(); query.reload();
+      });
+    }}><fieldset disabled={command.busy}>
+      <Field label="Дата (ГГГГ-ММ-ДД)" required placeholder="2026-11-04" value={draft}
+        onChange={event => setDraft(event.target.value)} />
+      <button type="submit">Добавить праздник</button>
+    </fieldset></form>}
+  </section>;
 }
 
 function Members({ user, project, manage, updating, refreshProject }: {

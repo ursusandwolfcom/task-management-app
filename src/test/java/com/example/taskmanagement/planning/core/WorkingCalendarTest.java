@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class WorkingCalendarTest {
@@ -46,5 +47,17 @@ class WorkingCalendarTest {
         assertEquals(ZonedDateTime.of(2026, 3, 30, 9, 0, 0, 0, ZoneId.of("Europe/Kyiv")).toInstant(), start);
         assertEquals(ZonedDateTime.of(2026, 3, 30, 17, 0, 0, 0, ZoneId.of("Europe/Kyiv")).toInstant(),
                 kyiv.addWorkingMinutes(start, WorkingCalendar.MINUTES_PER_DAY));
+    }
+
+    @Test
+    void weekdayHolidayIsSkippedLikeWeekend() {
+        var withHoliday = new WorkingCalendar(ZoneId.of("UTC"), Set.of(LocalDate.of(2026, 11, 4)));
+        Instant monday = withHoliday.projectOrigin(LocalDate.of(2026, 11, 2));
+        // Mon+Tue full days; Wednesday is holiday → finish Thursday 17:00 after third day.
+        assertEquals(ZonedDateTime.of(2026, 11, 5, 17, 0, 0, 0, ZoneId.of("UTC")).toInstant(),
+                withHoliday.addWorkingMinutes(monday, WorkingCalendar.MINUTES_PER_DAY * 3));
+        assertEquals(ZonedDateTime.of(2026, 11, 5, 9, 0, 0, 0, ZoneId.of("UTC")).toInstant(),
+                withHoliday.normalizeStart(
+                        ZonedDateTime.of(2026, 11, 4, 12, 0, 0, 0, ZoneId.of("UTC")).toInstant()));
     }
 }

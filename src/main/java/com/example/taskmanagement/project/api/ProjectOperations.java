@@ -3,7 +3,9 @@ package com.example.taskmanagement.project.api;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
 public interface ProjectOperations {
     record ProjectPage(List<ProjectView> content, int page, int size, long totalElements, int totalPages) {
@@ -42,4 +44,9 @@ public interface ProjectOperations {
 
     /** Deletes a project without tasks; owned collaboration metadata is removed with its parent. */
     void deleteEmpty(long actorId, long projectId, @PositiveOrZero long version);
+
+    Set<LocalDate> holidays(long actorId, long projectId);
+
+    /** Replaces the full holiday set and bumps calendarRevision; requires current project version. */
+    ProjectView replaceHolidays(long actorId, long projectId, Set<LocalDate> holidays, @PositiveOrZero long version);
 }

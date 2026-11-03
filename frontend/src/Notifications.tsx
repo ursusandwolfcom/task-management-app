@@ -20,14 +20,14 @@ export function Notifications({ user }: { user: User }) {
         command.setNotice('Все прочитаны.'); query.reload();
       })}>Прочитать все</button>
     </PageHeader>
-    <p className="muted">In-app через outbox: назначение и комментарии. Email/Telegram позже.</p>
+    <p className="muted">In-app через outbox: назначение, комментарии, lifecycle и файлы. Email/Telegram позже.</p>
     <label className="field compact"><span>Только непрочитанные</span>
       <input type="checkbox" checked={unreadOnly} onChange={event => { setUnreadOnly(event.target.checked); setPage(0); }} />
     </label>
     <Alert error={query.error || command.error} /><Notice>{command.notice}</Notice>
     {query.loading && <Loading />}
     {query.value && (query.value.content.length === 0 ? <Empty title="Нет уведомлений">
-      Назначения и комментарии появятся здесь.
+      События задач появятся здесь после назначения, комментариев, смены статуса или файла.
     </Empty> : <>
       <p className="muted">Непрочитанных: {String(query.value.unreadCount)}</p>
       <ul className="task-list">{query.value.content.map(item =>
@@ -36,7 +36,13 @@ export function Notifications({ user }: { user: User }) {
           <span className="badge">{item.readAt ? 'Прочитано' : 'Новое'}</span>
           <p className="description-full">{item.body}</p>
           <small>{item.createdAt} · {item.eventType}</small>
-          <a href={`#/tasks/${item.taskId}`}>К задаче</a>
+          <a href={`#/tasks/${item.taskId}`} onClick={() => {
+            if (item.readAt || command.busy) return;
+            void command.run(async () => {
+              await client.request<void>(user.id, `/api/notifications/${item.id}/read`, 'POST');
+              query.reload();
+            });
+          }}>К задаче</a>
           {!item.readAt && <button className="text-button" disabled={command.busy} onClick={() =>
             void command.run(async () => {
               await client.request<void>(user.id, `/api/notifications/${item.id}/read`, 'POST');
