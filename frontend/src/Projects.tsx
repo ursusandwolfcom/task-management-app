@@ -154,7 +154,7 @@ function ProjectHolidays({ user, project, manage, onChanged }: {
     client.request<string[]>(user.id, `/api/projects/${project.id}/holidays`, 'GET', undefined, signal));
   const dates = query.value ?? [];
   return <section className="card"><h2>Праздничные дни</h2>
-    <p className="muted">Нерабочие будни для CPM/Gantt (Пн–Пт 09–17). Перерыв внутри дня пока не поддерживается.</p>
+    <p className="muted">Нерабочие будни для CPM/Gantt (Пн–Пт 09–17, обед 13–14 фиксирован).</p>
     <Alert error={query.error || command.error} />{query.loading && <Loading />}
     <Notice>{command.notice}</Notice>
     <ul className="member-list">{dates.map(day => <li key={day}>

@@ -61,8 +61,9 @@ class CriticalPathCalculatorTest {
 
     @Test
     void deadlineOverrunDoesNotChangeCriticalPath() {
-        var a = new TaskNode(1L, 10, LocalDate.of(2026, 11, 2), 480L);
-        var b = new TaskNode(2L, 10, LocalDate.of(2026, 11, 2), 480L);
+        long day = WorkingCalendar.MINUTES_PER_DAY;
+        var a = new TaskNode(1L, 10, LocalDate.of(2026, 11, 2), day);
+        var b = new TaskNode(2L, 10, LocalDate.of(2026, 11, 2), day);
         var graph = GraphSnapshot.of(List.of(a, b), List.of(new DependencyEdge(1L, 2L)));
         var origin = calendar.projectOrigin(LocalDate.of(2026, 11, 2));
         var schedule = calculator.schedule(graph, calendar, origin, LocalDate.of(2026, 11, 2));
