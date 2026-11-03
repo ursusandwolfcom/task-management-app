@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { ApiError } from './client.ts';
+import { hashRoute, taskQueryFromParams } from './hashRoute.ts';
 import { useCommand, useLoad } from './hooks.ts';
 import { userId } from './json.ts';
 import { useSession } from './session.tsx';
@@ -101,7 +102,9 @@ export function ProjectDetail({ user, id }: { user: User; id: bigint }) {
             <p className="muted">Управлять данными и составом команды может владелец проекта.</p></>}
       </section><Members key={String(id)} user={user} project={project} manage={Boolean(manage)}
         updating={query.loading} refreshProject={query.reload} /></div>
-      <ProjectTasks key={`tasks-${project.inputRevision}`} user={user} project={project} manage={Boolean(manage)} />
+      <ProjectTasks key={`tasks-${project.inputRevision}-${hashRoute().params.toString()}`}
+        user={user} project={project} manage={Boolean(manage)}
+        initialFilters={taskQueryFromParams(hashRoute().params)} />
       <ProjectSchedule key={`gantt-${project.inputRevision}`} user={user} project={project} />
       {manage && <section className="danger-section"><div><h2>Удалить проект</h2><p className="muted">Удаление доступно только для пустого проекта.</p></div>
         <button className="danger" disabled={command.busy} onClick={() => {

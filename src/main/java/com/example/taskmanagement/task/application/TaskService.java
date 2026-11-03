@@ -100,8 +100,14 @@ public class TaskService implements TaskOperations {
     @Override
     @Transactional(readOnly = true)
     public TaskPage listAssigned(long actorId, TaskFilter filter, int page, int size) {
+        return listAssignedTo(actorId, actorId, filter, page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TaskPage listAssignedTo(long actorId, long assigneeId, TaskFilter filter, int page, int size) {
         boolean admin = identity.currentRole(actorId) == UserRole.ADMIN;
-        var result = queries.assigned(actorId, admin, filter == null ? TaskFilter.empty() : filter,
+        var result = queries.assignedTo(actorId, assigneeId, admin, filter == null ? TaskFilter.empty() : filter,
                 paging(page, size, "id"));
         return new TaskPage(result.getContent(), page, size, result.getTotalElements(), result.getTotalPages());
     }

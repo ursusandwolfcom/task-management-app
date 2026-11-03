@@ -42,15 +42,24 @@ public class TaskQueryRepository {
 
     /** Assigned tasks visible through membership, or every assigned task for ADMIN. */
     public Page<TaskView> assigned(long userId, boolean admin, TaskFilter filter, Pageable paging) {
+        return assignedTo(userId, userId, admin, filter, paging);
+    }
+
+    /**
+     * Tasks of {@code assigneeId} in projects the actor can see (ADMIN: any project).
+     * Used for portfolio workload drill-down to a concrete task list.
+     */
+    public Page<TaskView> assignedTo(long actorId, long assigneeId, boolean admin, TaskFilter filter,
+            Pageable paging) {
         var where = new StringBuilder(" where t.assignee_id = ?");
         var args = new ArrayList<Object>();
-        args.add(userId);
+        args.add(assigneeId);
         if (!admin) {
             where.append("""
                      and exists (select 1 from task_management.project_members m
                                  where m.project_id = t.project_id and m.user_id = ?)
                     """);
-            args.add(userId);
+            args.add(actorId);
         }
         appendFilters(where, args, new TaskFilter(filter.status(), null, filter.dueFrom(), filter.dueTo(),
                 filter.labelId(), filter.bucket()));

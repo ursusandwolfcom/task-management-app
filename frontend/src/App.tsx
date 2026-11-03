@@ -4,6 +4,7 @@ import { Notifications } from './Notifications.tsx';
 import { Portfolio } from './Portfolio.tsx';
 import { CreateProject, ProjectDetail, ProjectList } from './Projects.tsx';
 import { MyTasks, TaskDetail } from './Tasks.tsx';
+import { hashRoute } from './hashRoute.ts';
 import { useCommand, useLoad } from './hooks.ts';
 import { userId } from './json.ts';
 import { useSession } from './session.tsx';
@@ -31,19 +32,21 @@ function Theme() {
   </label>;
 }
 
-function Content({ user, route }: { user: User; route: string }) {
-  if (route === '/overview') return <Portfolio user={user} />;
-  if (route === '/notifications') return <Notifications user={user} />;
-  if (route === '/projects') return <ProjectList user={user} />;
-  if (route === '/projects/new') return <CreateProject user={user} />;
-  if (route === '/tasks') return <MyTasks user={user} />;
-  if (route === '/profile') return <Profile user={user} />;
-  const project = /^\/projects\/([1-9]\d{0,18})$/.exec(route);
+function Content({ user, path }: { user: User; path: string }) {
+  if (path === '/overview') return <Portfolio user={user} />;
+  if (path === '/notifications') return <Notifications user={user} />;
+  if (path === '/projects') return <ProjectList user={user} />;
+  if (path === '/projects/new') return <CreateProject user={user} />;
+  if (path === '/tasks') return <MyTasks key={hashRoute().params.toString()} user={user} />;
+  if (path === '/profile') return <Profile user={user} />;
+  const project = /^\/projects\/([1-9]\d{0,18})$/.exec(path);
   if (project) {
-    try { return <ProjectDetail key={project[1]} user={user} id={userId(project[1])} />; }
-    catch { /* Invalid route must not become a rounded server ID. */ }
+    try {
+      return <ProjectDetail key={`${project[1]}:${hashRoute().params.toString()}`} user={user}
+        id={userId(project[1])} />;
+    } catch { /* Invalid route must not become a rounded server ID. */ }
   }
-  const task = /^\/tasks\/([1-9]\d{0,18})$/.exec(route);
+  const task = /^\/tasks\/([1-9]\d{0,18})$/.exec(path);
   if (task) {
     try { return <TaskDetail key={task[1]} user={user} id={userId(task[1])} />; }
     catch { /* Invalid route must not become a rounded server ID. */ }
@@ -63,12 +66,13 @@ function NavUnread({ user }: { user: User }) {
 
 export function App() {
   const { user, lastUser, loading, error, client } = useSession();
-  const [route, setRoute] = useState(window.location.hash.slice(1) || '/projects');
+  const [route, setRoute] = useState(() => hashRoute());
   const command = useCommand();
   useEffect(() => {
-    const change = () => setRoute(window.location.hash.slice(1) || '/projects');
+    const change = () => setRoute(hashRoute());
     window.addEventListener('hashchange', change); return () => window.removeEventListener('hashchange', change);
   }, []);
+  const path = route.path;
   return <><a className="skip-link" href={user ? '#main-content' : '#auth-content'} onClick={event => {
     event.preventDefault(); document.getElementById(user ? 'main-content' : 'auth-content')?.focus();
   }}>Перейти к содержимому</a>
@@ -77,12 +81,12 @@ export function App() {
     {lastUser && <div className="workspace-layout" hidden={!user} key={String(lastUser.id)}>
       <aside className="sidebar"><a className="brand" href="#/projects"><span className="brand-mark">PF</span>ProjectFlow</a>
         <p className="sidebar-label">РАБОЧЕЕ ПРОСТРАНСТВО</p><nav aria-label="Основная навигация">
-          <a href="#/overview" aria-current={route === '/overview' ? 'page' : undefined}><span aria-hidden="true">◈</span>Обзор</a>
-          <a href="#/projects" aria-current={route.startsWith('/projects') ? 'page' : undefined}><span aria-hidden="true">◇</span>Проекты</a>
-          <a href="#/tasks" aria-current={route === '/tasks' || route.startsWith('/tasks/') ? 'page' : undefined}><span aria-hidden="true">▣</span>Мои задачи</a>
-          <a href="#/notifications" aria-current={route === '/notifications' ? 'page' : undefined}>
+          <a href="#/overview" aria-current={path === '/overview' ? 'page' : undefined}><span aria-hidden="true">◈</span>Обзор</a>
+          <a href="#/projects" aria-current={path.startsWith('/projects') ? 'page' : undefined}><span aria-hidden="true">◇</span>Проекты</a>
+          <a href="#/tasks" aria-current={path === '/tasks' || path.startsWith('/tasks/') ? 'page' : undefined}><span aria-hidden="true">▣</span>Мои задачи</a>
+          <a href="#/notifications" aria-current={path === '/notifications' ? 'page' : undefined}>
             <span aria-hidden="true">◉</span>Уведомления{user ? <NavUnread user={lastUser} /> : null}</a>
-          <a href="#/profile" aria-current={route === '/profile' ? 'page' : undefined}><span aria-hidden="true">○</span>Профиль</a>
+          <a href="#/profile" aria-current={path === '/profile' ? 'page' : undefined}><span aria-hidden="true">○</span>Профиль</a>
         </nav><div className="sidebar-bottom"><span className="small-dot" /> Ваша команда. Ваши проекты.</div>
       </aside>
       <div className="workspace-body"><header className="topbar"><p>Рабочее пространство</p>
@@ -92,7 +96,7 @@ export function App() {
           <button className="text-button" disabled={command.busy} onClick={() => void command.run(() => client.logout())}>Выйти</button>
         </div></header>
         <main id="main-content" className="main-content" tabIndex={-1}><Alert error={command.error || error} />
-          <Content key={route.split('/').slice(0, 2).join('/')} user={lastUser} route={route} />
+          <Content key={path.split('/').slice(0, 2).join('/')} user={lastUser} path={path} />
         </main><footer className="workspace-footer">ProjectFlow <span>Общий контекст для вашей команды</span></footer>
       </div>
     </div>}
