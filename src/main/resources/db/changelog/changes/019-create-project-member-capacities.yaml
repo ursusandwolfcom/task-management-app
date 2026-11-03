@@ -1,0 +1,20 @@
+databaseChangeLog:
+  - changeSet:
+      id: 019-create-project-member-capacities
+      author: task-management
+      changes:
+        - sql:
+            sql: |
+              CREATE TABLE task_management.project_member_capacities (
+                project_id BIGINT NOT NULL REFERENCES task_management.projects(id) ON DELETE CASCADE,
+                user_id BIGINT NOT NULL REFERENCES task_management.users(id) ON DELETE CASCADE,
+                daily_minutes INTEGER NOT NULL,
+                PRIMARY KEY (project_id, user_id),
+                CONSTRAINT project_member_capacities_minutes_check
+                  CHECK (daily_minutes >= 1 AND daily_minutes <= 480)
+              );
+              CREATE INDEX project_member_capacities_project_idx
+                ON task_management.project_member_capacities(project_id);
+      rollback:
+        - sql:
+            sql: DROP TABLE task_management.project_member_capacities;

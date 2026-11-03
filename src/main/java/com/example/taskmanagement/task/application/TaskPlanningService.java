@@ -120,7 +120,7 @@ public class TaskPlanningService implements TaskPlanningOperations {
         }
         List<TaskSchedule> scheduleTasks = planned.tasks();
         if (resourceLeveling) {
-            scheduleTasks = ResourceLeveler.level(scheduleTasks, assignees, calendar);
+            scheduleTasks = ResourceLeveler.level(scheduleTasks, assignees, calendar, input.capacities());
         }
         var contended = ResourceContention.contendedTaskIds(scheduleTasks, assignees);
         Instant projectFinish = scheduleTasks.stream().map(TaskSchedule::earlyFinish).max(Instant::compareTo)

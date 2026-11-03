@@ -53,3 +53,6 @@ databaseChangeLog:
   - include:
       file: changes/018-create-task-time-entries.yaml
       relativeToChangelogFile: true
+  - include:
+      file: changes/019-create-project-member-capacities.yaml
+      relativeToChangelogFile: true

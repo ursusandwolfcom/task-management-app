@@ -26,6 +26,7 @@ public final class DatabaseFixtures {
         jdbc.update("delete from task_management.project_members");
         jdbc.update("delete from task_management.project_holidays");
         jdbc.update("delete from task_management.project_breaks");
+        jdbc.update("delete from task_management.project_member_capacities");
         jdbc.update("delete from task_management.projects");
         jdbc.update("delete from task_management.telegram_link_tokens");
         jdbc.update("delete from task_management.identity_sessions");
