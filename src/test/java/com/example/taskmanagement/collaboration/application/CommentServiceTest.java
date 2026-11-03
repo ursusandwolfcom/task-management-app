@@ -10,7 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.example.taskmanagement.activity.api.ActivityOperations;
+import com.example.taskmanagement.task.api.ActivityOperations;
 import com.example.taskmanagement.collaboration.api.CollaborationException;
 import com.example.taskmanagement.collaboration.api.CommentData;
 import com.example.taskmanagement.collaboration.persistence.CommentEntity;

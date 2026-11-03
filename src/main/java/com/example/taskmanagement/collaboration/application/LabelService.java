@@ -1,7 +1,7 @@
 package com.example.taskmanagement.collaboration.application;
 
-import com.example.taskmanagement.activity.api.ActivityEvents;
-import com.example.taskmanagement.activity.api.ActivityOperations;
+import com.example.taskmanagement.task.api.ActivityEvents;
+import com.example.taskmanagement.task.api.ActivityOperations;
 import com.example.taskmanagement.collaboration.api.CollaborationException;
 import com.example.taskmanagement.collaboration.api.CollaborationException.Reason;
 import com.example.taskmanagement.collaboration.api.LabelData;

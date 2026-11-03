@@ -1,7 +1,7 @@
 package com.example.taskmanagement.task.application;
 
-import com.example.taskmanagement.activity.api.ActivityEvents;
-import com.example.taskmanagement.activity.api.ActivityOperations;
+import com.example.taskmanagement.task.api.ActivityEvents;
+import com.example.taskmanagement.task.api.ActivityOperations;
 import com.example.taskmanagement.identity.api.IdentityOperations;
 import com.example.taskmanagement.identity.api.UserRole;
 import com.example.taskmanagement.integration.outbox.api.OutboxEvents;

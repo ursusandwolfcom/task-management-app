@@ -1,4 +1,4 @@
-package com.example.taskmanagement.activity;
+package com.example.taskmanagement.task;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -6,8 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.example.taskmanagement.activity.api.ActivityEvents;
-import com.example.taskmanagement.activity.api.ActivityOperations;
+import com.example.taskmanagement.task.api.ActivityEvents;
+import com.example.taskmanagement.task.api.ActivityOperations;
 import com.example.taskmanagement.collaboration.api.CommentData;
 import com.example.taskmanagement.collaboration.api.CommentOperations;
 import com.example.taskmanagement.identity.api.IdentityOperations;

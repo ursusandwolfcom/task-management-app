@@ -1,7 +1,7 @@
 package com.example.taskmanagement.attachment.application;
 
-import com.example.taskmanagement.activity.api.ActivityEvents;
-import com.example.taskmanagement.activity.api.ActivityOperations;
+import com.example.taskmanagement.task.api.ActivityEvents;
+import com.example.taskmanagement.task.api.ActivityOperations;
 import com.example.taskmanagement.attachment.api.AttachmentException;
 import com.example.taskmanagement.attachment.api.AttachmentOperations;
 import com.example.taskmanagement.attachment.api.AttachmentView;

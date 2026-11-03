@@ -1,4 +1,4 @@
-package com.example.taskmanagement.activity.api;
+package com.example.taskmanagement.task.api;
 
 import java.util.List;
 

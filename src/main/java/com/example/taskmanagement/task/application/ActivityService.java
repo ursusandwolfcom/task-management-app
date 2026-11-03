@@ -1,8 +1,8 @@
-package com.example.taskmanagement.activity.application;
+package com.example.taskmanagement.task.application;
 
-import com.example.taskmanagement.activity.api.ActivityOperations;
-import com.example.taskmanagement.activity.persistence.ActivityEntity;
-import com.example.taskmanagement.activity.persistence.ActivityRepository;
+import com.example.taskmanagement.task.api.ActivityOperations;
+import com.example.taskmanagement.task.persistence.ActivityEntity;
+import com.example.taskmanagement.task.persistence.ActivityRepository;
 import com.example.taskmanagement.shared.persistence.PageRequests;
 import com.example.taskmanagement.project.api.ProjectException;
 import com.example.taskmanagement.project.api.ProjectOperations;

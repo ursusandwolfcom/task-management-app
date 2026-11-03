@@ -1,4 +1,4 @@
-package com.example.taskmanagement.activity.api;
+package com.example.taskmanagement.task.api;
 
 /** Action type constants written into task activity history. */
 public final class ActivityEvents {

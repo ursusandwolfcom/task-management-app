@@ -1,6 +1,6 @@
-package com.example.taskmanagement.activity.persistence;
+package com.example.taskmanagement.task.persistence;
 
-import com.example.taskmanagement.activity.api.ActivityView;
+import com.example.taskmanagement.task.api.ActivityView;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;

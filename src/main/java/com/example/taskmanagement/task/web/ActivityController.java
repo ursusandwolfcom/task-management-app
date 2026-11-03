@@ -1,7 +1,7 @@
-package com.example.taskmanagement.activity.web;
+package com.example.taskmanagement.task.web;
 
-import com.example.taskmanagement.activity.api.ActivityOperations;
-import com.example.taskmanagement.activity.api.ActivityOperations.ActivityPage;
+import com.example.taskmanagement.task.api.ActivityOperations;
+import com.example.taskmanagement.task.api.ActivityOperations.ActivityPage;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.constraints.Positive;
