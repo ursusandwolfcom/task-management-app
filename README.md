@@ -193,8 +193,23 @@ notifications, then returns a page with `unreadCount`.
 In-app channel uses Liquibase 010. Optional Telegram (013) and Email (014) are add-on channels
 on the same outbox (`task.assigned`, `comment.created`, `task.completed`, `task.failed`).
 Telegram: `TELEGRAM_BOT_TOKEN` / `TELEGRAM_BOT_USERNAME` / webhook secret / `APP_PUBLIC_BASE`;
-bind via `POST /api/telegram/link` → `/start <token>`. Email: `MAIL_HOST` (+ port/user/password/from);
-`GET/PUT /api/email` status and mute. Workspace: `#/notifications`.
+bind via `POST /api/telegram/link` → `/start <token>`. Email: set `SPRING_MAIL_HOST` (optional
+`SPRING_MAIL_PORT` / `SPRING_MAIL_USERNAME` / `SPRING_MAIL_PASSWORD`) and `MAIL_FROM`; omit host to
+disable. Shared `OutboxPushProjection` formats recipient + text for both channels (Strategy:
+`TelegramBotClient` / `EmailSender`). `GET/PUT /api/email` status and mute. Workspace: `#/notifications`.
+
+## Changelog (recent)
+
+| Sprint | Delivered |
+|--------|-----------|
+| S35 | Email outbox (Liquibase 014), prefs/mute, shared push projection; PR #66 → `dev` |
+| S34 | DEMO/README polish |
+| S33 | Soft resource contention on Gantt/workload |
+| S32 | Fixed lunch 13:00–14:00 (`MINUTES_PER_DAY=420`) |
+| S31 | Telegram outbox channel (Liquibase 013) |
+| S30 | Notification UX + project holidays (012) |
+
+Release batch S32–S34 → `main` (#65). Email digests/HTML and Dropbox remain **Deferred**.
 
 ## Task activity history
 
