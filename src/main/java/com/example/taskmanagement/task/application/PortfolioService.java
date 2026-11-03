@@ -7,6 +7,7 @@ import com.example.taskmanagement.planning.core.PriorityTopologicalSorter;
 import com.example.taskmanagement.planning.core.WorkingCalendar;
 import com.example.taskmanagement.project.api.ProjectOperations;
 import com.example.taskmanagement.task.api.PortfolioOperations;
+import com.example.taskmanagement.task.api.TaskView;
 import com.example.taskmanagement.task.domain.TaskStatus;
 import com.example.taskmanagement.task.persistence.TaskQueryRepository;
 import java.time.Instant;
@@ -52,9 +53,15 @@ public class PortfolioService implements PortfolioOperations {
             boolean taskOverrun = schedule.tasks().stream().anyMatch(task -> task.deadlineOverrun());
             Risk risk = schedule.projectDeadlineOverrun() ? Risk.OVERDUE
                     : taskOverrun ? Risk.AT_RISK : Risk.ON_TRACK;
+            long planned = input.tasks().stream().mapToLong(PortfolioService::estimateOrZero).sum();
+            long completedPlanned = input.tasks().stream()
+                    .filter(task -> task.status() == TaskStatus.COMPLETED)
+                    .mapToLong(PortfolioService::estimateOrZero).sum();
+            int completionPercent = planned == 0 ? 0 : (int) Math.min(100L, (completedPlanned * 100L) / planned);
             cards.add(new ProjectRisk(project.id(), project.name(), project.status().name(), project.timezone(),
                     project.endDate(), open, critical, schedule.durationMinutes(),
-                    schedule.projectDeadlineOverrun(), taskOverrun, risk));
+                    schedule.projectDeadlineOverrun(), taskOverrun, risk, planned, completedPlanned,
+                    completionPercent));
         }
         return new PortfolioPage(Instant.now(), cards, listed.page(), listed.size(), listed.totalElements(),
                 listed.totalPages());
@@ -96,5 +103,9 @@ public class PortfolioService implements PortfolioOperations {
             }
         }
         return counts;
+    }
+
+    private static long estimateOrZero(TaskView task) {
+        return task.estimatedMinutes() == null ? 0L : task.estimatedMinutes().longValue();
     }
 }
