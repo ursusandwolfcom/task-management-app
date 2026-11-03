@@ -95,6 +95,26 @@ public class NotificationService implements NotificationOperations {
                         payload.path("projectId").asLong(), payload.path("taskId").asLong(),
                         "Новый комментарий", truncate(payload.path("preview").asString("Комментарий")), now));
             }
+            return;
+        }
+        if (OutboxEvents.TASK_STARTED.equals(message.eventType())
+                || OutboxEvents.TASK_COMPLETED.equals(message.eventType())) {
+            long actor = payload.path("actorId").asLong(0);
+            long assignee = payload.path("assigneeId").asLong(0);
+            long owner = payload.path("ownerId").asLong(0);
+            long projectId = payload.path("projectId").asLong();
+            long taskId = payload.path("taskId").asLong();
+            String name = truncate(payload.path("taskName").asString("Задача"));
+            boolean started = OutboxEvents.TASK_STARTED.equals(message.eventType());
+            String title = started ? "Задача запущена" : "Задача завершена";
+            if (assignee > 0 && assignee != actor) {
+                notifications.saveAndFlush(new NotificationEntity(assignee, message.eventType(), projectId, taskId,
+                        title, name, now));
+            }
+            if (!started && owner > 0 && owner != actor && owner != assignee) {
+                notifications.saveAndFlush(new NotificationEntity(owner, message.eventType(), projectId, taskId,
+                        title, name, now));
+            }
         }
     }
 

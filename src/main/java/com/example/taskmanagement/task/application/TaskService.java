@@ -177,6 +177,10 @@ public class TaskService implements TaskOperations {
         tasks.saveAndFlush(task);
         coordination.markInputChanged(actorId, project.id());
         activity.record(actorId, project.id(), taskId, lifecycleAction(command), lifecycleSummary(command));
+        if (command == Command.START || command == Command.COMPLETE) {
+            outbox.append(command == Command.START ? OutboxEvents.TASK_STARTED : OutboxEvents.TASK_COMPLETED,
+                    payload(actorId, task.view(), project.ownerId()));
+        }
         return task.view();
     }
 
@@ -238,12 +242,19 @@ public class TaskService implements TaskOperations {
     }
 
     private String payload(long actorId, TaskView task) {
+        return payload(actorId, task, null);
+    }
+
+    private String payload(long actorId, TaskView task, Long ownerId) {
         var body = new LinkedHashMap<String, Object>();
         body.put("actorId", actorId);
         body.put("assigneeId", task.assigneeId());
         body.put("projectId", task.projectId());
         body.put("taskId", task.id());
         body.put("taskName", task.name());
+        if (ownerId != null) {
+            body.put("ownerId", ownerId);
+        }
         return json.writeValueAsString(body);
     }
 

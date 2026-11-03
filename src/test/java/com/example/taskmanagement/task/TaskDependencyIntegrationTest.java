@@ -400,7 +400,8 @@ class TaskDependencyIntegrationTest {
         var third = create();
         var limited = new TaskDependencyService(access, taskRepository, dependencyRepository,
                 new TaskGraphLoader(taskRepository, dependencyRepository, coordination, 10, 1),
-                coordination, entityManager);
+                coordination, org.mockito.Mockito.mock(com.example.taskmanagement.task.api.ActivityOperations.class),
+                entityManager);
         var transaction = new TransactionTemplate(transactionManager);
         transaction.execute(status -> limited.add(owner.id(), second.id(), first.id(), revision()));
         long expected = revision();
