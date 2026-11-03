@@ -177,6 +177,10 @@ public class TaskService implements TaskOperations {
         tasks.saveAndFlush(task);
         coordination.markInputChanged(actorId, project.id());
         activity.record(actorId, project.id(), taskId, lifecycleAction(command), lifecycleSummary(command));
+        String lifecycleOutbox = lifecycleOutbox(command);
+        if (lifecycleOutbox != null) {
+            outbox.append(lifecycleOutbox, payload(actorId, task.view(), project.ownerId()));
+        }
         return task.view();
     }
 
@@ -238,12 +242,19 @@ public class TaskService implements TaskOperations {
     }
 
     private String payload(long actorId, TaskView task) {
+        return payload(actorId, task, null);
+    }
+
+    private String payload(long actorId, TaskView task, Long ownerId) {
         var body = new LinkedHashMap<String, Object>();
         body.put("actorId", actorId);
         body.put("assigneeId", task.assigneeId());
         body.put("projectId", task.projectId());
         body.put("taskId", task.id());
         body.put("taskName", task.name());
+        if (ownerId != null) {
+            body.put("ownerId", ownerId);
+        }
         return json.writeValueAsString(body);
     }
 
@@ -264,6 +275,16 @@ public class TaskService implements TaskOperations {
             case FAIL -> "Задача провалена";
             case CANCEL -> "Задача отменена";
             case RETRY -> "Повторная попытка";
+        };
+    }
+
+    private static String lifecycleOutbox(Command command) {
+        return switch (command) {
+            case START -> OutboxEvents.TASK_STARTED;
+            case COMPLETE -> OutboxEvents.TASK_COMPLETED;
+            case FAIL -> OutboxEvents.TASK_FAILED;
+            case CANCEL -> OutboxEvents.TASK_CANCELLED;
+            case RETRY -> null;
         };
     }
 

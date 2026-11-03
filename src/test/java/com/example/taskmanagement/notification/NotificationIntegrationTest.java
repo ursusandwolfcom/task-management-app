@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.example.taskmanagement.attachment.api.AttachmentOperations;
 import com.example.taskmanagement.collaboration.api.CommentData;
 import com.example.taskmanagement.collaboration.api.CommentOperations;
 import com.example.taskmanagement.identity.api.IdentityOperations;
@@ -22,6 +23,9 @@ import com.example.taskmanagement.task.api.TaskData;
 import com.example.taskmanagement.task.api.TaskOperations;
 import com.example.taskmanagement.task.api.TaskPriority;
 import com.example.taskmanagement.task.api.TaskView;
+import com.example.taskmanagement.task.domain.TaskLifecyclePolicy.Command;
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -41,6 +45,7 @@ class NotificationIntegrationTest {
     private static final String PASSWORD = "notify-test-passphrase";
     @Autowired private NotificationOperations notifications;
     @Autowired private CommentOperations comments;
+    @Autowired private AttachmentOperations attachments;
     @Autowired private TaskOperations tasks;
     @Autowired private ProjectOperations projects;
     @Autowired private IdentityOperations identity;
@@ -85,6 +90,48 @@ class NotificationIntegrationTest {
 
         mvc.perform(post("/api/notifications/read-all").header("Authorization", bearer(member)))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void startByOwnerNotifiesAssigneeAndCompleteByAssigneeNotifiesOwner() {
+        notifications.projectPending(20);
+        notifications.markAllRead(member.id());
+        notifications.markAllRead(owner.id());
+
+        task = tasks.execute(owner.id(), task.id(), Command.START, task.version());
+        assertThat(notifications.projectPending(20)).isGreaterThanOrEqualTo(1);
+        assertThat(notifications.list(member.id(), true, 0, 20).content())
+                .anyMatch(item -> item.eventType().equals("task.started"));
+
+        task = tasks.execute(member.id(), task.id(), Command.COMPLETE, task.version());
+        assertThat(notifications.projectPending(20)).isGreaterThanOrEqualTo(1);
+        assertThat(notifications.list(owner.id(), true, 0, 20).content())
+                .anyMatch(item -> item.eventType().equals("task.completed"));
+    }
+
+    @Test
+    void failByAssigneeNotifiesOwner() {
+        notifications.projectPending(20);
+        notifications.markAllRead(owner.id());
+        task = tasks.execute(owner.id(), task.id(), Command.START, task.version());
+        notifications.projectPending(20);
+        notifications.markAllRead(owner.id());
+        task = tasks.execute(member.id(), task.id(), Command.FAIL, task.version());
+        assertThat(notifications.projectPending(20)).isGreaterThanOrEqualTo(1);
+        assertThat(notifications.list(owner.id(), true, 0, 20).content())
+                .anyMatch(item -> item.eventType().equals("task.failed"));
+    }
+
+    @Test
+    void attachmentUploadByOwnerNotifiesAssignee() {
+        notifications.projectPending(20);
+        notifications.markAllRead(member.id());
+        byte[] bytes = "file".getBytes(StandardCharsets.UTF_8);
+        attachments.upload(owner.id(), task.id(), "note.txt", "text/plain", bytes.length,
+                new ByteArrayInputStream(bytes));
+        assertThat(notifications.projectPending(20)).isGreaterThanOrEqualTo(1);
+        assertThat(notifications.list(member.id(), true, 0, 20).content())
+                .anyMatch(item -> item.eventType().equals("attachment.uploaded"));
     }
 
     private UserView register(String name) {

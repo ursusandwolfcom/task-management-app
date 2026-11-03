@@ -20,6 +20,7 @@ import com.example.taskmanagement.security.application.TokenService;
 import com.example.taskmanagement.support.DatabaseFixtures;
 import com.example.taskmanagement.task.api.TaskBucket;
 import com.example.taskmanagement.task.api.TaskData;
+import com.example.taskmanagement.task.api.TaskDependencyOperations;
 import com.example.taskmanagement.task.api.TaskException;
 import com.example.taskmanagement.task.api.TaskOperations;
 import com.example.taskmanagement.task.api.TaskPriority;
@@ -44,6 +45,7 @@ class ActivityIntegrationTest {
     private static final String PASSWORD = "activity-test-passphrase";
     @Autowired private ActivityOperations activities;
     @Autowired private TaskOperations tasks;
+    @Autowired private TaskDependencyOperations dependencies;
     @Autowired private CommentOperations comments;
     @Autowired private ProjectOperations projects;
     @Autowired private IdentityOperations identity;
@@ -94,6 +96,20 @@ class ActivityIntegrationTest {
         assertThat(jdbc.queryForObject(
                 "select count(*) from task_management.task_activities where task_id = ?", Long.class, task.id()))
                 .isZero();
+    }
+
+    @Test
+    void dependencyAddAndRemoveAppendActivity() {
+        var predecessor = tasks.create(owner.id(), project.id(),
+                new TaskData("Pred", "", TaskPriority.MEDIUM, 15, null, null, TaskBucket.WORK));
+        long revision = projects.read(owner.id(), project.id()).inputRevision();
+        dependencies.add(owner.id(), task.id(), predecessor.id(), revision);
+        revision = projects.read(owner.id(), project.id()).inputRevision();
+        dependencies.remove(owner.id(), task.id(), predecessor.id(), revision);
+        assertThat(activities.list(owner.id(), task.id(), 0, 20).content())
+                .extracting(item -> item.actionType())
+                .containsExactly(ActivityEvents.DEPENDENCY_REMOVED, ActivityEvents.DEPENDENCY_ADDED,
+                        ActivityEvents.TASK_CREATED);
     }
 
     private UserView register(String login) {

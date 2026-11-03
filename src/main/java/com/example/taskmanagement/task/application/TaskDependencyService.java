@@ -4,6 +4,8 @@ import com.example.taskmanagement.planning.core.DependencyEdge;
 import com.example.taskmanagement.planning.core.GraphValidationException;
 import com.example.taskmanagement.planning.core.PriorityTopologicalSorter;
 import com.example.taskmanagement.project.api.ProjectCoordination;
+import com.example.taskmanagement.task.api.ActivityEvents;
+import com.example.taskmanagement.task.api.ActivityOperations;
 import com.example.taskmanagement.task.api.TaskDependencyOperations;
 import com.example.taskmanagement.task.api.TaskException;
 import com.example.taskmanagement.task.domain.TaskStatus;
@@ -25,16 +27,19 @@ public class TaskDependencyService implements TaskDependencyOperations {
     private final DependencyRepository dependencies;
     private final TaskGraphLoader loader;
     private final ProjectCoordination coordination;
+    private final ActivityOperations activity;
     private final EntityManager entityManager;
     private final PriorityTopologicalSorter sorter = new PriorityTopologicalSorter();
 
     public TaskDependencyService(TaskProjectAccess access, TaskRepository tasks, DependencyRepository dependencies,
-            TaskGraphLoader loader, ProjectCoordination coordination, EntityManager entityManager) {
+            TaskGraphLoader loader, ProjectCoordination coordination, ActivityOperations activity,
+            EntityManager entityManager) {
         this.access = access;
         this.tasks = tasks;
         this.dependencies = dependencies;
         this.loader = loader;
         this.coordination = coordination;
+        this.activity = activity;
         this.entityManager = entityManager;
     }
 
@@ -61,6 +66,8 @@ public class TaskDependencyService implements TaskDependencyOperations {
         sorter.executionOrder(new TaskGraphInput(projectId, input.inputRevision(), input.calendarRevision(),
                 input.startDate(), input.endDate(), input.timezone(), input.tasks(), proposed).graph());
         dependencies.insert(projectId, taskId, dependsOnTaskId);
+        activity.record(actorId, projectId, taskId, ActivityEvents.DEPENDENCY_ADDED,
+                "Зависимость от задачи " + dependsOnTaskId);
         var changed = coordination.markInputChanged(actorId, projectId);
         return new Change(projectId, taskId, dependsOnTaskId, changed.inputRevision());
     }
@@ -72,6 +79,8 @@ public class TaskDependencyService implements TaskDependencyOperations {
         if (!dependencies.remove(projectId, taskId, dependsOnTaskId)) {
             throw error(TaskException.Reason.DEPENDENCY_NOT_FOUND);
         }
+        activity.record(actorId, projectId, taskId, ActivityEvents.DEPENDENCY_REMOVED,
+                "Снята зависимость от задачи " + dependsOnTaskId);
         var changed = coordination.markInputChanged(actorId, projectId);
         return new Change(projectId, taskId, dependsOnTaskId, changed.inputRevision());
     }

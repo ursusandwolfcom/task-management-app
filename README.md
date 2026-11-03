@@ -183,9 +183,11 @@ for bounded, ordered project-edge reads; previous migrations remain unchanged.
 
 ## In-app notifications
 
-Task assignment and new comments enqueue durable `outbox_messages` rows (`task.assigned`,
-`comment.created`) in the same write transaction. `GET /api/notifications` drains a small
-outbox batch into per-user in-app notifications, then returns a page with `unreadCount`.
+Task assignment, comments, lifecycle (start/complete/fail/cancel) and attachment uploads
+enqueue durable `outbox_messages` rows (`task.assigned`, `comment.created`, `task.started`,
+`task.completed`, `task.failed`, `task.cancelled`, `attachment.uploaded`) in the same write
+transaction. `GET /api/notifications` drains a small outbox batch into per-user in-app
+notifications, then returns a page with `unreadCount`.
 `POST /api/notifications/{id}/read` and `POST /api/notifications/read-all` mark items read.
 Channel is in-app only for this release. Liquibase 010. Workspace route: `#/notifications`.
 
@@ -193,9 +195,9 @@ Channel is in-app only for this release. Liquibase 010. Workspace route: `#/noti
 
 `GET /api/tasks/{id}/activity` returns an append-only audit trail for a task (newest first,
 paginated). Entries are written in the same transaction as create/update/lifecycle, comments,
-label link/unlink and attachment upload/delete. Foreign or inaccessible tasks return
-`TASK_NOT_FOUND`. Task deletion cascades activity rows (Liquibase 011). Workspace task detail
-shows «История действий» next to execution attempts.
+label link/unlink, attachment upload/delete and dependency add/remove. Foreign or inaccessible
+tasks return `TASK_NOT_FOUND`. Task deletion cascades activity rows (Liquibase 011). Workspace
+task detail shows «История действий» next to execution attempts.
 
 ## Task attachments
 
