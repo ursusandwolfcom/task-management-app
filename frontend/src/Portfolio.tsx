@@ -15,10 +15,12 @@ function csvEscape(value: string) {
 
 function downloadPortfolioCsv(page: PortfolioPage, load: WorkloadSnapshot) {
   const riskRows = [
-    ['section', 'projectId', 'name', 'risk', 'openTasks', 'criticalTasks', 'durationMinutes', 'endDate'],
+    ['section', 'projectId', 'name', 'risk', 'openTasks', 'criticalTasks', 'durationMinutes',
+      'plannedMinutes', 'completedPlannedMinutes', 'completionPercent', 'endDate'],
     ...page.content.map(item => [
       'project', String(item.projectId), item.name, item.risk, String(item.openTasks),
-      String(item.criticalTasks), String(item.durationMinutes), item.endDate
+      String(item.criticalTasks), String(item.durationMinutes), String(item.plannedMinutes),
+      String(item.completedPlannedMinutes), String(item.completionPercent), item.endDate
     ])
   ];
   const loadRows = [
@@ -88,7 +90,8 @@ export function Portfolio({ user }: { user: User }) {
           <span className="badge">{risks[item.risk] ?? item.risk}</span>
           <span className="badge">К задачам</span>
           <small>открытых {String(item.openTasks)} · критических {String(item.criticalTasks)}
-            · план {String(item.durationMinutes)} мин · до {item.endDate}</small>
+            · CPM {String(item.durationMinutes)} мин · оценки {String(item.completedPlannedMinutes)}/
+            {String(item.plannedMinutes)} мин ({item.completionPercent}%) · до {item.endDate}</small>
         </a></li>)}
       </ul>
       <Pagination page={page} total={query.value.totalPages} onChange={setPage} />

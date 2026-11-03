@@ -20,7 +20,10 @@ public interface PortfolioOperations {
             long durationMinutes,
             boolean projectDeadlineOverrun,
             boolean hasTaskDeadlineOverrun,
-            Risk risk) {
+            Risk risk,
+            long plannedMinutes,
+            long completedPlannedMinutes,
+            int completionPercent) {
     }
 
     record PortfolioPage(
