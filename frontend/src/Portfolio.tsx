@@ -22,10 +22,10 @@ function downloadPortfolioCsv(page: PortfolioPage, load: WorkloadSnapshot) {
     ])
   ];
   const loadRows = [
-    ['section', 'userId', 'openTasks', 'estimatedMinutes', 'overdueTasks'],
+    ['section', 'userId', 'openTasks', 'estimatedMinutes', 'overdueTasks', 'contendedTasks'],
     ...load.assignees.map(item => [
       'assignee', String(item.userId), String(item.openTasks), String(item.estimatedMinutes),
-      String(item.overdueTasks)
+      String(item.overdueTasks), String(item.contendedTasks)
     ])
   ];
   const body = [...riskRows, ...loadRows].map(row => row.map(csvEscape).join(',')).join('\n');
@@ -72,7 +72,8 @@ export function Portfolio({ user }: { user: User }) {
             <strong>ID {String(item.userId)}</strong>
             <span className="badge">Открыть задачи</span>
             <small>открытых {String(item.openTasks)} · оценка {String(item.estimatedMinutes)} мин
-              · просрочено {String(item.overdueTasks)}</small>
+              · просрочено {String(item.overdueTasks)}
+              · конфликт планов {String(item.contendedTasks)}</small>
           </a>
         </li>)}
       </ul>}

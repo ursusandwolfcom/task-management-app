@@ -35,7 +35,8 @@ public interface PortfolioOperations {
         }
     }
 
-    record AssigneeLoad(long userId, long openTasks, long estimatedMinutes, long overdueTasks) {
+    record AssigneeLoad(long userId, long openTasks, long estimatedMinutes, long overdueTasks,
+            long contendedTasks) {
     }
 
     record WorkloadSnapshot(Instant calculatedAt, List<AssigneeLoad> assignees) {

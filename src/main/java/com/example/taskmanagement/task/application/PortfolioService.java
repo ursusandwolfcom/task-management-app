@@ -63,10 +63,38 @@ public class PortfolioService implements PortfolioOperations {
     @Override
     public WorkloadSnapshot workload(long actorId) {
         boolean admin = identity.currentRole(actorId) == UserRole.ADMIN;
+        var contendedByAssignee = contendedOpenTasksByAssignee(actorId);
         var rows = queries.workload(actorId, admin).stream()
                 .map(row -> new AssigneeLoad(row.userId(), row.openTasks(), row.estimatedMinutes(),
-                        row.overdueTasks()))
+                        row.overdueTasks(), contendedByAssignee.getOrDefault(row.userId(), 0L)))
                 .toList();
         return new WorkloadSnapshot(Instant.now(), rows);
+    }
+
+    private java.util.Map<Long, Long> contendedOpenTasksByAssignee(long actorId) {
+        var counts = new java.util.HashMap<Long, Long>();
+        var listed = projects.list(actorId, 0, 100);
+        for (var project : listed.content()) {
+            var input = loader.load(actorId, project.id());
+            var calendar = new WorkingCalendar(ZoneId.of(input.timezone()), input.holidays());
+            var schedule = criticalPath.schedule(input.graph(), calendar, calendar.projectOrigin(input.startDate()),
+                    input.endDate());
+            var assignees = new java.util.HashMap<Long, Long>();
+            var openIds = new java.util.HashSet<Long>();
+            for (var task : input.tasks()) {
+                if (OPEN.contains(task.status()) && task.assigneeId() != null) {
+                    assignees.put(task.id(), task.assigneeId());
+                    openIds.add(task.id());
+                }
+            }
+            var openSchedules = schedule.tasks().stream().filter(task -> openIds.contains(task.taskId())).toList();
+            for (Long taskId : ResourceContention.contendedTaskIds(openSchedules, assignees)) {
+                Long assignee = assignees.get(taskId);
+                if (assignee != null) {
+                    counts.merge(assignee, 1L, Long::sum);
+                }
+            }
+        }
+        return counts;
     }
 }

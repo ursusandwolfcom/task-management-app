@@ -108,10 +108,17 @@ public class TaskPlanningService implements TaskPlanningOperations {
     }
 
     private static ProjectGantt toGantt(long projectId, TaskGraphInput input, ProjectSchedule planned) {
+        Map<Long, Long> assignees = new HashMap<>();
+        for (TaskView view : input.tasks()) {
+            if (view.assigneeId() != null) {
+                assignees.put(view.id(), view.assigneeId());
+            }
+        }
+        var contended = ResourceContention.contendedTaskIds(planned.tasks(), assignees);
         var tasks = planned.tasks().stream()
                 .map(task -> new GanttTask(task.taskId(), task.durationMinutes(), task.earlyStart(),
                         task.earlyFinish(), task.lateStart(), task.lateFinish(), task.floatMinutes(),
-                        task.critical(), task.deadlineOverrun()))
+                        task.critical(), task.deadlineOverrun(), contended.contains(task.taskId())))
                 .toList();
         var edges = planned.criticalEdges().stream()
                 .map(edge -> new CriticalDependency(edge.predecessorId(), edge.successorId()))
