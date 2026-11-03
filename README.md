@@ -204,6 +204,7 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
+| S41 | Rich HTML email (multipart alternative + brand wrapper) |
 | S40 | Portfolio estimate KPI (`plannedMinutes` / completion %) on overview |
 | S39 | Hard resource leveling projection (`?resourceLeveling=true` on Gantt/what-if) |
 | S38 | Dropbox refresh-token OAuth + local→Dropbox backfill (`POST /api/attachments/backfill`) |
@@ -262,7 +263,7 @@ the current MVP slice and will land later when credentials, channel choice and c
 | Item | Why deferred |
 |------|----------------|
 | Dropbox per-user OAuth accounts | App-folder refresh token in env + ADMIN backfill; not end-user OAuth |
-| Rich HTML email branding | Plain-text digests and immediate mail only |
+| Advanced email templates / i18n themes | Multipart HTML wrapper ships; no per-tenant themes |
 | Full resource calendars / FTE capacity | Opt-in hard leveling serializes assignee overlaps; not multi-calendar FTE |
 | Per-project / per-assignee break windows | Global fixed lunch 13:00–14:00 is shipped; custom windows deferred |
 | Timesheet / actual-effort capture | Portfolio shows estimate-based completion %; no time tracking |

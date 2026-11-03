@@ -96,7 +96,8 @@ class EmailIntegrationTest {
         assertThat(email.deliverPending(20)).isGreaterThanOrEqualTo(1);
         assertThat(mail.sent()).anyMatch(item -> item.to().equals(member.email())
                 && item.subject().contains("Назначена")
-                && item.body().contains("https://app.example.com/#/tasks/"));
+                && item.body().contains("https://app.example.com/#/tasks/")
+                && item.htmlBody() != null && item.htmlBody().contains("<!DOCTYPE html>"));
 
         preferences.setEnabled(member.id(), false);
         mail.clear();
