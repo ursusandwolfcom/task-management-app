@@ -12,4 +12,6 @@ public interface AttachmentRepository extends JpaRepository<AttachmentEntity, Lo
 
     @Query("select a.projectId from AttachmentEntity a where a.id = :id")
     Optional<Long> projectId(@Param("id") long id);
+
+    Page<AttachmentEntity> findByExternalIdIsNull(Pageable pageable);
 }
