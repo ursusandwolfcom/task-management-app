@@ -44,7 +44,8 @@ public class TaskGraphLoader {
             throw new TaskException(TaskException.Reason.GRAPH_TOO_LARGE);
         }
         return new TaskGraphInput(projectId, project.inputRevision(), project.calendarRevision(),
-                project.startDate(), project.endDate(), project.timezone(), nodes, edges);
+                project.startDate(), project.endDate(), project.timezone(), coordination.holidays(projectId),
+                nodes, edges);
     }
 
     int maxDependencies() {

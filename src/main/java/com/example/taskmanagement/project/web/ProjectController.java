@@ -16,6 +16,8 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import java.net.URI;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Set;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -122,6 +124,22 @@ public class ProjectController {
     public ResponseEntity<ProjectView> owner(@AuthenticationPrincipal Jwt jwt, @Positive @PathVariable long id,
             @Valid @RequestBody OwnerRequest request) {
         return response(projects.transferOwner(actor(jwt), id, request.userId(), request.version()));
+    }
+
+    @GetMapping("/{id}/holidays")
+    @Operation(summary = "List project holiday dates (non-working weekdays for CPM/Gantt)")
+    public ResponseEntity<Set<LocalDate>> holidays(@AuthenticationPrincipal Jwt jwt, @Positive @PathVariable long id) {
+        return response(projects.holidays(actor(jwt), id));
+    }
+
+    public record HolidaysRequest(@NotNull List<LocalDate> dates, @NotNull @PositiveOrZero Long version) {
+    }
+
+    @PutMapping("/{id}/holidays")
+    @Operation(summary = "Replace holiday dates; bumps calendarRevision; dates must lie in project range")
+    public ResponseEntity<ProjectView> replaceHolidays(@AuthenticationPrincipal Jwt jwt,
+            @Positive @PathVariable long id, @Valid @RequestBody HolidaysRequest request) {
+        return response(projects.replaceHolidays(actor(jwt), id, Set.copyOf(request.dates()), request.version()));
     }
 
     private static long actor(Jwt jwt) {

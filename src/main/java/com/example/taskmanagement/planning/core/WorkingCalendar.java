@@ -8,10 +8,11 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Objects;
+import java.util.Set;
 
 /**
- * Fixed Mon–Fri 09:00–17:00 window in a project IANA zone. Intervals are [start, end).
- * Holidays and breaks are out of scope; resource contention is ignored.
+ * Mon–Fri 09:00–17:00 window in a project IANA zone, minus explicit holiday dates.
+ * Intervals are [start, end). Breaks and resource contention are out of scope.
  */
 public final class WorkingCalendar {
 
@@ -20,13 +21,23 @@ public final class WorkingCalendar {
     public static final int MINUTES_PER_DAY = 8 * 60;
 
     private final ZoneId zone;
+    private final Set<LocalDate> holidays;
 
     public WorkingCalendar(ZoneId zone) {
+        this(zone, Set.of());
+    }
+
+    public WorkingCalendar(ZoneId zone, Set<LocalDate> holidays) {
         this.zone = Objects.requireNonNull(zone, "zone");
+        this.holidays = Set.copyOf(Objects.requireNonNull(holidays, "holidays"));
     }
 
     public ZoneId zone() {
         return zone;
+    }
+
+    public Set<LocalDate> holidays() {
+        return holidays;
     }
 
     /** Project calendar origin: first working 09:00 on or after startDate in the project zone. */
@@ -39,7 +50,7 @@ public final class WorkingCalendar {
     public Instant normalizeStart(Instant instant) {
         Objects.requireNonNull(instant, "instant");
         var local = instant.atZone(zone);
-        if (!isWorkingDay(local.getDayOfWeek())) {
+        if (!isWorkingDay(local.toLocalDate())) {
             return nextDayStart(local.toLocalDate().plusDays(1));
         }
         var time = local.toLocalTime();
@@ -100,13 +111,14 @@ public final class WorkingCalendar {
 
     private Instant nextDayStart(LocalDate date) {
         var day = date;
-        while (!isWorkingDay(day.getDayOfWeek())) {
+        while (!isWorkingDay(day)) {
             day = day.plusDays(1);
         }
         return ZonedDateTime.of(day, DAY_START, zone).toInstant();
     }
 
-    private static boolean isWorkingDay(DayOfWeek day) {
-        return day != DayOfWeek.SATURDAY && day != DayOfWeek.SUNDAY;
+    private boolean isWorkingDay(LocalDate day) {
+        DayOfWeek week = day.getDayOfWeek();
+        return week != DayOfWeek.SATURDAY && week != DayOfWeek.SUNDAY && !holidays.contains(day);
     }
 }

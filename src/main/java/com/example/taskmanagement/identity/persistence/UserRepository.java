@@ -20,4 +20,12 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select u from UserEntity u where u.id = :id")
     Optional<UserEntity> lockById(@Param("id") long id);
+
+    Optional<UserEntity> findByTelegramChatId(long telegramChatId);
+
+    @Query("""
+            select u from UserEntity u
+            where u.id in :ids and u.telegramChatId is not null and u.telegramEnabled = true
+            """)
+    java.util.List<UserEntity> findEnabledTelegramTargets(@Param("ids") java.util.Collection<Long> ids);
 }

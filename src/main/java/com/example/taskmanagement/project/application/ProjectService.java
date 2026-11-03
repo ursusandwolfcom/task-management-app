@@ -11,12 +11,16 @@ import com.example.taskmanagement.project.api.ProjectOperations;
 import com.example.taskmanagement.project.api.ProjectPatch;
 import com.example.taskmanagement.project.api.ProjectView;
 import com.example.taskmanagement.project.persistence.ProjectEntity;
+import com.example.taskmanagement.project.persistence.ProjectHolidayRepository;
 import com.example.taskmanagement.project.persistence.ProjectMemberEntity;
 import com.example.taskmanagement.project.persistence.ProjectMemberRepository;
 import com.example.taskmanagement.project.persistence.ProjectRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.validation.Validator;
+import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -29,16 +33,18 @@ import org.springframework.validation.annotation.Validated;
 public class ProjectService implements ProjectOperations, ProjectCoordination {
     private final ProjectRepository projects;
     private final ProjectMemberRepository members;
+    private final ProjectHolidayRepository holidayRepository;
     private final IdentityOperations identity;
     private final EntityManager entityManager;
     private final Validator validator;
     private final List<ProjectContentGuard> contentGuards;
 
     public ProjectService(ProjectRepository projects, ProjectMemberRepository members,
-            IdentityOperations identity, EntityManager entityManager, Validator validator,
-            List<ProjectContentGuard> contentGuards) {
+            ProjectHolidayRepository holidayRepository, IdentityOperations identity, EntityManager entityManager,
+            Validator validator, List<ProjectContentGuard> contentGuards) {
         this.projects = projects;
         this.members = members;
+        this.holidayRepository = holidayRepository;
         this.identity = identity;
         this.entityManager = entityManager;
         this.validator = validator;
@@ -166,6 +172,32 @@ public class ProjectService implements ProjectOperations, ProjectCoordination {
     @Transactional(propagation = Propagation.MANDATORY)
     public boolean isMember(long projectId, long userId) {
         return members.existsByProjectIdAndUserId(projectId, userId);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Set<LocalDate> holidays(long projectId) {
+        return holidayRepository.list(projectId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<LocalDate> holidays(long actorId, long projectId) {
+        read(actorId, projectId);
+        return holidayRepository.list(projectId);
+    }
+
+    @Override
+    public ProjectView replaceHolidays(long actorId, long projectId, Set<LocalDate> dates, long version) {
+        var project = managed(actorId, projectId, version);
+        Set<LocalDate> next = dates == null ? Set.of() : Set.copyOf(dates);
+        if (next.stream().anyMatch(day -> day.isBefore(project.view().startDate())
+                || day.isAfter(project.view().endDate()))) {
+            throw error(ProjectException.Reason.VALIDATION_ERROR);
+        }
+        holidayRepository.replace(projectId, new HashSet<>(next));
+        project.calendarChanged();
+        return projects.saveAndFlush(project).view();
     }
 
     private ProjectEntity managed(long actorId, long projectId, long version) {

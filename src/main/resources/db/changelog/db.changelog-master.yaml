@@ -32,3 +32,9 @@ databaseChangeLog:
   - include:
       file: changes/011-create-task-activities.yaml
       relativeToChangelogFile: true
+  - include:
+      file: changes/012-create-project-holidays.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/013-telegram-notifications.yaml
+      relativeToChangelogFile: true

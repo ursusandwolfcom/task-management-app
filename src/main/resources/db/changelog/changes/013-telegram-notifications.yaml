@@ -1,0 +1,32 @@
+databaseChangeLog:
+  - changeSet:
+      id: 013-telegram-notifications
+      author: task-management
+      changes:
+        - sql:
+            sql: |
+              ALTER TABLE task_management.users ADD COLUMN telegram_chat_id BIGINT NULL;
+              ALTER TABLE task_management.users ADD COLUMN telegram_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+              ALTER TABLE task_management.users
+                ADD CONSTRAINT users_telegram_chat_id_unique UNIQUE (telegram_chat_id);
+              CREATE TABLE task_management.telegram_link_tokens (
+                token VARCHAR(64) PRIMARY KEY,
+                user_id BIGINT NOT NULL REFERENCES task_management.users(id),
+                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                used_at TIMESTAMP WITH TIME ZONE NULL
+              );
+              CREATE INDEX telegram_link_tokens_user_idx
+                ON task_management.telegram_link_tokens(user_id);
+              ALTER TABLE task_management.outbox_messages
+                ADD COLUMN telegram_processed_at TIMESTAMP WITH TIME ZONE NULL;
+              CREATE INDEX outbox_telegram_unprocessed_idx
+                ON task_management.outbox_messages(telegram_processed_at, id);
+      rollback:
+        - sql:
+            sql: |
+              DROP INDEX IF EXISTS task_management.outbox_telegram_unprocessed_idx;
+              ALTER TABLE task_management.outbox_messages DROP COLUMN telegram_processed_at;
+              DROP TABLE task_management.telegram_link_tokens;
+              ALTER TABLE task_management.users DROP CONSTRAINT IF EXISTS users_telegram_chat_id_unique;
+              ALTER TABLE task_management.users DROP COLUMN telegram_enabled;
+              ALTER TABLE task_management.users DROP COLUMN telegram_chat_id;

@@ -78,6 +78,10 @@ export interface NotificationPage {
   content: NotificationItem[]; page: number; size: number; totalElements: bigint; totalPages: number;
   unreadCount: bigint;
 }
+export interface TelegramStatus {
+  configured: boolean; linked: boolean; enabled: boolean; botUsername: string; deepLinkPrefix: string;
+}
+export interface TelegramLink { token: string; deepLink: string; expiresAt: string }
 export interface TaskActivity {
   id: bigint; projectId: bigint; taskId: bigint; actorId: bigint; actionType: string;
   summary: string; createdAt: string;

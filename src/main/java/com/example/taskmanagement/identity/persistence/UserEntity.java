@@ -35,6 +35,10 @@ public class UserEntity {
     private long version;
     @Column(name = "credential_version", nullable = false)
     private long credentialVersion;
+    @Column(name = "telegram_chat_id")
+    private Long telegramChatId;
+    @Column(name = "telegram_enabled", nullable = false)
+    private boolean telegramEnabled = true;
 
     protected UserEntity() {
     }
@@ -58,6 +62,27 @@ public class UserEntity {
 
     public long credentialVersion() {
         return credentialVersion;
+    }
+
+    public Long telegramChatId() {
+        return telegramChatId;
+    }
+
+    public boolean telegramEnabled() {
+        return telegramEnabled;
+    }
+
+    public void bindTelegramChat(long chatId) {
+        this.telegramChatId = chatId;
+        this.telegramEnabled = true;
+    }
+
+    public void unlinkTelegram() {
+        this.telegramChatId = null;
+    }
+
+    public void setTelegramEnabled(boolean enabled) {
+        this.telegramEnabled = enabled;
     }
 
     public void update(String username, String email, String firstName, String lastName) {
