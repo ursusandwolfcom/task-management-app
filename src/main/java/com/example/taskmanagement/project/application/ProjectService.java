@@ -11,8 +11,10 @@ import com.example.taskmanagement.project.api.ProjectOperations;
 import com.example.taskmanagement.project.api.ProjectPatch;
 import com.example.taskmanagement.project.api.ProjectView;
 import com.example.taskmanagement.project.persistence.ProjectEntity;
+import com.example.taskmanagement.project.api.MemberCapacity;
 import com.example.taskmanagement.project.api.ProjectBreakWindow;
 import com.example.taskmanagement.project.persistence.ProjectBreakRepository;
+import com.example.taskmanagement.project.persistence.ProjectCapacityRepository;
 import com.example.taskmanagement.project.persistence.ProjectHolidayRepository;
 import com.example.taskmanagement.project.persistence.ProjectMemberEntity;
 import com.example.taskmanagement.project.persistence.ProjectMemberRepository;
@@ -20,8 +22,10 @@ import com.example.taskmanagement.project.persistence.ProjectRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.validation.Validator;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -37,6 +41,7 @@ public class ProjectService implements ProjectOperations, ProjectCoordination {
     private final ProjectMemberRepository members;
     private final ProjectHolidayRepository holidayRepository;
     private final ProjectBreakRepository breakRepository;
+    private final ProjectCapacityRepository capacityRepository;
     private final IdentityOperations identity;
     private final EntityManager entityManager;
     private final Validator validator;
@@ -44,12 +49,13 @@ public class ProjectService implements ProjectOperations, ProjectCoordination {
 
     public ProjectService(ProjectRepository projects, ProjectMemberRepository members,
             ProjectHolidayRepository holidayRepository, ProjectBreakRepository breakRepository,
-            IdentityOperations identity, EntityManager entityManager,
+            ProjectCapacityRepository capacityRepository, IdentityOperations identity, EntityManager entityManager,
             Validator validator, List<ProjectContentGuard> contentGuards) {
         this.projects = projects;
         this.members = members;
         this.holidayRepository = holidayRepository;
         this.breakRepository = breakRepository;
+        this.capacityRepository = capacityRepository;
         this.identity = identity;
         this.entityManager = entityManager;
         this.validator = validator;
@@ -236,6 +242,42 @@ public class ProjectService implements ProjectOperations, ProjectCoordination {
 
     private static List<ProjectBreakWindow> effectiveBreaks(List<ProjectBreakWindow> stored) {
         return stored.isEmpty() ? ProjectBreakWindow.DEFAULT_BREAKS : List.copyOf(stored);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Map<Long, Integer> capacities(long projectId) {
+        return capacityRepository.list(projectId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MemberCapacity> capacities(long actorId, long projectId) {
+        read(actorId, projectId);
+        return capacityRepository.list(projectId).entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> new MemberCapacity(entry.getKey(), entry.getValue()))
+                .toList();
+    }
+
+    @Override
+    public ProjectView replaceCapacities(long actorId, long projectId, List<MemberCapacity> capacities, long version) {
+        var project = managed(actorId, projectId, version);
+        Map<Long, Integer> next = new HashMap<>();
+        if (capacities != null) {
+            for (MemberCapacity capacity : capacities) {
+                if (capacity == null || capacity.dailyMinutes() < 1 || capacity.dailyMinutes() > 480
+                        || !members.existsByProjectIdAndUserId(projectId, capacity.userId())) {
+                    throw error(ProjectException.Reason.VALIDATION_ERROR);
+                }
+                if (next.put(capacity.userId(), capacity.dailyMinutes()) != null) {
+                    throw error(ProjectException.Reason.VALIDATION_ERROR);
+                }
+            }
+        }
+        capacityRepository.replace(projectId, next);
+        project.calendarChanged();
+        return projects.saveAndFlush(project).view();
     }
 
     private ProjectEntity managed(long actorId, long projectId, long version) {

@@ -12,6 +12,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import java.time.Instant;
 
 @Entity
 @Table(name = "users", schema = "task_management")
@@ -45,6 +46,12 @@ public class UserEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "email_digest_mode", nullable = false, length = 16)
     private EmailDigestMode emailDigestMode = EmailDigestMode.IMMEDIATE;
+    @Column(name = "dropbox_refresh_token", length = 512)
+    private String dropboxRefreshToken;
+    @Column(name = "dropbox_account_id", length = 64)
+    private String dropboxAccountId;
+    @Column(name = "dropbox_linked_at")
+    private Instant dropboxLinkedAt;
 
     protected UserEntity() {
     }
@@ -109,6 +116,30 @@ public class UserEntity {
 
     public void setEmailDigestMode(EmailDigestMode mode) {
         this.emailDigestMode = mode == null ? EmailDigestMode.IMMEDIATE : mode;
+    }
+
+    public String dropboxRefreshToken() {
+        return dropboxRefreshToken;
+    }
+
+    public String dropboxAccountId() {
+        return dropboxAccountId;
+    }
+
+    public Instant dropboxLinkedAt() {
+        return dropboxLinkedAt;
+    }
+
+    public void linkDropbox(String refreshToken, String accountId, Instant linkedAt) {
+        this.dropboxRefreshToken = refreshToken;
+        this.dropboxAccountId = accountId;
+        this.dropboxLinkedAt = linkedAt;
+    }
+
+    public void unlinkDropbox() {
+        this.dropboxRefreshToken = null;
+        this.dropboxAccountId = null;
+        this.dropboxLinkedAt = null;
     }
 
     public void update(String username, String email, String firstName, String lastName) {

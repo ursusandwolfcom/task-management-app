@@ -436,6 +436,34 @@ class ProjectIntegrationTest {
                         {"windows":[{"start":"15:00:00","end":"14:00:00"}],"version":2}
                         """))
                 .andExpect(status().isBadRequest());
+        mvc.perform(put("/api/projects/" + project.id() + "/breaks")
+                .header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"windows":[{"start":"09:00:00","end":"17:00:00"}],"version":2}
+                        """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void memberCapacitiesReplaceAndRequireMembership() throws Exception {
+        var project = create();
+        project = projects.addMember(owner.id(), project.id(), member.id(), project.version());
+        String token = bearer(owner);
+        mvc.perform(put("/api/projects/" + project.id() + "/capacities")
+                .header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"entries\":[{\"userId\":" + member.id() + ",\"dailyMinutes\":210}],\"version\":"
+                        + project.version() + "}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.calendarRevision").value(1));
+        mvc.perform(get("/api/projects/" + project.id() + "/capacities").header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].userId").value((int) member.id()))
+                .andExpect(jsonPath("$[0].dailyMinutes").value(210));
+        long version = projects.read(owner.id(), project.id()).version();
+        mvc.perform(put("/api/projects/" + project.id() + "/capacities")
+                .header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"entries\":[{\"userId\":" + outsider.id() + ",\"dailyMinutes\":210}],\"version\":"
+                        + version + "}"))
+                .andExpect(status().isBadRequest());
     }
 
     private UserView register(String name) {

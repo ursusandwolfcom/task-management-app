@@ -204,6 +204,9 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
+| S45 | Per-user Dropbox OAuth (`/api/dropbox`, Liquibase 020); uploads use linked account when present |
+| S44 | Member daily capacity / FTE (`GET/PUT /api/projects/{id}/capacities`, Liquibase 019) |
+| S43 | Timesheets / actual effort (`POST/GET/DELETE /api/time-entries`, Liquibase 018) |
 | S42 | Per-project break windows (`GET/PUT /api/projects/{id}/breaks`, Liquibase 017) |
 | S41 | Rich HTML email (multipart alternative + brand wrapper) |
 | S40 | Portfolio estimate KPI (`plannedMinutes` / completion %) on overview |
@@ -247,6 +250,16 @@ access. Uploads/deletes use the project write lock and do not change task or pla
 Task deletion cascades attachment rows; Dropbox delete is best-effort. Workspace task detail
 shows the attachment panel. Browser-cookie writes require CSRF.
 
+## Per-user Dropbox OAuth
+
+When `DROPBOX_APP_KEY` / `DROPBOX_APP_SECRET` and `DROPBOX_OAUTH_REDIRECT_URI` are set,
+users can link their own Dropbox: `POST /api/dropbox/authorize` → browser →
+`POST /api/dropbox/callback` with `{code,state}`. Status/unlink:
+`GET /api/dropbox`, `DELETE /api/dropbox/link`. Refresh token is stored on `users`
+(Liquibase 020). With `ATTACHMENT_STORAGE=dropbox`, uploads/downloads for a linked user
+go to that account under `{DROPBOX_APP_FOLDER}/u{userId}`; otherwise the app-folder
+token is used. App-folder env credentials remain required for unlinked users and backfill.
+
 ## Project holidays
 
 `GET /api/projects/{id}/holidays` returns the project's non-working weekday dates.
@@ -263,8 +276,28 @@ range; the write bumps `calendarRevision` so Gantt/CPM reload. Liquibase 012.
 `PUT /api/projects/{id}/breaks` with
 `{"windows":[{"start":"12:00:00","end":"12:30:00"}],"version":N}` replaces stored windows
 (owner/ADMIN); empty `windows` clears storage and restores the default lunch. Windows must
-be non-overlapping and inside the working day; the write bumps `calendarRevision`.
-Liquibase 017. CPM/Gantt/portfolio use these windows via `WorkingCalendar`.
+be non-overlapping, inside the working day, and leave positive net working minutes; the write
+bumps `calendarRevision`. Liquibase 017. CPM/Gantt/portfolio use these windows via
+`WorkingCalendar`.
+
+## Member daily capacity (FTE)
+
+`GET /api/projects/{id}/capacities` lists stored `{userId, dailyMinutes}` overrides
+(1..480). Missing members use the project calendar net day (default 420).
+`PUT /api/projects/{id}/capacities` with
+`{"entries":[{"userId":2,"dailyMinutes":210}],"version":N}` replaces the set
+(owner/ADMIN); empty `entries` clears customs; users must be members; bumps
+`calendarRevision`. With `?resourceLeveling=true`, hard leveling applies each
+assignee's capacity via a capped `WorkingCalendar`. Liquibase 019.
+
+## Timesheets (actual effort)
+
+`POST /api/time-entries` with `{"taskId":1,"workDate":"2026-11-03","minutes":90,"note":"..."}`
+logs actual minutes (1..1440) for the caller on an accessible task. Server sets `userId` and
+UTC `createdAt`; planning revisions are unchanged.
+`GET /api/time-entries?taskId=` lists newest first and returns `totalMinutes` across all pages.
+`DELETE /api/time-entries/{id}` allows the author, project owner or ADMIN. Liquibase 018.
+Portfolio completion % remains estimate-based.
 
 ## Deferred (explicit technical debt)
 
@@ -273,13 +306,9 @@ the current MVP slice and will land later when credentials, channel choice and c
 
 | Item | Why deferred |
 |------|----------------|
-| Dropbox per-user OAuth accounts | App-folder refresh token in env + ADMIN backfill; not end-user OAuth |
 | Advanced email templates / i18n themes | Multipart HTML wrapper ships; no per-tenant themes |
-| Full resource calendars / FTE capacity | Opt-in hard leveling serializes assignee overlaps; not multi-calendar FTE |
-| Per-assignee break windows | Project-level breaks ship; assignee-specific calendars deferred with FTE |
-| Timesheet / actual-effort capture | Portfolio shows estimate-based completion %; no time tracking |
-
-Do not treat README assignment notes that mention per-user Dropbox OAuth as shipped.
+| Per-assignee break windows | Project-level breaks ship; capacity is daily minutes, not separate break sets |
+| Dropbox Business / team admin | Personal app-folder OAuth ships; Business/team scopes stay out of scope |
 
 ## Comments and project labels
 

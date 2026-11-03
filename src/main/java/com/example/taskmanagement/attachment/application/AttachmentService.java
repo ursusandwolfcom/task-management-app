@@ -33,7 +33,7 @@ public class AttachmentService implements AttachmentOperations {
             "application/pdf", "image/png", "image/jpeg", "image/webp", "text/plain");
 
     private final AttachmentRepository attachments;
-    private final AttachmentObjectStore store;
+    private final AttachmentObjectStoreFactory stores;
     private final AttachmentAccess access;
     private final IdentityOperations identity;
     private final ActivityOperations activity;
@@ -41,11 +41,11 @@ public class AttachmentService implements AttachmentOperations {
     private final ObjectMapper json;
     private final Clock clock;
 
-    public AttachmentService(AttachmentRepository attachments, AttachmentObjectStore store, AttachmentAccess access,
-            IdentityOperations identity, ActivityOperations activity, OutboxOperations outbox, ObjectMapper json,
-            Clock clock) {
+    public AttachmentService(AttachmentRepository attachments, AttachmentObjectStoreFactory stores,
+            AttachmentAccess access, IdentityOperations identity, ActivityOperations activity, OutboxOperations outbox,
+            ObjectMapper json, Clock clock) {
         this.attachments = attachments;
-        this.store = store;
+        this.stores = stores;
         this.access = access;
         this.identity = identity;
         this.activity = activity;
@@ -65,6 +65,7 @@ public class AttachmentService implements AttachmentOperations {
         var project = access.lockTask(actorId, taskId);
         var task = access.task(actorId, taskId);
         String key = UUID.randomUUID().toString().replace("-", "");
+        var store = stores.forUser(actorId);
         String externalId = store.put(key, body, sizeBytes);
         try {
             var created = attachments.saveAndFlush(new AttachmentEntity(project.id(), taskId, actorId, safeName, type,
@@ -102,7 +103,8 @@ public class AttachmentService implements AttachmentOperations {
         var entity = attachments.findById(attachmentId)
                 .orElseThrow(() -> error(AttachmentException.Reason.ATTACHMENT_NOT_FOUND));
         access.task(actorId, entity.view().taskId());
-        return new AttachmentContent(entity.view(), store.open(entity.storageKey(), entity.externalId()));
+        return new AttachmentContent(entity.view(),
+                stores.forUser(entity.view().uploaderId()).open(entity.storageKey(), entity.externalId()));
     }
 
     @Override
@@ -125,7 +127,7 @@ public class AttachmentService implements AttachmentOperations {
                 "Удалён файл: " + view.fileName());
         attachments.delete(entity);
         attachments.flush();
-        store.delete(key, externalId);
+        stores.forUser(view.uploaderId()).delete(key, externalId);
     }
 
     private static String sanitizeName(String fileName) {

@@ -59,4 +59,14 @@ public interface ProjectOperations {
      */
     ProjectView replaceBreaks(long actorId, long projectId, List<ProjectBreakWindow> breaks,
             @PositiveOrZero long version);
+
+    /** Stored member capacities only (not expanded with defaults). */
+    List<MemberCapacity> capacities(long actorId, long projectId);
+
+    /**
+     * Replaces stored member daily capacities and bumps calendarRevision.
+     * Users must be current project members; empty list clears custom capacities.
+     */
+    ProjectView replaceCapacities(long actorId, long projectId, List<MemberCapacity> capacities,
+            @PositiveOrZero long version);
 }

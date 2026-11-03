@@ -1,0 +1,22 @@
+databaseChangeLog:
+  - changeSet:
+      id: 020-user-dropbox-oauth
+      author: task-management
+      changes:
+        - sql:
+            sql: |
+              ALTER TABLE task_management.users
+                ADD COLUMN dropbox_refresh_token VARCHAR(512) NULL;
+              ALTER TABLE task_management.users
+                ADD COLUMN dropbox_account_id VARCHAR(64) NULL;
+              ALTER TABLE task_management.users
+                ADD COLUMN dropbox_linked_at TIMESTAMP WITH TIME ZONE NULL;
+              ALTER TABLE task_management.users
+                ADD CONSTRAINT users_dropbox_account_id_unique UNIQUE (dropbox_account_id);
+      rollback:
+        - sql:
+            sql: |
+              ALTER TABLE task_management.users DROP CONSTRAINT IF EXISTS users_dropbox_account_id_unique;
+              ALTER TABLE task_management.users DROP COLUMN dropbox_linked_at;
+              ALTER TABLE task_management.users DROP COLUMN dropbox_account_id;
+              ALTER TABLE task_management.users DROP COLUMN dropbox_refresh_token;

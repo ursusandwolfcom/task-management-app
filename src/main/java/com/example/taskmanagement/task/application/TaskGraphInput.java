@@ -25,11 +25,13 @@ record TaskGraphInput(
         String timezone,
         Set<LocalDate> holidays,
         List<BreakWindow> breaks,
+        Map<Long, Integer> capacities,
         List<TaskView> tasks,
         List<DependencyEdge> edges) {
     TaskGraphInput {
         holidays = Set.copyOf(holidays);
         breaks = List.copyOf(breaks);
+        capacities = Map.copyOf(capacities);
         tasks = List.copyOf(tasks);
         edges = List.copyOf(edges);
     }
