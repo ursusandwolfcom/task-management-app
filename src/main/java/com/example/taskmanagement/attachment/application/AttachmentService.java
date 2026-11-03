@@ -65,10 +65,10 @@ public class AttachmentService implements AttachmentOperations {
         var project = access.lockTask(actorId, taskId);
         var task = access.task(actorId, taskId);
         String key = UUID.randomUUID().toString().replace("-", "");
-        store.put(key, body, sizeBytes);
+        String externalId = store.put(key, body, sizeBytes);
         try {
             var created = attachments.saveAndFlush(new AttachmentEntity(project.id(), taskId, actorId, safeName, type,
-                    sizeBytes, key, clock.instant().truncatedTo(ChronoUnit.MICROS))).view();
+                    sizeBytes, key, externalId, clock.instant().truncatedTo(ChronoUnit.MICROS))).view();
             activity.record(actorId, project.id(), taskId, ActivityEvents.ATTACHMENT_UPLOADED,
                     "Файл: " + created.fileName());
             var bodyJson = new LinkedHashMap<String, Object>();
@@ -80,7 +80,7 @@ public class AttachmentService implements AttachmentOperations {
             outbox.append(OutboxEvents.ATTACHMENT_UPLOADED, json.writeValueAsString(bodyJson));
             return created;
         } catch (RuntimeException exception) {
-            store.delete(key);
+            store.delete(key, externalId);
             throw exception;
         }
     }
@@ -102,7 +102,7 @@ public class AttachmentService implements AttachmentOperations {
         var entity = attachments.findById(attachmentId)
                 .orElseThrow(() -> error(AttachmentException.Reason.ATTACHMENT_NOT_FOUND));
         access.task(actorId, entity.view().taskId());
-        return new AttachmentContent(entity.view(), store.open(entity.storageKey()));
+        return new AttachmentContent(entity.view(), store.open(entity.storageKey(), entity.externalId()));
     }
 
     @Override
@@ -120,11 +120,12 @@ public class AttachmentService implements AttachmentOperations {
             throw error(AttachmentException.Reason.FORBIDDEN);
         }
         String key = entity.storageKey();
+        String externalId = entity.externalId();
         activity.record(actorId, projectId, view.taskId(), ActivityEvents.ATTACHMENT_DELETED,
                 "Удалён файл: " + view.fileName());
         attachments.delete(entity);
         attachments.flush();
-        store.delete(key);
+        store.delete(key, externalId);
     }
 
     private static String sanitizeName(String fileName) {

@@ -29,6 +29,8 @@ public class AttachmentEntity {
     private long sizeBytes;
     @Column(name = "storage_key", nullable = false, length = 64, updatable = false)
     private String storageKey;
+    @Column(name = "external_id", length = 128, updatable = false)
+    private String externalId;
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -36,7 +38,7 @@ public class AttachmentEntity {
     }
 
     public AttachmentEntity(long projectId, long taskId, long uploaderId, String fileName, String contentType,
-            long sizeBytes, String storageKey, Instant createdAt) {
+            long sizeBytes, String storageKey, String externalId, Instant createdAt) {
         this.projectId = projectId;
         this.taskId = taskId;
         this.uploaderId = uploaderId;
@@ -44,11 +46,16 @@ public class AttachmentEntity {
         this.contentType = contentType;
         this.sizeBytes = sizeBytes;
         this.storageKey = storageKey;
+        this.externalId = externalId;
         this.createdAt = createdAt;
     }
 
     public String storageKey() {
         return storageKey;
+    }
+
+    public String externalId() {
+        return externalId;
     }
 
     public AttachmentView view() {
