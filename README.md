@@ -204,6 +204,7 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
+| S39 | Hard resource leveling projection (`?resourceLeveling=true` on Gantt/what-if) |
 | S38 | Dropbox refresh-token OAuth + local→Dropbox backfill (`POST /api/attachments/backfill`) |
 | S37 | Email digests (`IMMEDIATE`/`DAILY`, Liquibase 016 queue + scheduler) |
 | S36 | Dropbox `AttachmentObjectStore` Strategy (`ATTACHMENT_STORAGE`); Liquibase 015 `external_id` |
@@ -261,7 +262,7 @@ the current MVP slice and will land later when credentials, channel choice and c
 |------|----------------|
 | Dropbox per-user OAuth accounts | App-folder refresh token in env + ADMIN backfill; not end-user OAuth |
 | Rich HTML email branding | Plain-text digests and immediate mail only |
-| Hard resource leveling / calendars | Soft contention flags on Gantt/workload only; dates are not shifted |
+| Full resource calendars / FTE capacity | Opt-in hard leveling serializes assignee overlaps; not multi-calendar FTE |
 | Per-project / per-assignee break windows | Global fixed lunch 13:00–14:00 is shipped; custom windows deferred |
 | Financial / actual-effort KPI | Estimates are planning inputs, not timesheets |
 

@@ -5,7 +5,9 @@ import com.example.taskmanagement.planning.core.GraphSnapshot;
 import com.example.taskmanagement.planning.core.PriorityTopologicalSorter;
 import com.example.taskmanagement.planning.core.ProjectSchedule;
 import com.example.taskmanagement.planning.core.ReadinessCalculator;
+import com.example.taskmanagement.planning.core.ResourceLeveler;
 import com.example.taskmanagement.planning.core.TaskNode;
+import com.example.taskmanagement.planning.core.TaskSchedule;
 import com.example.taskmanagement.planning.core.WorkingCalendar;
 import com.example.taskmanagement.task.api.TaskException;
 import com.example.taskmanagement.task.api.TaskPlanningOperations;
@@ -14,6 +16,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -62,15 +65,15 @@ public class TaskPlanningService implements TaskPlanningOperations {
     }
 
     @Override
-    public ProjectGantt gantt(long actorId, long projectId) {
+    public ProjectGantt gantt(long actorId, long projectId, boolean resourceLeveling) {
         var input = loader.load(actorId, projectId);
         var calendar = new WorkingCalendar(ZoneId.of(input.timezone()), input.holidays());
-        return toGantt(projectId, input, criticalPath.schedule(input.graph(), calendar,
-                calendar.projectOrigin(input.startDate()), input.endDate()));
+        return toGantt(projectId, input, calendar, criticalPath.schedule(input.graph(), calendar,
+                calendar.projectOrigin(input.startDate()), input.endDate()), resourceLeveling);
     }
 
     @Override
-    public ProjectGantt whatIf(long actorId, long projectId, WhatIfRequest request) {
+    public ProjectGantt whatIf(long actorId, long projectId, WhatIfRequest request, boolean resourceLeveling) {
         var input = loader.load(actorId, projectId);
         var known = input.viewsById().keySet();
         var overrides = new HashMap<Long, Integer>();
@@ -86,8 +89,8 @@ public class TaskPlanningService implements TaskPlanningOperations {
         }
         var calendar = new WorkingCalendar(ZoneId.of(input.timezone()), input.holidays());
         var graph = GraphSnapshot.of(input.tasks().stream().map(task -> node(task, overrides)).toList(), input.edges());
-        return toGantt(projectId, input, criticalPath.schedule(graph, calendar,
-                calendar.projectOrigin(input.startDate()), input.endDate()));
+        return toGantt(projectId, input, calendar, criticalPath.schedule(graph, calendar,
+                calendar.projectOrigin(input.startDate()), input.endDate()), resourceLeveling);
     }
 
     private static TaskNode node(TaskView task, Map<Long, Integer> overrides) {
@@ -107,15 +110,23 @@ public class TaskPlanningService implements TaskPlanningOperations {
         return new TaskNode(task.id(), weight, task.dueDate(), minutes);
     }
 
-    private static ProjectGantt toGantt(long projectId, TaskGraphInput input, ProjectSchedule planned) {
+    private static ProjectGantt toGantt(long projectId, TaskGraphInput input, WorkingCalendar calendar,
+            ProjectSchedule planned, boolean resourceLeveling) {
         Map<Long, Long> assignees = new HashMap<>();
         for (TaskView view : input.tasks()) {
             if (view.assigneeId() != null) {
                 assignees.put(view.id(), view.assigneeId());
             }
         }
-        var contended = ResourceContention.contendedTaskIds(planned.tasks(), assignees);
-        var tasks = planned.tasks().stream()
+        List<TaskSchedule> scheduleTasks = planned.tasks();
+        if (resourceLeveling) {
+            scheduleTasks = ResourceLeveler.level(scheduleTasks, assignees, calendar);
+        }
+        var contended = ResourceContention.contendedTaskIds(scheduleTasks, assignees);
+        Instant projectFinish = scheduleTasks.stream().map(TaskSchedule::earlyFinish).max(Instant::compareTo)
+                .orElse(planned.projectFinish());
+        long durationMinutes = calendar.workingMinutesBetween(planned.projectStart(), projectFinish);
+        var tasks = scheduleTasks.stream()
                 .map(task -> new GanttTask(task.taskId(), task.durationMinutes(), task.earlyStart(),
                         task.earlyFinish(), task.lateStart(), task.lateFinish(), task.floatMinutes(),
                         task.critical(), task.deadlineOverrun(), contended.contains(task.taskId())))
@@ -123,8 +134,9 @@ public class TaskPlanningService implements TaskPlanningOperations {
         var edges = planned.criticalEdges().stream()
                 .map(edge -> new CriticalDependency(edge.predecessorId(), edge.successorId()))
                 .toList();
+        var criticalIds = scheduleTasks.stream().filter(TaskSchedule::critical).map(TaskSchedule::taskId).toList();
         return new ProjectGantt(projectId, input.inputRevision(), input.calendarRevision(), input.timezone(),
-                Instant.now(), planned.projectStart(), planned.projectFinish(), planned.durationMinutes(),
-                planned.projectDeadlineOverrun(), tasks, planned.criticalTaskIds(), edges);
+                Instant.now(), planned.projectStart(), projectFinish, durationMinutes,
+                planned.projectDeadlineOverrun(), tasks, criticalIds, edges);
     }
 }

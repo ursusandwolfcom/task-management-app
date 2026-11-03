@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -70,21 +71,25 @@ public class TaskPlanningController {
     @GetMapping("/gantt")
     @Operation(summary = "Calculate working-time CPM / Gantt bars for the project graph",
             description = "Mon–Fri 09:00–17:00 with lunch 13:00–14:00 in the project timezone. "
-                    + "Missing estimates are zero-length milestones. Unlimited parallel resources; "
-                    + "no resource leveling. GET never mutates tasks; "
+                    + "Missing estimates are zero-length milestones. Default unlimited parallel resources "
+                    + "(soft contention flags). Optional resourceLeveling=true serializes overlapping "
+                    + "assignee windows as a projection (does not persist). GET never mutates tasks; "
                     + "X-Project-Input-Revision mirrors the snapshot.")
-    public ResponseEntity<ProjectGantt> gantt(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long id) {
-        var result = planning.gantt(actor(jwt), id);
+    public ResponseEntity<ProjectGantt> gantt(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long id,
+            @RequestParam(defaultValue = "false") boolean resourceLeveling) {
+        var result = planning.gantt(actor(jwt), id, resourceLeveling);
         return response(result, result.inputRevision());
     }
 
     @PostMapping("/gantt/what-if")
     @Operation(summary = "What-if CPM with estimate overrides; does not save tasks",
-            description = "Same calendar rules as /gantt. Unknown taskId → 404 TASK_NOT_FOUND; "
-                    + "duplicate override → 400 VALIDATION_ERROR. Persisted estimates stay unchanged.")
+            description = "Same calendar rules as /gantt. Optional resourceLeveling=true. "
+                    + "Unknown taskId → 404 TASK_NOT_FOUND; duplicate override → 400 VALIDATION_ERROR. "
+                    + "Persisted estimates stay unchanged.")
     public ResponseEntity<ProjectGantt> whatIf(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long id,
+            @RequestParam(defaultValue = "false") boolean resourceLeveling,
             @Valid @RequestBody WhatIfRequest body) {
-        var result = planning.whatIf(actor(jwt), id, body);
+        var result = planning.whatIf(actor(jwt), id, body, resourceLeveling);
         return response(result, result.inputRevision());
     }
 
