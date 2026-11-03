@@ -33,6 +33,7 @@ class ArchitectureRulesTest {
             Map.entry("security", Set.of("identity")),
             Map.entry("integration.outbox", Set.of()),
             Map.entry("integration.telegram", Set.of("identity", "integration.outbox")),
+            Map.entry("integration.email", Set.of("identity", "integration.outbox")),
             Map.entry("shared", Set.of()),
             Map.entry("alpha", Set.of("planning")),
             Map.entry("workspace", Set.of()));
@@ -106,6 +107,9 @@ class ArchitectureRulesTest {
         }
         if (relative.equals("integration.telegram") || relative.startsWith("integration.telegram.")) {
             return "integration.telegram";
+        }
+        if (relative.equals("integration.email") || relative.startsWith("integration.email.")) {
+            return "integration.email";
         }
         return relative.split("\\.")[0];
     }

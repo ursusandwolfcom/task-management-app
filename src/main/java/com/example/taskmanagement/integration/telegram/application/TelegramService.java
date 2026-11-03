@@ -2,14 +2,13 @@ package com.example.taskmanagement.integration.telegram.application;
 
 import com.example.taskmanagement.identity.api.TelegramAccountOperations;
 import com.example.taskmanagement.integration.outbox.api.OutboxConsumerOperations;
-import com.example.taskmanagement.integration.outbox.api.OutboxEvents;
 import com.example.taskmanagement.integration.outbox.api.OutboxMessage;
+import com.example.taskmanagement.integration.outbox.api.OutboxPushProjection;
 import com.example.taskmanagement.integration.telegram.api.TelegramBotClient;
 import com.example.taskmanagement.integration.telegram.api.TelegramException;
 import com.example.taskmanagement.integration.telegram.api.TelegramOperations;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.util.LinkedHashSet;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -43,7 +42,7 @@ public class TelegramService implements TelegramOperations {
         this.botToken = blankToEmpty(botToken);
         this.botUsername = blankToEmpty(botUsername);
         this.webhookSecret = blankToEmpty(webhookSecret);
-        this.appPublicBase = trimTrailingSlash(blankToEmpty(appPublicBase));
+        this.appPublicBase = blankToEmpty(appPublicBase);
     }
 
     @Override
@@ -111,77 +110,24 @@ public class TelegramService implements TelegramOperations {
     }
 
     private void deliver(OutboxMessage message) {
-        if (!isTelegramEvent(message.eventType())) {
+        if (!OutboxPushProjection.isPushEvent(message.eventType())) {
             return;
         }
         JsonNode payload = parse(message.payload());
-        long actor = actorId(message.eventType(), payload);
-        Set<Long> recipients = recipients(message.eventType(), payload);
-        recipients.remove(actor);
+        Set<Long> recipients = OutboxPushProjection.recipientIds(message.eventType(), payload);
+        recipients.remove(OutboxPushProjection.actorId(message.eventType(), payload));
         if (recipients.isEmpty()) {
             return;
         }
         var chats = accounts.enabledChatIds(recipients);
-        String text = format(message.eventType(), payload);
+        var rendered = OutboxPushProjection.render(message.eventType(), payload, appPublicBase);
+        String text = rendered.title() + "\n" + rendered.body();
         for (Long userId : recipients) {
             Long chatId = chats.get(userId);
             if (chatId != null) {
                 bot.sendMessage(chatId, text);
             }
         }
-    }
-
-    private static boolean isTelegramEvent(String eventType) {
-        return OutboxEvents.TASK_ASSIGNED.equals(eventType)
-                || OutboxEvents.COMMENT_CREATED.equals(eventType)
-                || OutboxEvents.TASK_COMPLETED.equals(eventType)
-                || OutboxEvents.TASK_FAILED.equals(eventType);
-    }
-
-    private static long actorId(String eventType, JsonNode payload) {
-        if (OutboxEvents.COMMENT_CREATED.equals(eventType)) {
-            return payload.path("authorId").asLong(0);
-        }
-        return payload.path("actorId").asLong(0);
-    }
-
-    private static Set<Long> recipients(String eventType, JsonNode payload) {
-        Set<Long> recipients = new LinkedHashSet<>();
-        long assignee = payload.path("assigneeId").asLong(0);
-        if (assignee > 0) {
-            recipients.add(assignee);
-        }
-        if (OutboxEvents.TASK_COMPLETED.equals(eventType) || OutboxEvents.TASK_FAILED.equals(eventType)) {
-            long owner = payload.path("ownerId").asLong(0);
-            if (owner > 0) {
-                recipients.add(owner);
-            }
-        }
-        return recipients;
-    }
-
-    private String format(String eventType, JsonNode payload) {
-        String title = switch (eventType) {
-            case OutboxEvents.TASK_ASSIGNED -> "Назначена задача";
-            case OutboxEvents.COMMENT_CREATED -> "Новый комментарий";
-            case OutboxEvents.TASK_COMPLETED -> "Задача завершена";
-            case OutboxEvents.TASK_FAILED -> "Задача провалена";
-            default -> "Обновление";
-        };
-        String body = truncate(switch (eventType) {
-            case OutboxEvents.COMMENT_CREATED -> payload.path("preview").asString("Комментарий");
-            default -> payload.path("taskName").asString("Задача");
-        });
-        long taskId = payload.path("taskId").asLong(0);
-        String link = taskId > 0 ? taskLink(taskId) : "";
-        return link.isEmpty() ? title + "\n" + body : title + "\n" + body + "\n" + link;
-    }
-
-    private String taskLink(long taskId) {
-        if (appPublicBase.isEmpty()) {
-            return "#/tasks/" + taskId;
-        }
-        return appPublicBase + "/#/tasks/" + taskId;
     }
 
     private void requireConfigured() {
@@ -206,23 +152,8 @@ public class TelegramService implements TelegramOperations {
         }
     }
 
-    private static String truncate(String value) {
-        String text = value == null ? "" : value.strip();
-        if (text.isEmpty()) {
-            return "—";
-        }
-        return text.length() <= 200 ? text : text.substring(0, 200);
-    }
-
     private static String blankToEmpty(String value) {
         return value == null ? "" : value.strip();
-    }
-
-    private static String trimTrailingSlash(String value) {
-        if (value.endsWith("/")) {
-            return value.substring(0, value.length() - 1);
-        }
-        return value;
     }
 
     private static boolean constantTimeEquals(String expected, String actual) {

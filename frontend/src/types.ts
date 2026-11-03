@@ -83,6 +83,7 @@ export interface TelegramStatus {
   configured: boolean; linked: boolean; enabled: boolean; botUsername: string; deepLinkPrefix: string;
 }
 export interface TelegramLink { token: string; deepLink: string; expiresAt: string }
+export interface EmailStatus { configured: boolean; enabled: boolean; address: string }
 export interface TaskActivity {
   id: bigint; projectId: bigint; taskId: bigint; actorId: bigint; actionType: string;
   summary: string; createdAt: string;
