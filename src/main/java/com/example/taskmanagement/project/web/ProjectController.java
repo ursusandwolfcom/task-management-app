@@ -1,6 +1,6 @@
 package com.example.taskmanagement.project.web;
 
-import com.example.taskmanagement.planning.core.BreakWindow;
+import com.example.taskmanagement.project.api.ProjectBreakWindow;
 import com.example.taskmanagement.project.api.ProjectData;
 import com.example.taskmanagement.project.api.ProjectException;
 import com.example.taskmanagement.project.api.ProjectOperations;
@@ -147,7 +147,8 @@ public class ProjectController {
 
     @GetMapping("/{id}/breaks")
     @Operation(summary = "List effective project break windows (default lunch when none stored)")
-    public ResponseEntity<List<BreakWindow>> breaks(@AuthenticationPrincipal Jwt jwt, @Positive @PathVariable long id) {
+    public ResponseEntity<List<ProjectBreakWindow>> breaks(@AuthenticationPrincipal Jwt jwt,
+            @Positive @PathVariable long id) {
         return response(projects.breaks(actor(jwt), id));
     }
 
@@ -161,10 +162,10 @@ public class ProjectController {
     @Operation(summary = "Replace break windows; empty restores default lunch; bumps calendarRevision")
     public ResponseEntity<ProjectView> replaceBreaks(@AuthenticationPrincipal Jwt jwt,
             @Positive @PathVariable long id, @Valid @RequestBody BreaksRequest request) {
-        List<BreakWindow> windows;
+        List<ProjectBreakWindow> windows;
         try {
             windows = request.windows().stream()
-                    .map(body -> new BreakWindow(body.start(), body.end()))
+                    .map(body -> new ProjectBreakWindow(body.start(), body.end()))
                     .toList();
         } catch (IllegalArgumentException ex) {
             throw new ProjectException(ProjectException.Reason.VALIDATION_ERROR);

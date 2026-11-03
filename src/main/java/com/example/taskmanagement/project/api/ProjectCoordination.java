@@ -1,6 +1,5 @@
 package com.example.taskmanagement.project.api;
 
-import com.example.taskmanagement.planning.core.BreakWindow;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 import java.util.List;
@@ -25,5 +24,5 @@ public interface ProjectCoordination {
      * Effective break windows for a project already locked in the current transaction.
      * Empty storage means the default lunch break.
      */
-    List<BreakWindow> breaks(long projectId);
+    List<ProjectBreakWindow> breaks(long projectId);
 }
