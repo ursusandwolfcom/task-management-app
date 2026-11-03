@@ -398,6 +398,46 @@ class ProjectIntegrationTest {
         assertThat(projects.read(owner.id(), project.id()).inputRevision()).isZero();
     }
 
+    @Test
+    void projectBreaksDefaultToLunchAndCustomReplaceBumpsCalendarRevision() throws Exception {
+        var project = create();
+        String token = bearer(owner);
+        mvc.perform(get("/api/projects/" + project.id() + "/breaks").header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].start").value("13:00:00"))
+                .andExpect(jsonPath("$[0].end").value("14:00:00"));
+        var updated = json.readTree(mvc.perform(put("/api/projects/" + project.id() + "/breaks")
+                .header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"windows":[{"start":"12:00:00","end":"12:30:00"}],"version":0}
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.calendarRevision").value(1))
+                .andReturn().getResponse().getContentAsString());
+        assertThat(updated.path("version").asLong()).isEqualTo(1);
+        mvc.perform(get("/api/projects/" + project.id() + "/breaks").header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].start").value("12:00:00"))
+                .andExpect(jsonPath("$[0].end").value("12:30:00"));
+        mvc.perform(put("/api/projects/" + project.id() + "/breaks")
+                .header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"windows":[],"version":1}
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.calendarRevision").value(2));
+        mvc.perform(get("/api/projects/" + project.id() + "/breaks").header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].start").value("13:00:00"))
+                .andExpect(jsonPath("$.length()").value(1));
+        mvc.perform(put("/api/projects/" + project.id() + "/breaks")
+                .header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"windows":[{"start":"15:00:00","end":"14:00:00"}],"version":2}
+                        """))
+                .andExpect(status().isBadRequest());
+    }
+
     private UserView register(String name) {
         return identity.register(command(name));
     }

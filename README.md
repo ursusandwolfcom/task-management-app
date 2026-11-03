@@ -153,8 +153,8 @@ Project members, owners and ADMIN can read a coherent graph snapshot through:
 - `GET /api/projects/{id}/next-task`: the first available task, or 204 if none is available.
 - `GET /api/projects/{id}/gantt`: working-time CPM bars (early/late start/finish, float,
   critical tasks/edges, deadlineOverrun vs task dueDate / project endDate). Calendar is
-  Mon–Fri 09:00–17:00 with a fixed lunch break 13:00–14:00 (420 net minutes/day) in the
-  project IANA timezone; missing estimates are zero-length
+  Mon–Fri 09:00–17:00 with project break windows (default lunch 13:00–14:00 → 420 net
+  minutes/day) in the project IANA timezone; missing estimates are zero-length
   milestones; resources are unlimited (no leveling). Overrun flags do not change criticality.
 
 All four endpoints use the Java planning core, return `Cache-Control: no-store` and
@@ -204,6 +204,7 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
+| S42 | Per-project break windows (`GET/PUT /api/projects/{id}/breaks`, Liquibase 017) |
 | S41 | Rich HTML email (multipart alternative + brand wrapper) |
 | S40 | Portfolio estimate KPI (`plannedMinutes` / completion %) on overview |
 | S39 | Hard resource leveling projection (`?resourceLeveling=true` on Gantt/what-if) |
@@ -217,7 +218,7 @@ Workspace: `#/notifications`.
 | S31 | Telegram outbox channel (Liquibase 013) |
 | S30 | Notification UX + project holidays (012) |
 
-Release batch S32–S34 → `main` (#65); S35 Email → `main` (#67). Digests/HTML remain **Deferred**.
+Release batch S32–S34 → `main` (#65); S35 Email → `main` (#67); S37–S40 → `main`.
 
 ## Task activity history
 
@@ -255,6 +256,16 @@ range; the write bumps `calendarRevision` so Gantt/CPM reload. Liquibase 012.
 `WorkingCalendar` skips these dates in addition to Sat/Sun. Workspace project detail has a
 «Праздничные дни» panel.
 
+## Project break windows
+
+`GET /api/projects/{id}/breaks` returns effective half-open windows inside 09:00–17:00
+(default lunch `13:00–14:00` when none are stored).
+`PUT /api/projects/{id}/breaks` with
+`{"windows":[{"start":"12:00:00","end":"12:30:00"}],"version":N}` replaces stored windows
+(owner/ADMIN); empty `windows` clears storage and restores the default lunch. Windows must
+be non-overlapping and inside the working day; the write bumps `calendarRevision`.
+Liquibase 017. CPM/Gantt/portfolio use these windows via `WorkingCalendar`.
+
 ## Deferred (explicit technical debt)
 
 These items are **not** implemented; they need disproportionate product/ops work relative to
@@ -265,10 +276,10 @@ the current MVP slice and will land later when credentials, channel choice and c
 | Dropbox per-user OAuth accounts | App-folder refresh token in env + ADMIN backfill; not end-user OAuth |
 | Advanced email templates / i18n themes | Multipart HTML wrapper ships; no per-tenant themes |
 | Full resource calendars / FTE capacity | Opt-in hard leveling serializes assignee overlaps; not multi-calendar FTE |
-| Per-project / per-assignee break windows | Global fixed lunch 13:00–14:00 is shipped; custom windows deferred |
+| Per-assignee break windows | Project-level breaks ship; assignee-specific calendars deferred with FTE |
 | Timesheet / actual-effort capture | Portfolio shows estimate-based completion %; no time tracking |
 
-Do not treat README assignment notes that mention per-user Dropbox OAuth or HTML mail branding as shipped.
+Do not treat README assignment notes that mention per-user Dropbox OAuth as shipped.
 
 ## Comments and project labels
 
