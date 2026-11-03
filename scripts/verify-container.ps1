@@ -75,7 +75,7 @@ function Assert-HttpStatus([string]$Path, [int]$Expected) {
 function Assert-MigrationHistory {
     $count = Invoke-Compose @('exec', '-T', 'postgres', 'psql', '-U', 'task_management_check',
         '-d', 'task_management_check', '-tAc', 'SELECT count(*) FROM public.databasechangelog;')
-    if (($count | Out-String).Trim() -ne '20') { throw 'Liquibase tracking history was not preserved in public' }
+    if (($count | Out-String).Trim() -ne '21') { throw 'Liquibase tracking history was not preserved in public' }
 }
 
 function Assert-IdentityBootstrap {
@@ -295,7 +295,7 @@ try {
         throw 'Restart reapplied migrations or did not preserve Liquibase history'
     }
     Complete-TaskPersistenceSmoke
-    Write-Output 'Container restart: health UP, Liquibase 0 new / 20 existing migrations.'
+    Write-Output 'Container restart: health UP, Liquibase 0 new / 21 existing migrations.'
 } finally {
     try {
         # Only this run's randomly named, disposable Compose project may be removed.

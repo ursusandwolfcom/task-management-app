@@ -1,5 +1,6 @@
 package com.example.taskmanagement.project.web;
 
+import com.example.taskmanagement.project.api.MemberBreaks;
 import com.example.taskmanagement.project.api.MemberCapacity;
 import com.example.taskmanagement.project.api.ProjectBreakWindow;
 import com.example.taskmanagement.project.api.ProjectData;
@@ -197,6 +198,37 @@ public class ProjectController {
                 .map(body -> new MemberCapacity(body.userId(), body.dailyMinutes()))
                 .toList();
         return response(projects.replaceCapacities(actor(jwt), id, capacities, request.version()));
+    }
+
+    @GetMapping("/{id}/member-breaks")
+    @Operation(summary = "List stored member break overrides; missing members use project breaks")
+    public ResponseEntity<List<MemberBreaks>> memberBreaks(@AuthenticationPrincipal Jwt jwt,
+            @Positive @PathVariable long id) {
+        return response(projects.memberBreaks(actor(jwt), id));
+    }
+
+    public record MemberBreakEntryBody(@Positive long userId, @NotNull List<BreakWindowBody> windows) {
+    }
+
+    public record MemberBreaksRequest(@NotNull List<MemberBreakEntryBody> entries,
+            @NotNull @PositiveOrZero Long version) {
+    }
+
+    @PutMapping("/{id}/member-breaks")
+    @Operation(summary = "Replace member break overrides; empty clears; bumps calendarRevision")
+    public ResponseEntity<ProjectView> replaceMemberBreaks(@AuthenticationPrincipal Jwt jwt,
+            @Positive @PathVariable long id, @Valid @RequestBody MemberBreaksRequest request) {
+        List<MemberBreaks> entries;
+        try {
+            entries = request.entries().stream()
+                    .map(body -> new MemberBreaks(body.userId(), body.windows().stream()
+                            .map(window -> new ProjectBreakWindow(window.start(), window.end()))
+                            .toList()))
+                    .toList();
+        } catch (IllegalArgumentException ex) {
+            throw new ProjectException(ProjectException.Reason.VALIDATION_ERROR);
+        }
+        return response(projects.replaceMemberBreaks(actor(jwt), id, entries, request.version()));
     }
 
     private static long actor(Jwt jwt) {

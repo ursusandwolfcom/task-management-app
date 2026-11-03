@@ -204,6 +204,7 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
+| S46 | Per-assignee break overrides (`GET/PUT .../member-breaks`, Liquibase 021) for hard leveling |
 | S45 | Per-user Dropbox OAuth (`/api/dropbox`, Liquibase 020); uploads use linked account when present |
 | S44 | Member daily capacity / FTE (`GET/PUT /api/projects/{id}/capacities`, Liquibase 019) |
 | S43 | Timesheets / actual effort (`POST/GET/DELETE /api/time-entries`, Liquibase 018) |
@@ -290,6 +291,15 @@ bumps `calendarRevision`. Liquibase 017. CPM/Gantt/portfolio use these windows v
 `calendarRevision`. With `?resourceLeveling=true`, hard leveling applies each
 assignee's capacity via a capped `WorkingCalendar`. Liquibase 019.
 
+## Member break overrides
+
+`GET /api/projects/{id}/member-breaks` lists stored `{userId, windows}` overrides.
+Missing members use project breaks. `PUT` with
+`{"entries":[{"userId":2,"windows":[{"start":"12:00:00","end":"12:30:00"}]}],"version":N}`
+replaces the set (owner/ADMIN); empty `entries` clears; users must be members;
+windows validated like project breaks; bumps `calendarRevision`. Applied when
+`?resourceLeveling=true`. Liquibase 021.
+
 ## Timesheets (actual effort)
 
 `POST /api/time-entries` with `{"taskId":1,"workDate":"2026-11-03","minutes":90,"note":"..."}`
@@ -306,9 +316,8 @@ the current MVP slice and will land later when credentials, channel choice and c
 
 | Item | Why deferred |
 |------|----------------|
-| Advanced email templates / i18n themes | Multipart HTML wrapper ships; no per-tenant themes |
-| Per-assignee break windows | Project-level breaks ship; capacity is daily minutes, not separate break sets |
-| Dropbox Business / team admin | Personal app-folder OAuth ships; Business/team scopes stay out of scope |
+| Advanced email templates / i18n themes | Multipart HTML wrapper ships; themes land in S47 |
+| Dropbox Business / team admin | Personal OAuth ships; minimal team folder mode lands in S48 |
 
 ## Comments and project labels
 

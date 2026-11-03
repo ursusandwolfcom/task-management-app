@@ -26,12 +26,15 @@ record TaskGraphInput(
         Set<LocalDate> holidays,
         List<BreakWindow> breaks,
         Map<Long, Integer> capacities,
+        Map<Long, List<BreakWindow>> memberBreaks,
         List<TaskView> tasks,
         List<DependencyEdge> edges) {
     TaskGraphInput {
         holidays = Set.copyOf(holidays);
         breaks = List.copyOf(breaks);
         capacities = Map.copyOf(capacities);
+        memberBreaks = memberBreaks.entrySet().stream()
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> List.copyOf(entry.getValue())));
         tasks = List.copyOf(tasks);
         edges = List.copyOf(edges);
     }

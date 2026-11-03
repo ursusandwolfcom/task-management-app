@@ -29,4 +29,10 @@ public interface ProjectCoordination {
 
     /** Stored per-member daily capacity minutes; missing members use the project calendar day. */
     Map<Long, Integer> capacities(long projectId);
+
+    /**
+     * Stored per-member break windows for leveling; missing members use the project breaks.
+     * Values are already normalized half-open windows.
+     */
+    Map<Long, List<ProjectBreakWindow>> memberBreaks(long projectId);
 }
