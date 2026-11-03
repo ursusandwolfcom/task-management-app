@@ -2,6 +2,7 @@ package com.example.taskmanagement.config;
 
 import com.example.taskmanagement.attachment.api.AttachmentException;
 import com.example.taskmanagement.collaboration.api.CollaborationException;
+import com.example.taskmanagement.integration.telegram.api.TelegramException;
 import com.example.taskmanagement.notification.api.NotificationException;
 import com.example.taskmanagement.planning.core.GraphValidationException;
 import com.example.taskmanagement.identity.api.IdentityException;
@@ -24,6 +25,18 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 /** Shared HTTP representation; pure graph and lifecycle modules remain unaware of HTTP. */
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
+
+    @ExceptionHandler(TelegramException.class)
+    public ResponseEntity<ProblemDetail> telegramProblem(TelegramException exception) {
+        HttpStatus status = switch (exception.reason()) {
+            case DISABLED -> HttpStatus.SERVICE_UNAVAILABLE;
+            case FORBIDDEN -> HttpStatus.FORBIDDEN;
+            case VALIDATION_ERROR -> HttpStatus.BAD_REQUEST;
+            case DELIVERY_FAILED -> HttpStatus.BAD_GATEWAY;
+        };
+        return uncachedProblem(status, exception.reason().name(),
+                "The Telegram operation could not be completed.");
+    }
 
     @ExceptionHandler(NotificationException.class)
     public ResponseEntity<ProblemDetail> notificationProblem(NotificationException exception) {
@@ -89,7 +102,9 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             case INVALID_CREDENTIALS, INVALID_SESSION -> HttpStatus.UNAUTHORIZED;
             case FORBIDDEN -> HttpStatus.FORBIDDEN;
             case USER_NOT_FOUND -> HttpStatus.NOT_FOUND;
-            case DUPLICATE_IDENTITY, VERSION_CONFLICT, ADMIN_ALREADY_EXISTS, LAST_ADMIN -> HttpStatus.CONFLICT;
+            case DUPLICATE_IDENTITY, VERSION_CONFLICT, ADMIN_ALREADY_EXISTS, LAST_ADMIN, TELEGRAM_CHAT_TAKEN
+                    -> HttpStatus.CONFLICT;
+            case TELEGRAM_LINK_INVALID -> HttpStatus.BAD_REQUEST;
         };
         return uncachedProblem(status, exception.reason().name(), "The identity operation could not be completed.");
     }

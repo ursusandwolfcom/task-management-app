@@ -95,6 +95,8 @@ dt { color:var(--muted); font-size:12px; } dd { margin:6px 0 20px; font-size:14p
   border:1px solid var(--border); border-radius:10px; color:var(--text); background:var(--raised); }
 .task-list li > a:hover { border-color:var(--accent); text-decoration:none; }
 .task-list li small { width:100%; } .queue-box { margin-bottom:18px; padding:14px; border-radius:10px; background:var(--raised); }
+.panel { margin:0 0 18px; padding:14px; border-radius:10px; background:var(--raised); display:grid; gap:10px; }
+.panel h2 { margin:0; font-size:1rem; }
 .action-row { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
 .attempt-list { list-style:none; padding:0; margin:0; } .attempt-list li { padding:12px 0; border-bottom:1px solid var(--border); }
 .label-row { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
