@@ -62,6 +62,7 @@ export interface ProjectRisk {
   projectId: bigint; name: string; status: string; timezone: string; endDate: string;
   openTasks: bigint; criticalTasks: bigint; durationMinutes: bigint;
   projectDeadlineOverrun: boolean; hasTaskDeadlineOverrun: boolean; risk: PortfolioRisk;
+  plannedMinutes: bigint; completedPlannedMinutes: bigint; completionPercent: number;
 }
 export interface PortfolioPage {
   calculatedAt: string; content: ProjectRisk[]; page: number; size: number;
