@@ -34,7 +34,7 @@ CPM + Gantt + what-if Портфель рисков + workload  Workspace UI (т
 
 ### Что сознательно позже
 
-Dropbox, hard leveling, финансовые KPI — перечислены в таблице **Deferred** ниже. В демо их **не** обещать. Праздники, обед, soft contention, Telegram и Email v1 уже поддерживаются.
+Hard leveling и финансовые KPI — в таблице **Deferred**. Праздники, обед, soft contention, Telegram, Email v1 и Dropbox storage (опционально) уже поддерживаются.
 
 ### Как запустить демо
 
@@ -202,6 +202,7 @@ disable. Shared `OutboxPushProjection` formats recipient + text for both channel
 
 | Sprint | Delivered |
 |--------|-----------|
+| S36 | Dropbox `AttachmentObjectStore` Strategy (`ATTACHMENT_STORAGE`); Liquibase 015 `external_id` |
 | S35 | Email outbox (Liquibase 014), prefs/mute, shared push projection; PR #66 → `dev` |
 | S34 | DEMO/README polish |
 | S33 | Soft resource contention on Gantt/workload |
@@ -209,7 +210,7 @@ disable. Shared `OutboxPushProjection` formats recipient + text for both channel
 | S31 | Telegram outbox channel (Liquibase 013) |
 | S30 | Notification UX + project holidays (012) |
 
-Release batch S32–S34 → `main` (#65). Email digests/HTML and Dropbox remain **Deferred**.
+Release batch S32–S34 → `main` (#65); S35 Email → `main` (#67). Digests/HTML remain **Deferred**.
 
 ## Task activity history
 
@@ -224,14 +225,18 @@ task detail shows «История действий» next to execution attempts
 Project members, owners and ADMIN can upload files through `POST /api/attachments?taskId={id}`
 (`multipart/form-data`, field `file`). Limits for this release: max **5 MiB**; content types
 `application/pdf`, `image/png`, `image/jpeg`, `image/webp`, `text/plain`. Metadata is stored in
-PostgreSQL (Liquibase 009); bytes live under `attachment.storage-dir` (local disk) via
-`AttachmentObjectStore`.
+PostgreSQL (Liquibase 009 + 015 `external_id`). Bytes use Strategy `AttachmentObjectStore`:
+default `attachment.storage=local` (`attachment.storage-dir`); optional
+`ATTACHMENT_STORAGE=dropbox` with `DROPBOX_ACCESS_TOKEN` and app folder
+`DROPBOX_APP_FOLDER` (default `/projectflow`). Upload writes provider first, then metadata;
+Dropbox file id is stored in `external_id`. Existing local rows keep working on local mode
+(no automatic backfill).
 
 `GET /api/attachments?taskId=` lists newest first; `GET /api/attachments/{id}/content` downloads;
 `DELETE /api/attachments/{id}` requires the uploader, current project owner or ADMIN with live
 access. Uploads/deletes use the project write lock and do not change task or planning revisions.
-Task deletion cascades attachment rows; orphaned disk files may remain after storage failures.
-Workspace task detail shows the attachment panel. Browser-cookie writes require CSRF.
+Task deletion cascades attachment rows; Dropbox delete is best-effort. Workspace task detail
+shows the attachment panel. Browser-cookie writes require CSRF.
 
 ## Project holidays
 
@@ -249,13 +254,13 @@ the current MVP slice and will land later when credentials, channel choice and c
 
 | Item | Why deferred |
 |------|----------------|
-| Dropbox (or other cloud) attachment storage | Needs app keys, token lifecycle and delete sync; local disk covers the API/UI path now |
+| Dropbox OAuth / per-user accounts / backfill of local files | v1 uses a single refresh/access token in env; local files stay until a future job |
 | Rich HTML email / digests | Plain SMTP v1 covers assigned/comment/complete/fail |
 | Hard resource leveling / calendars | Soft contention flags on Gantt/workload only; dates are not shifted |
 | Per-project / per-assignee break windows | Global fixed lunch 13:00–14:00 is shipped; custom windows deferred |
 | Financial / actual-effort KPI | Estimates are planning inputs, not timesheets |
 
-Do not treat README assignment notes that mention Dropbox/email as shipped behavior.
+Do not treat README assignment notes that mention per-user Dropbox OAuth or email digests as shipped.
 
 ## Comments and project labels
 
