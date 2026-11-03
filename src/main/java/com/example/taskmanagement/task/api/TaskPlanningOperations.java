@@ -84,8 +84,13 @@ public interface TaskPlanningOperations {
 
     NextTask nextTask(long actorId, long projectId);
 
-    ProjectGantt gantt(long actorId, long projectId);
+    /**
+     * @param resourceLeveling when true, serialize overlapping assignee windows (hard leveling
+     *                         projection; does not persist). Soft contention flags stay for soft mode.
+     */
+    ProjectGantt gantt(long actorId, long projectId, boolean resourceLeveling);
 
     /** CPM with in-memory estimate overrides; never persists task changes. */
-    ProjectGantt whatIf(long actorId, long projectId, @NotNull @Valid WhatIfRequest request);
+    ProjectGantt whatIf(long actorId, long projectId, @NotNull @Valid WhatIfRequest request,
+            boolean resourceLeveling);
 }
