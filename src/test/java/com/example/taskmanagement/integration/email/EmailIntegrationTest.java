@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.example.taskmanagement.identity.api.EmailDigestMode;
 import com.example.taskmanagement.identity.api.EmailPreferenceOperations;
 import com.example.taskmanagement.identity.api.IdentityOperations;
 import com.example.taskmanagement.identity.api.RegisterUser;
@@ -117,6 +118,27 @@ class EmailIntegrationTest {
                         .content("{\"enabled\":true}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.enabled").value(true));
+    }
+
+    @Test
+    void dailyDigestQueuesThenFlushes() throws Exception {
+        preferences.setDigestMode(member.id(), EmailDigestMode.DAILY);
+        mail.clear();
+        assertThat(email.deliverPending(20)).isGreaterThanOrEqualTo(1);
+        assertThat(mail.sent()).noneMatch(item -> item.to().equals(member.email()));
+        assertThat(email.status(member.id()).pendingDigestLines()).isGreaterThanOrEqualTo(1);
+
+        assertThat(email.flushDigests()).isGreaterThanOrEqualTo(1);
+        assertThat(mail.sent()).anyMatch(item -> item.to().equals(member.email())
+                && item.subject().contains("дайджест")
+                && item.body().contains("Назначена"));
+        assertThat(email.status(member.id()).pendingDigestLines()).isZero();
+
+        mvc.perform(put("/api/email/digest").header("Authorization", bearer(member))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"mode\":\"IMMEDIATE\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.digestMode").value("IMMEDIATE"));
     }
 
     private UserView register(String name) {

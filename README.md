@@ -196,12 +196,15 @@ Telegram: `TELEGRAM_BOT_TOKEN` / `TELEGRAM_BOT_USERNAME` / webhook secret / `APP
 bind via `POST /api/telegram/link` → `/start <token>`. Email: set `SPRING_MAIL_HOST` (optional
 `SPRING_MAIL_PORT` / `SPRING_MAIL_USERNAME` / `SPRING_MAIL_PASSWORD`) and `MAIL_FROM`; omit host to
 disable. Shared `OutboxPushProjection` formats recipient + text for both channels (Strategy:
-`TelegramBotClient` / `EmailSender`). `GET/PUT /api/email` status and mute. Workspace: `#/notifications`.
+`TelegramBotClient` / `EmailSender`). `GET/PUT /api/email` status, mute, digest mode
+(`IMMEDIATE` default or `DAILY` plain-text digest at 08:00 UTC via `mail.digest.cron`).
+Workspace: `#/notifications`.
 
 ## Changelog (recent)
 
 | Sprint | Delivered |
 |--------|-----------|
+| S37 | Email digests (`IMMEDIATE`/`DAILY`, Liquibase 016 queue + scheduler) |
 | S36 | Dropbox `AttachmentObjectStore` Strategy (`ATTACHMENT_STORAGE`); Liquibase 015 `external_id` |
 | S35 | Email outbox (Liquibase 014), prefs/mute, shared push projection; PR #66 → `dev` |
 | S34 | DEMO/README polish |
@@ -255,12 +258,12 @@ the current MVP slice and will land later when credentials, channel choice and c
 | Item | Why deferred |
 |------|----------------|
 | Dropbox OAuth / per-user accounts / backfill of local files | v1 uses a single refresh/access token in env; local files stay until a future job |
-| Rich HTML email / digests | Plain SMTP v1 covers assigned/comment/complete/fail |
+| Rich HTML email branding | Plain-text digests and immediate mail only |
 | Hard resource leveling / calendars | Soft contention flags on Gantt/workload only; dates are not shifted |
 | Per-project / per-assignee break windows | Global fixed lunch 13:00–14:00 is shipped; custom windows deferred |
 | Financial / actual-effort KPI | Estimates are planning inputs, not timesheets |
 
-Do not treat README assignment notes that mention per-user Dropbox OAuth or email digests as shipped.
+Do not treat README assignment notes that mention per-user Dropbox OAuth or HTML mail branding as shipped.
 
 ## Comments and project labels
 
