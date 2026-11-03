@@ -164,7 +164,7 @@ export function ProjectSchedule({ user, project }: { user: User; project: Projec
   return <section className="card tasks-panel">
     <div className="section-toolbar"><h2>План / Gantt</h2>
       <button disabled={query.loading} onClick={() => { setScenario(undefined); query.reload(); }}>Обновить</button></div>
-    <p className="muted">Пн–Пт 09:00–17:00 · {project.timezone}. Сценарий «что если» не сохраняет оценки.</p>
+    <p className="muted">Пн–Пт 09:00–17:00, обед 13–14 · {project.timezone}. «Что если» не сохраняет оценки.</p>
     <Alert error={query.error} />{query.loading && <Loading />}
     {shown && <>
       <p className="count-label">{scenario ? 'СЦЕНАРИЙ' : 'БАЗОВЫЙ ПЛАН'} · ДЛИТЕЛЬНОСТЬ: {String(shown.durationMinutes)} мин ·

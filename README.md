@@ -20,7 +20,7 @@
 | 2 | Проект → участник → задачи **A → B** | Зависимости и права на живых данных |
 | 3 | «Мои задачи»: B заблокирована, A готова | Очередь с причиной, не «магический» статус |
 | 4 | Завершить A → B открывается; fail → retry | История попыток сохраняется |
-| 5 | Gantt / what-if по оценкам | CPM Mon–Fri 09–17, сценарий без записи в БД |
+| 5 | Gantt / what-if по оценкам | CPM Пн–Пт 09–17 + обед 13–14, сценарий без записи в БД |
 | 6 | Обзор портфеля + загрузка исполнителей | Риск и нагрузка → переход к работе |
 | 7 | Комментарий, метка, вложение, уведомление | Совместная работа в карточке задачи |
 
@@ -34,7 +34,7 @@ CPM + Gantt + what-if Портфель рисков + workload  Workspace UI (т
 
 ### Что сознательно позже
 
-Dropbox, email, resource leveling, перерывы внутри дня, финансовые KPI — перечислены в таблице **Deferred** ниже. В демо их **не** обещать. Праздничные дни проекта и Telegram v1 уже поддерживаются.
+Dropbox, email, resource leveling, финансовые KPI — перечислены в таблице **Deferred** ниже. В демо их **не** обещать. Праздники, фиксированный обед 13–14 и Telegram v1 уже поддерживаются.
 
 ### Как запустить демо
 
@@ -153,7 +153,8 @@ Project members, owners and ADMIN can read a coherent graph snapshot through:
 - `GET /api/projects/{id}/next-task`: the first available task, or 204 if none is available.
 - `GET /api/projects/{id}/gantt`: working-time CPM bars (early/late start/finish, float,
   critical tasks/edges, deadlineOverrun vs task dueDate / project endDate). Calendar is
-  Mon–Fri 09:00–17:00 in the project IANA timezone; missing estimates are zero-length
+  Mon–Fri 09:00–17:00 with a fixed lunch break 13:00–14:00 (420 net minutes/day) in the
+  project IANA timezone; missing estimates are zero-length
   milestones; resources are unlimited (no leveling). Overrun flags do not change criticality.
 
 All four endpoints use the Java planning core, return `Cache-Control: no-store` and
@@ -237,7 +238,7 @@ the current MVP slice and will land later when credentials, channel choice and c
 | Dropbox (or other cloud) attachment storage | Needs app keys, token lifecycle and delete sync; local disk covers the API/UI path now |
 | Email notifications | Channel policy unresolved; Telegram v1 + in-app outbox cover push |
 | Resource calendars / leveling | Unlimited parallel resources by design until a resource module exists |
-| Working-calendar breaks (lunch etc.) | CPM uses Mon–Fri 09–17; project holidays are supported via API |
+| Per-project / per-assignee break windows | Global fixed lunch 13:00–14:00 is shipped; custom windows deferred |
 | Financial / actual-effort KPI | Estimates are planning inputs, not timesheets |
 
 Do not treat README assignment notes that mention Dropbox/email as shipped behavior.
