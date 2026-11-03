@@ -28,4 +28,10 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
             where u.id in :ids and u.telegramChatId is not null and u.telegramEnabled = true
             """)
     java.util.List<UserEntity> findEnabledTelegramTargets(@Param("ids") java.util.Collection<Long> ids);
+
+    @Query("""
+            select u from UserEntity u
+            where u.id in :ids and u.emailEnabled = true
+            """)
+    java.util.List<UserEntity> findEnabledEmailTargets(@Param("ids") java.util.Collection<Long> ids);
 }

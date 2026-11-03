@@ -11,4 +11,7 @@ public interface OutboxMessageRepository extends JpaRepository<OutboxMessageEnti
 
     @Query("select m from OutboxMessageEntity m where m.telegramProcessedAt is null order by m.id asc")
     List<OutboxMessageEntity> findTelegramUnprocessed(Pageable pageable);
+
+    @Query("select m from OutboxMessageEntity m where m.emailProcessedAt is null order by m.id asc")
+    List<OutboxMessageEntity> findEmailUnprocessed(Pageable pageable);
 }

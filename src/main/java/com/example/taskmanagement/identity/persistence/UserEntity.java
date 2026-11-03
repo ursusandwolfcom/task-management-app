@@ -39,6 +39,8 @@ public class UserEntity {
     private Long telegramChatId;
     @Column(name = "telegram_enabled", nullable = false)
     private boolean telegramEnabled = true;
+    @Column(name = "email_enabled", nullable = false)
+    private boolean emailEnabled = true;
 
     protected UserEntity() {
     }
@@ -83,6 +85,18 @@ public class UserEntity {
 
     public void setTelegramEnabled(boolean enabled) {
         this.telegramEnabled = enabled;
+    }
+
+    public String email() {
+        return email;
+    }
+
+    public boolean emailEnabled() {
+        return emailEnabled;
+    }
+
+    public void setEmailEnabled(boolean enabled) {
+        this.emailEnabled = enabled;
     }
 
     public void update(String username, String email, String firstName, String lastName) {

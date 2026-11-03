@@ -34,7 +34,7 @@ CPM + Gantt + what-if Портфель рисков + workload  Workspace UI (т
 
 ### Что сознательно позже
 
-Dropbox, email, hard leveling, финансовые KPI — перечислены в таблице **Deferred** ниже. В демо их **не** обещать. Праздники, обед 13–14, soft contention и Telegram v1 уже поддерживаются.
+Dropbox, hard leveling, финансовые KPI — перечислены в таблице **Deferred** ниже. В демо их **не** обещать. Праздники, обед, soft contention, Telegram и Email v1 уже поддерживаются.
 
 ### Как запустить демо
 
@@ -190,12 +190,11 @@ enqueue durable `outbox_messages` rows (`task.assigned`, `comment.created`, `tas
 transaction. `GET /api/notifications` drains a small outbox batch into per-user in-app
 notifications, then returns a page with `unreadCount`.
 `POST /api/notifications/{id}/read` and `POST /api/notifications/read-all` mark items read.
-In-app channel uses Liquibase 010. Optional Telegram (Liquibase 013) is an add-on channel
-on the same outbox (`task.assigned`, `comment.created`, `task.completed`, `task.failed`):
-set `TELEGRAM_BOT_TOKEN` / `TELEGRAM_BOT_USERNAME` / optional `TELEGRAM_WEBHOOK_SECRET` and
-`APP_PUBLIC_BASE`. Users bind via `POST /api/telegram/link` → Bot `/start <token>` webhook
-`POST /api/telegram/webhook`, mute with `PUT /api/telegram/enabled`, unlink with
-`DELETE /api/telegram/link`. Workspace route: `#/notifications`.
+In-app channel uses Liquibase 010. Optional Telegram (013) and Email (014) are add-on channels
+on the same outbox (`task.assigned`, `comment.created`, `task.completed`, `task.failed`).
+Telegram: `TELEGRAM_BOT_TOKEN` / `TELEGRAM_BOT_USERNAME` / webhook secret / `APP_PUBLIC_BASE`;
+bind via `POST /api/telegram/link` → `/start <token>`. Email: `MAIL_HOST` (+ port/user/password/from);
+`GET/PUT /api/email` status and mute. Workspace: `#/notifications`.
 
 ## Task activity history
 
@@ -236,7 +235,7 @@ the current MVP slice and will land later when credentials, channel choice and c
 | Item | Why deferred |
 |------|----------------|
 | Dropbox (or other cloud) attachment storage | Needs app keys, token lifecycle and delete sync; local disk covers the API/UI path now |
-| Email notifications | Policy draft pending; Telegram v1 + in-app cover push |
+| Rich HTML email / digests | Plain SMTP v1 covers assigned/comment/complete/fail |
 | Hard resource leveling / calendars | Soft contention flags on Gantt/workload only; dates are not shifted |
 | Per-project / per-assignee break windows | Global fixed lunch 13:00–14:00 is shipped; custom windows deferred |
 | Financial / actual-effort KPI | Estimates are planning inputs, not timesheets |
