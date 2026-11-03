@@ -10,7 +10,8 @@ import java.util.Objects;
 
 /**
  * Hard leveling (projection): serialize overlapping [earlyStart, earlyFinish) for the same
- * assignee by shifting early starts forward in working time. Tasks without assignee are ignored.
+ * assignee by shifting early starts forward in working time. Optional per-assignee daily
+ * capacity (FTE minutes) uses a capped calendar. Tasks without assignee are ignored.
  * Late dates are kept; float is recomputed. Does not mutate persisted tasks.
  */
 public final class ResourceLeveler {
@@ -19,9 +20,15 @@ public final class ResourceLeveler {
 
     public static List<TaskSchedule> level(List<TaskSchedule> tasks, Map<Long, Long> assigneeByTaskId,
             WorkingCalendar calendar) {
+        return level(tasks, assigneeByTaskId, calendar, Map.of());
+    }
+
+    public static List<TaskSchedule> level(List<TaskSchedule> tasks, Map<Long, Long> assigneeByTaskId,
+            WorkingCalendar calendar, Map<Long, Integer> dailyCapacityByAssignee) {
         Objects.requireNonNull(tasks, "tasks");
         Objects.requireNonNull(assigneeByTaskId, "assigneeByTaskId");
         Objects.requireNonNull(calendar, "calendar");
+        Objects.requireNonNull(dailyCapacityByAssignee, "dailyCapacityByAssignee");
         Map<Long, TaskSchedule> byId = new HashMap<>();
         for (TaskSchedule task : tasks) {
             byId.put(task.taskId(), task);
@@ -35,17 +42,19 @@ public final class ResourceLeveler {
             }
             byAssignee.computeIfAbsent(assignee, ignored -> new ArrayList<>()).add(task);
         }
-        for (List<TaskSchedule> group : byAssignee.values()) {
+        for (Map.Entry<Long, List<TaskSchedule>> entry : byAssignee.entrySet()) {
+            WorkingCalendar assigneeCalendar = calendarFor(calendar, dailyCapacityByAssignee.get(entry.getKey()));
+            List<TaskSchedule> group = entry.getValue();
             group.sort(Comparator.comparing(TaskSchedule::earlyStart).thenComparingLong(TaskSchedule::taskId));
             Instant cursor = null;
             for (TaskSchedule task : group) {
                 Instant start = task.earlyStart();
                 if (cursor != null && start.isBefore(cursor)) {
-                    start = calendar.normalizeStart(cursor);
+                    start = assigneeCalendar.normalizeStart(cursor);
                 }
-                Instant finish = calendar.addWorkingMinutes(start, task.durationMinutes());
+                Instant finish = assigneeCalendar.addWorkingMinutes(start, task.durationMinutes());
                 long floatMinutes = task.lateStart().isBefore(start) ? 0L
-                        : calendar.workingMinutesBetween(start, task.lateStart());
+                        : assigneeCalendar.workingMinutesBetween(start, task.lateStart());
                 byId.put(task.taskId(), new TaskSchedule(task.taskId(), task.durationMinutes(), start, finish,
                         task.lateStart(), task.lateFinish(), floatMinutes, floatMinutes == 0L,
                         task.deadlineOverrun()));
@@ -57,5 +66,16 @@ public final class ResourceLeveler {
             leveled.add(byId.get(task.taskId()));
         }
         return List.copyOf(leveled);
+    }
+
+    private static WorkingCalendar calendarFor(WorkingCalendar base, Integer capacity) {
+        if (capacity == null) {
+            return base;
+        }
+        int capped = Math.min(capacity, base.minutesPerDay());
+        if (capped == base.dailyCapacityMinutes()) {
+            return base;
+        }
+        return base.withDailyCapacityMinutes(capped);
     }
 }

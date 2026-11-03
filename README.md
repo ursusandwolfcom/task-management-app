@@ -204,6 +204,7 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
+| S44 | Member daily capacity / FTE (`GET/PUT /api/projects/{id}/capacities`, Liquibase 019) |
 | S43 | Timesheets / actual effort (`POST/GET/DELETE /api/time-entries`, Liquibase 018) |
 | S42 | Per-project break windows (`GET/PUT /api/projects/{id}/breaks`, Liquibase 017) |
 | S41 | Rich HTML email (multipart alternative + brand wrapper) |
@@ -268,6 +269,16 @@ be non-overlapping, inside the working day, and leave positive net working minut
 bumps `calendarRevision`. Liquibase 017. CPM/Gantt/portfolio use these windows via
 `WorkingCalendar`.
 
+## Member daily capacity (FTE)
+
+`GET /api/projects/{id}/capacities` lists stored `{userId, dailyMinutes}` overrides
+(1..480). Missing members use the project calendar net day (default 420).
+`PUT /api/projects/{id}/capacities` with
+`{"entries":[{"userId":2,"dailyMinutes":210}],"version":N}` replaces the set
+(owner/ADMIN); empty `entries` clears customs; users must be members; bumps
+`calendarRevision`. With `?resourceLeveling=true`, hard leveling applies each
+assignee's capacity via a capped `WorkingCalendar`. Liquibase 019.
+
 ## Timesheets (actual effort)
 
 `POST /api/time-entries` with `{"taskId":1,"workDate":"2026-11-03","minutes":90,"note":"..."}`
@@ -286,8 +297,7 @@ the current MVP slice and will land later when credentials, channel choice and c
 |------|----------------|
 | Dropbox per-user OAuth accounts | App-folder refresh token in env + ADMIN backfill; not end-user OAuth |
 | Advanced email templates / i18n themes | Multipart HTML wrapper ships; no per-tenant themes |
-| Full resource calendars / FTE capacity | Opt-in hard leveling serializes assignee overlaps; not multi-calendar FTE |
-| Per-assignee break windows | Project-level breaks ship; assignee-specific calendars deferred with FTE |
+| Per-assignee break windows | Project-level breaks ship; capacity is daily minutes, not separate break sets |
 
 Do not treat README assignment notes that mention per-user Dropbox OAuth as shipped.
 

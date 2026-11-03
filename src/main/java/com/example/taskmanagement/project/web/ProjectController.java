@@ -1,5 +1,6 @@
 package com.example.taskmanagement.project.web;
 
+import com.example.taskmanagement.project.api.MemberCapacity;
 import com.example.taskmanagement.project.api.ProjectBreakWindow;
 import com.example.taskmanagement.project.api.ProjectData;
 import com.example.taskmanagement.project.api.ProjectException;
@@ -171,6 +172,31 @@ public class ProjectController {
             throw new ProjectException(ProjectException.Reason.VALIDATION_ERROR);
         }
         return response(projects.replaceBreaks(actor(jwt), id, windows, request.version()));
+    }
+
+    @GetMapping("/{id}/capacities")
+    @Operation(summary = "List stored member daily capacities (FTE minutes); missing members use calendar day")
+    public ResponseEntity<List<MemberCapacity>> capacities(@AuthenticationPrincipal Jwt jwt,
+            @Positive @PathVariable long id) {
+        return response(projects.capacities(actor(jwt), id));
+    }
+
+    public record CapacityBody(
+            @Positive long userId,
+            @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(480) int dailyMinutes) {
+    }
+
+    public record CapacitiesRequest(@NotNull List<CapacityBody> entries, @NotNull @PositiveOrZero Long version) {
+    }
+
+    @PutMapping("/{id}/capacities")
+    @Operation(summary = "Replace member daily capacities; empty clears customs; bumps calendarRevision")
+    public ResponseEntity<ProjectView> replaceCapacities(@AuthenticationPrincipal Jwt jwt,
+            @Positive @PathVariable long id, @Valid @RequestBody CapacitiesRequest request) {
+        var capacities = request.entries().stream()
+                .map(body -> new MemberCapacity(body.userId(), body.dailyMinutes()))
+                .toList();
+        return response(projects.replaceCapacities(actor(jwt), id, capacities, request.version()));
     }
 
     private static long actor(Jwt jwt) {

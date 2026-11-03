@@ -15,8 +15,8 @@ import java.util.Set;
 
 /**
  * Mon–Fri 09:00–17:00 in a project IANA zone, minus holidays and break windows.
- * Default break is lunch 13:00–14:00 (420 net minutes/day). Intervals are [start, end).
- * Resource contention is out of scope.
+ * Default break is lunch 13:00–14:00 (420 net minutes/day). Optional daily capacity
+ * (FTE minutes) caps net working minutes per day for leveling. Intervals are [start, end).
  */
 public final class WorkingCalendar {
 
@@ -32,6 +32,7 @@ public final class WorkingCalendar {
     private final Set<LocalDate> holidays;
     private final List<BreakWindow> breaks;
     private final int minutesPerDay;
+    private final int dailyCapacityMinutes;
 
     public WorkingCalendar(ZoneId zone) {
         this(zone, Set.of());
@@ -42,6 +43,10 @@ public final class WorkingCalendar {
     }
 
     public WorkingCalendar(ZoneId zone, Set<LocalDate> holidays, List<BreakWindow> breaks) {
+        this(zone, holidays, breaks, null);
+    }
+
+    private WorkingCalendar(ZoneId zone, Set<LocalDate> holidays, List<BreakWindow> breaks, Integer dailyCapacity) {
         this.zone = Objects.requireNonNull(zone, "zone");
         this.holidays = Set.copyOf(Objects.requireNonNull(holidays, "holidays"));
         this.breaks = normalizeBreaks(Objects.requireNonNull(breaks, "breaks"));
@@ -51,6 +56,19 @@ public final class WorkingCalendar {
             throw new IllegalArgumentException("Breaks must leave positive working time in the day");
         }
         this.minutesPerDay = (int) (dayMinutes - breakMinutes);
+        if (dailyCapacity == null) {
+            this.dailyCapacityMinutes = this.minutesPerDay;
+        } else {
+            if (dailyCapacity < 1 || dailyCapacity > this.minutesPerDay) {
+                throw new IllegalArgumentException("Daily capacity must lie within 1..minutesPerDay");
+            }
+            this.dailyCapacityMinutes = dailyCapacity;
+        }
+    }
+
+    /** Copy with a per-day working-minute cap (FTE); must be 1..{@link #minutesPerDay()}. */
+    public WorkingCalendar withDailyCapacityMinutes(int capacityMinutes) {
+        return new WorkingCalendar(zone, holidays, breaks, capacityMinutes);
     }
 
     public ZoneId zone() {
@@ -69,6 +87,10 @@ public final class WorkingCalendar {
         return minutesPerDay;
     }
 
+    public int dailyCapacityMinutes() {
+        return dailyCapacityMinutes;
+    }
+
     /** Project calendar origin: first working 09:00 on or after startDate in the project zone. */
     public Instant projectOrigin(LocalDate startDate) {
         Objects.requireNonNull(startDate, "startDate");
@@ -84,14 +106,19 @@ public final class WorkingCalendar {
         }
         var time = local.toLocalTime();
         if (time.isBefore(DAY_START)) {
-            return local.with(DAY_START).toInstant();
+            local = local.with(DAY_START);
+            time = DAY_START;
         }
         for (BreakWindow window : breaks) {
             if (!time.isBefore(window.start()) && time.isBefore(window.end())) {
-                return local.with(window.end()).toInstant();
+                local = local.with(window.end());
+                time = window.end();
             }
         }
         if (!time.isBefore(DAY_END)) {
+            return nextDayStart(local.toLocalDate().plusDays(1));
+        }
+        if (uncappedWorkedMinutes(local.toLocalDate(), time) >= dailyCapacityMinutes) {
             return nextDayStart(local.toLocalDate().plusDays(1));
         }
         return local.toInstant();
@@ -106,13 +133,24 @@ public final class WorkingCalendar {
         long remaining = workingMinutes;
         while (remaining > 0) {
             var local = cursor.atZone(zone);
+            long usedToday = uncappedWorkedMinutes(local.toLocalDate(), local.toLocalTime());
+            long leftToday = dailyCapacityMinutes - usedToday;
+            if (leftToday <= 0) {
+                cursor = nextDayStart(local.toLocalDate().plusDays(1));
+                continue;
+            }
             var segmentEnd = segmentEnd(local.toLocalTime());
             long leftInSegment = Duration.between(local.toLocalTime(), segmentEnd).toMinutes();
-            if (remaining <= leftInSegment) {
-                return local.plusMinutes(remaining).toInstant();
+            long take = Math.min(remaining, Math.min(leftInSegment, leftToday));
+            if (take == remaining) {
+                return local.plusMinutes(take).toInstant();
             }
-            remaining -= leftInSegment;
-            cursor = advancePastSegment(local, segmentEnd);
+            remaining -= take;
+            if (take == leftToday) {
+                cursor = nextDayStart(local.toLocalDate().plusDays(1));
+            } else {
+                cursor = advancePastSegment(local, segmentEnd);
+            }
         }
         return cursor;
     }
@@ -132,12 +170,52 @@ public final class WorkingCalendar {
         long total = 0L;
         while (cursor.isBefore(limit)) {
             var local = cursor.atZone(zone);
+            long usedToday = uncappedWorkedMinutes(local.toLocalDate(), local.toLocalTime());
+            long leftToday = dailyCapacityMinutes - usedToday;
+            if (leftToday <= 0) {
+                cursor = nextDayStart(local.toLocalDate().plusDays(1));
+                continue;
+            }
             var segmentEnd = segmentEnd(local.toLocalTime());
             var segmentEndInstant = local.with(segmentEnd).toInstant();
+            var capacityEnd = local.plusMinutes(leftToday).toInstant();
             var sliceEnd = segmentEndInstant.isBefore(limit) ? segmentEndInstant : limit;
+            if (capacityEnd.isBefore(sliceEnd)) {
+                sliceEnd = capacityEnd;
+            }
             total += Duration.between(cursor, sliceEnd).toMinutes();
-            if (!sliceEnd.isBefore(segmentEndInstant)) {
+            if (sliceEnd.equals(capacityEnd) && capacityEnd.isBefore(segmentEndInstant)
+                    && capacityEnd.isBefore(limit)) {
+                cursor = nextDayStart(local.toLocalDate().plusDays(1));
+            } else if (!sliceEnd.isBefore(segmentEndInstant)) {
                 cursor = advancePastSegment(local, segmentEnd);
+            } else {
+                break;
+            }
+        }
+        return total;
+    }
+
+    private long uncappedWorkedMinutes(LocalDate day, LocalTime time) {
+        if (time.isBefore(DAY_START) || !isWorkingDay(day)) {
+            return 0L;
+        }
+        LocalTime end = time.isAfter(DAY_END) ? DAY_END : time;
+        long total = 0L;
+        LocalTime cursor = DAY_START;
+        while (cursor.isBefore(end)) {
+            LocalTime segmentEnd = segmentEnd(cursor);
+            LocalTime sliceEnd = segmentEnd.isBefore(end) ? segmentEnd : end;
+            total += Duration.between(cursor, sliceEnd).toMinutes();
+            if (!sliceEnd.isBefore(segmentEnd) && sliceEnd.isBefore(end)) {
+                BreakWindow matched = null;
+                for (BreakWindow window : breaks) {
+                    if (segmentEnd.equals(window.start())) {
+                        matched = window;
+                        break;
+                    }
+                }
+                cursor = matched == null ? end : matched.end();
             } else {
                 break;
             }

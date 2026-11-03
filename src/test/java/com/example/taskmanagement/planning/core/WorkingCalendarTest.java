@@ -109,4 +109,14 @@ class WorkingCalendarTest {
         assertThrows(IllegalArgumentException.class, () -> new WorkingCalendar(ZoneId.of("UTC"), Set.of(),
                 List.of(new BreakWindow(LocalTime.of(9, 0), LocalTime.of(17, 0)))));
     }
+
+    @Test
+    void dailyCapacityCapsNetMinutesAcrossDays() {
+        var half = calendar.withDailyCapacityMinutes(210);
+        Instant monday = half.projectOrigin(LocalDate.of(2026, 11, 2));
+        assertEquals(ZonedDateTime.of(2026, 11, 2, 12, 30, 0, 0, ZoneId.of("UTC")).toInstant(),
+                half.addWorkingMinutes(monday, 210));
+        assertEquals(ZonedDateTime.of(2026, 11, 3, 9, 1, 0, 0, ZoneId.of("UTC")).toInstant(),
+                half.addWorkingMinutes(monday, 211));
+    }
 }
