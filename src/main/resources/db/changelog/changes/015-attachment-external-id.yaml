@@ -1,0 +1,12 @@
+databaseChangeLog:
+  - changeSet:
+      id: 015-attachment-external-id
+      author: projectflow
+      changes:
+        - sql:
+            sql: |
+              ALTER TABLE task_management.attachments
+                ADD COLUMN external_id VARCHAR(128) NULL;
+        - rollback:
+            sql: |
+              ALTER TABLE task_management.attachments DROP COLUMN external_id;

@@ -30,13 +30,13 @@ java -jar target/task-management-app-0.0.1-SNAPSHOT.jar --spring.profiles.active
 | 6–7 | Start/Complete A → B открывается; на B Fail → Retry → Start | История попыток |
 | 7–8 | Карточка проекта: Gantt; what-if | Пн–Пт 09–17 + обед 13–14; what-if **не** пишет в БД |
 | 8–9 | «Обзор»: риск + загрузка | Soft warn при пересечении планов одного исполнителя |
-| 9–10 | Комментарий / метка / TXT-вложение | Файлы на диске (не Dropbox) |
+| 9–10 | Комментарий / метка / TXT-вложение | Local disk by default; optional Dropbox via env |
 | 10–11 | «Уведомления» у member | In-app; опционально Telegram link + Email mute |
 | 11–12 | Activity на задаче | Append-only история событий |
 
 ## Что не обещать
 
-См. **Deferred** в [README](README.md#deferred-explicit-technical-debt): Dropbox, rich HTML/digests, hard leveling, финKPI.
+См. **Deferred** в [README](README.md#deferred-explicit-technical-debt): Dropbox OAuth/backfill, rich HTML/digests, hard leveling, финKPI.
 
 ## Alpha (по желанию)
 
