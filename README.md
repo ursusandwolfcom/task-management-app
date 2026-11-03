@@ -10,7 +10,7 @@
 
 ## Демо для заказчика
 
-Готовый **рабочий демо-срез** на ветке `main`: полный MVP-сценарий плюс планирование, портфель, файлы и in-app уведомления. Это не production-deploy и не весь исходный assignment end-to-end — честный объём см. [Deferred](#deferred-explicit-technical-debt).
+Готовый **рабочий демо-срез** на ветке `main`: MVP, планирование (праздники, обед), портфель, файлы, in-app и опциональный Telegram. Это не production-deploy — честный объём см. [Deferred](#deferred-explicit-technical-debt).
 
 ### За 10 минут
 
@@ -34,7 +34,11 @@ CPM + Gantt + what-if Портфель рисков + workload  Workspace UI (т
 
 ### Что сознательно позже
 
+<<<<<<< Updated upstream
 Dropbox, email, hard leveling, финансовые KPI — перечислены в таблице **Deferred** ниже. В демо их **не** обещать. Праздники, обед 13–14, soft contention и Telegram v1 уже поддерживаются.
+=======
+Dropbox, email, hard leveling, финансовые KPI — перечислены в таблице **Deferred** ниже. В демо их **не** обещать. Праздники, обед 13–14, soft contention и Telegram v1 уже в срезе.
+>>>>>>> Stashed changes
 
 ### Как запустить демо
 
@@ -236,8 +240,13 @@ the current MVP slice and will land later when credentials, channel choice and c
 | Item | Why deferred |
 |------|----------------|
 | Dropbox (or other cloud) attachment storage | Needs app keys, token lifecycle and delete sync; local disk covers the API/UI path now |
+<<<<<<< Updated upstream
 | Email notifications | Channel policy unresolved; Telegram v1 + in-app outbox cover push |
 | Hard resource leveling / calendars | Soft contention flags on Gantt/workload only; dates are not shifted |
+=======
+| Email notifications | Policy draft in local docs; Telegram v1 + in-app cover push |
+| Hard resource leveling / calendars | Soft contention flags only; dates are not shifted |
+>>>>>>> Stashed changes
 | Per-project / per-assignee break windows | Global fixed lunch 13:00–14:00 is shipped; custom windows deferred |
 | Financial / actual-effort KPI | Estimates are planning inputs, not timesheets |
 
