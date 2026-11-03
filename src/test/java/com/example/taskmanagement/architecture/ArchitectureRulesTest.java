@@ -28,7 +28,7 @@ class ArchitectureRulesTest {
             Map.entry("scheduling", Set.of("project", "task", "planning", "resource")),
             Map.entry("workflow", Set.of("project", "task", "collaboration", "attachment", "scheduling")),
             Map.entry("collaboration", Set.of("project", "task", "identity", "integration.outbox")),
-            Map.entry("attachment", Set.of("project", "task", "identity")),
+            Map.entry("attachment", Set.of("project", "task", "identity", "integration.outbox")),
             Map.entry("notification", Set.of("identity", "project", "task", "integration.outbox")),
             Map.entry("security", Set.of("identity")),
             Map.entry("integration.outbox", Set.of()),

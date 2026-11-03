@@ -98,15 +98,22 @@ public class NotificationService implements NotificationOperations {
             return;
         }
         if (OutboxEvents.TASK_STARTED.equals(message.eventType())
-                || OutboxEvents.TASK_COMPLETED.equals(message.eventType())) {
+                || OutboxEvents.TASK_COMPLETED.equals(message.eventType())
+                || OutboxEvents.TASK_FAILED.equals(message.eventType())
+                || OutboxEvents.TASK_CANCELLED.equals(message.eventType())) {
             long actor = payload.path("actorId").asLong(0);
             long assignee = payload.path("assigneeId").asLong(0);
             long owner = payload.path("ownerId").asLong(0);
             long projectId = payload.path("projectId").asLong();
             long taskId = payload.path("taskId").asLong();
             String name = truncate(payload.path("taskName").asString("Задача"));
+            String title = switch (message.eventType()) {
+                case OutboxEvents.TASK_STARTED -> "Задача запущена";
+                case OutboxEvents.TASK_COMPLETED -> "Задача завершена";
+                case OutboxEvents.TASK_FAILED -> "Задача провалена";
+                default -> "Задача отменена";
+            };
             boolean started = OutboxEvents.TASK_STARTED.equals(message.eventType());
-            String title = started ? "Задача запущена" : "Задача завершена";
             if (assignee > 0 && assignee != actor) {
                 notifications.saveAndFlush(new NotificationEntity(assignee, message.eventType(), projectId, taskId,
                         title, name, now));
@@ -114,6 +121,16 @@ public class NotificationService implements NotificationOperations {
             if (!started && owner > 0 && owner != actor && owner != assignee) {
                 notifications.saveAndFlush(new NotificationEntity(owner, message.eventType(), projectId, taskId,
                         title, name, now));
+            }
+            return;
+        }
+        if (OutboxEvents.ATTACHMENT_UPLOADED.equals(message.eventType())) {
+            long recipient = payload.path("assigneeId").asLong(0);
+            long actor = payload.path("actorId").asLong(0);
+            if (recipient > 0 && recipient != actor) {
+                notifications.saveAndFlush(new NotificationEntity(recipient, message.eventType(),
+                        payload.path("projectId").asLong(), payload.path("taskId").asLong(),
+                        "Новый файл", truncate(payload.path("fileName").asString("Файл")), now));
             }
         }
     }
