@@ -1,5 +1,6 @@
 package com.example.taskmanagement.project.api;
 
+import java.time.Duration;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -26,6 +27,10 @@ public record ProjectBreakWindow(LocalTime start, LocalTime end) {
         }
     }
 
+    public long minutes() {
+        return Duration.between(start, end).toMinutes();
+    }
+
     public static List<ProjectBreakWindow> normalize(List<ProjectBreakWindow> input) {
         Objects.requireNonNull(input, "breaks");
         var sorted = input.stream().sorted(Comparator.comparing(ProjectBreakWindow::start)).toList();
@@ -37,6 +42,11 @@ public record ProjectBreakWindow(LocalTime start, LocalTime end) {
             }
             normalized.add(window);
             previousEnd = window.end();
+        }
+        long dayMinutes = Duration.between(DAY_START, DAY_END).toMinutes();
+        long breakMinutes = normalized.stream().mapToLong(ProjectBreakWindow::minutes).sum();
+        if (breakMinutes >= dayMinutes) {
+            throw new IllegalArgumentException("Breaks must leave positive working time in the day");
         }
         return List.copyOf(normalized);
     }
