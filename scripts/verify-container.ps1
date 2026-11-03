@@ -75,7 +75,7 @@ function Assert-HttpStatus([string]$Path, [int]$Expected) {
 function Assert-MigrationHistory {
     $count = Invoke-Compose @('exec', '-T', 'postgres', 'psql', '-U', 'task_management_check',
         '-d', 'task_management_check', '-tAc', 'SELECT count(*) FROM public.databasechangelog;')
-    if (($count | Out-String).Trim() -ne '12') { throw 'Liquibase tracking history was not preserved in public' }
+    if (($count | Out-String).Trim() -ne '13') { throw 'Liquibase tracking history was not preserved in public' }
 }
 
 function Assert-IdentityBootstrap {

@@ -87,7 +87,8 @@ public class SecurityConfiguration {
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/session/csrf").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.POST,
                                 "/api/auth/register", "/api/auth/login", "/api/auth/refresh",
-                                "/api/session/login", "/api/session/refresh", "/api/session/logout").permitAll()
+                                "/api/session/login", "/api/session/refresh", "/api/session/logout",
+                                "/api/telegram/webhook").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(errors -> errors
                         .authenticationEntryPoint((request, response, exception) -> error(response, 401))

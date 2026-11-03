@@ -32,6 +32,7 @@ class ArchitectureRulesTest {
             Map.entry("notification", Set.of("identity", "project", "task", "integration.outbox")),
             Map.entry("security", Set.of("identity")),
             Map.entry("integration.outbox", Set.of()),
+            Map.entry("integration.telegram", Set.of("identity", "integration.outbox")),
             Map.entry("shared", Set.of()),
             Map.entry("alpha", Set.of("planning")),
             Map.entry("workspace", Set.of()));
@@ -102,6 +103,9 @@ class ArchitectureRulesTest {
         String relative = packageName.substring(ROOT.length() + 1);
         if (relative.equals("integration.outbox") || relative.startsWith("integration.outbox.")) {
             return "integration.outbox";
+        }
+        if (relative.equals("integration.telegram") || relative.startsWith("integration.telegram.")) {
+            return "integration.telegram";
         }
         return relative.split("\\.")[0];
     }

@@ -34,10 +34,7 @@ public class OutboxService implements OutboxOperations, OutboxConsumerOperations
     @Override
     @Transactional(readOnly = true)
     public List<OutboxMessage> claimUnprocessed(int limit) {
-        int size = Math.min(Math.max(limit, 1), 100);
-        return messages.findUnprocessed(PageRequest.of(0, size)).stream()
-                .map(row -> new OutboxMessage(row.id(), row.eventType(), row.payload()))
-                .toList();
+        return map(messages.findUnprocessed(PageRequest.of(0, size(limit))));
     }
 
     @Override
@@ -46,5 +43,27 @@ public class OutboxService implements OutboxOperations, OutboxConsumerOperations
             row.markProcessed(clock.instant().truncatedTo(ChronoUnit.MICROS));
             messages.saveAndFlush(row);
         });
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<OutboxMessage> claimTelegramUnprocessed(int limit) {
+        return map(messages.findTelegramUnprocessed(PageRequest.of(0, size(limit))));
+    }
+
+    @Override
+    public void markTelegramProcessed(long id) {
+        messages.findById(id).ifPresent(row -> {
+            row.markTelegramProcessed(clock.instant().truncatedTo(ChronoUnit.MICROS));
+            messages.saveAndFlush(row);
+        });
+    }
+
+    private static List<OutboxMessage> map(List<OutboxMessageEntity> rows) {
+        return rows.stream().map(row -> new OutboxMessage(row.id(), row.eventType(), row.payload())).toList();
+    }
+
+    private static int size(int limit) {
+        return Math.min(Math.max(limit, 1), 100);
     }
 }
