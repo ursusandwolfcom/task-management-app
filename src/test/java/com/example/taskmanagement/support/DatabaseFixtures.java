@@ -21,6 +21,7 @@ public final class DatabaseFixtures {
         jdbc.update("delete from task_management.labels");
         jdbc.update("delete from task_management.task_dependencies");
         jdbc.update("delete from task_management.task_execution_attempts");
+        jdbc.update("delete from task_management.task_time_entries");
         jdbc.update("delete from task_management.tasks");
         jdbc.update("delete from task_management.project_members");
         jdbc.update("delete from task_management.project_holidays");

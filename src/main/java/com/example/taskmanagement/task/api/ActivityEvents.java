@@ -17,6 +17,8 @@ public final class ActivityEvents {
     public static final String ATTACHMENT_DELETED = "attachment.deleted";
     public static final String DEPENDENCY_ADDED = "dependency.added";
     public static final String DEPENDENCY_REMOVED = "dependency.removed";
+    public static final String TIME_LOGGED = "time.logged";
+    public static final String TIME_ENTRY_DELETED = "time.entry.deleted";
 
     private ActivityEvents() {
     }
