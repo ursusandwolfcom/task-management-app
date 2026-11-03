@@ -1,5 +1,7 @@
 package com.example.taskmanagement.collaboration.application;
 
+import com.example.taskmanagement.task.api.ActivityEvents;
+import com.example.taskmanagement.task.api.ActivityOperations;
 import com.example.taskmanagement.collaboration.api.CollaborationException;
 import com.example.taskmanagement.collaboration.api.CollaborationException.Reason;
 import com.example.taskmanagement.collaboration.api.LabelData;
@@ -26,14 +28,16 @@ public class LabelService implements LabelOperations {
     private final TaskLabelRepository links;
     private final CollaborationAccess access;
     private final ProjectOperations projects;
+    private final ActivityOperations activity;
     private final EntityManager entityManager;
 
     public LabelService(LabelRepository labels, TaskLabelRepository links, CollaborationAccess access,
-            ProjectOperations projects, EntityManager entityManager) {
+            ProjectOperations projects, ActivityOperations activity, EntityManager entityManager) {
         this.labels = labels;
         this.links = links;
         this.access = access;
         this.projects = projects;
+        this.activity = activity;
         this.entityManager = entityManager;
     }
 
@@ -81,13 +85,17 @@ public class LabelService implements LabelOperations {
         long projectId = access.lockTask(actorId, taskId).id();
         sameProject(actorId, projectId, labelId);
         links.link(projectId, taskId, labelId);
+        activity.record(actorId, projectId, taskId, ActivityEvents.LABEL_LINKED,
+                "Метка: " + entity(labelId).view().name());
     }
 
     @Override
     public void unlink(long actorId, long taskId, long labelId) {
         long projectId = access.lockTask(actorId, taskId).id();
         sameProject(actorId, projectId, labelId);
+        String name = entity(labelId).view().name();
         links.unlink(taskId, labelId);
+        activity.record(actorId, projectId, taskId, ActivityEvents.LABEL_UNLINKED, "Снята метка: " + name);
     }
 
     @Override

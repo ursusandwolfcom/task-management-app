@@ -78,3 +78,7 @@ export interface NotificationPage {
   content: NotificationItem[]; page: number; size: number; totalElements: bigint; totalPages: number;
   unreadCount: bigint;
 }
+export interface TaskActivity {
+  id: bigint; projectId: bigint; taskId: bigint; actorId: bigint; actionType: string;
+  summary: string; createdAt: string;
+}

@@ -1,5 +1,7 @@
 package com.example.taskmanagement.attachment.application;
 
+import com.example.taskmanagement.task.api.ActivityEvents;
+import com.example.taskmanagement.task.api.ActivityOperations;
 import com.example.taskmanagement.attachment.api.AttachmentException;
 import com.example.taskmanagement.attachment.api.AttachmentOperations;
 import com.example.taskmanagement.attachment.api.AttachmentView;
@@ -30,14 +32,16 @@ public class AttachmentService implements AttachmentOperations {
     private final AttachmentObjectStore store;
     private final AttachmentAccess access;
     private final IdentityOperations identity;
+    private final ActivityOperations activity;
     private final Clock clock;
 
     public AttachmentService(AttachmentRepository attachments, AttachmentObjectStore store, AttachmentAccess access,
-            IdentityOperations identity, Clock clock) {
+            IdentityOperations identity, ActivityOperations activity, Clock clock) {
         this.attachments = attachments;
         this.store = store;
         this.access = access;
         this.identity = identity;
+        this.activity = activity;
         this.clock = clock;
     }
 
@@ -53,8 +57,11 @@ public class AttachmentService implements AttachmentOperations {
         String key = UUID.randomUUID().toString().replace("-", "");
         store.put(key, body, sizeBytes);
         try {
-            return attachments.saveAndFlush(new AttachmentEntity(project.id(), taskId, actorId, safeName, type,
+            var created = attachments.saveAndFlush(new AttachmentEntity(project.id(), taskId, actorId, safeName, type,
                     sizeBytes, key, clock.instant().truncatedTo(ChronoUnit.MICROS))).view();
+            activity.record(actorId, project.id(), taskId, ActivityEvents.ATTACHMENT_UPLOADED,
+                    "Файл: " + created.fileName());
+            return created;
         } catch (RuntimeException exception) {
             store.delete(key);
             throw exception;
@@ -96,6 +103,8 @@ public class AttachmentService implements AttachmentOperations {
             throw error(AttachmentException.Reason.FORBIDDEN);
         }
         String key = entity.storageKey();
+        activity.record(actorId, projectId, view.taskId(), ActivityEvents.ATTACHMENT_DELETED,
+                "Удалён файл: " + view.fileName());
         attachments.delete(entity);
         attachments.flush();
         store.delete(key);
