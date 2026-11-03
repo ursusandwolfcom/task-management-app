@@ -1,5 +1,7 @@
 package com.example.taskmanagement.attachment.web;
 
+import com.example.taskmanagement.attachment.api.AttachmentBackfillOperations;
+import com.example.taskmanagement.attachment.api.AttachmentBackfillOperations.BackfillResult;
 import com.example.taskmanagement.attachment.api.AttachmentException;
 import com.example.taskmanagement.attachment.api.AttachmentOperations;
 import com.example.taskmanagement.attachment.api.AttachmentOperations.AttachmentPage;
@@ -32,9 +34,11 @@ import org.springframework.web.multipart.MultipartFile;
 @SecurityRequirement(name = "bearerAuth")
 public class AttachmentController {
     private final AttachmentOperations attachments;
+    private final AttachmentBackfillOperations backfill;
 
-    public AttachmentController(AttachmentOperations attachments) {
+    public AttachmentController(AttachmentOperations attachments, AttachmentBackfillOperations backfill) {
         this.attachments = attachments;
+        this.backfill = backfill;
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -85,6 +89,14 @@ public class AttachmentController {
     public ResponseEntity<Void> delete(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long id) {
         attachments.delete(actor(jwt), id);
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
+    }
+
+    @PostMapping("/backfill")
+    @Operation(summary = "ADMIN: upload local-only attachments to Dropbox and set external_id")
+    public ResponseEntity<BackfillResult> backfill(@AuthenticationPrincipal Jwt jwt,
+            @RequestParam(defaultValue = "50") int limit) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(backfill.backfillLocalToDropbox(actor(jwt), limit));
     }
 
     private static long actor(Jwt jwt) {

@@ -204,6 +204,7 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
+| S38 | Dropbox refresh-token OAuth + local→Dropbox backfill (`POST /api/attachments/backfill`) |
 | S37 | Email digests (`IMMEDIATE`/`DAILY`, Liquibase 016 queue + scheduler) |
 | S36 | Dropbox `AttachmentObjectStore` Strategy (`ATTACHMENT_STORAGE`); Liquibase 015 `external_id` |
 | S35 | Email outbox (Liquibase 014), prefs/mute, shared push projection; PR #66 → `dev` |
@@ -230,10 +231,11 @@ Project members, owners and ADMIN can upload files through `POST /api/attachment
 `application/pdf`, `image/png`, `image/jpeg`, `image/webp`, `text/plain`. Metadata is stored in
 PostgreSQL (Liquibase 009 + 015 `external_id`). Bytes use Strategy `AttachmentObjectStore`:
 default `attachment.storage=local` (`attachment.storage-dir`); optional
-`ATTACHMENT_STORAGE=dropbox` with `DROPBOX_ACCESS_TOKEN` and app folder
-`DROPBOX_APP_FOLDER` (default `/projectflow`). Upload writes provider first, then metadata;
-Dropbox file id is stored in `external_id`. Existing local rows keep working on local mode
-(no automatic backfill).
+`ATTACHMENT_STORAGE=dropbox` with refresh OAuth (`DROPBOX_APP_KEY` /
+`DROPBOX_APP_SECRET` / `DROPBOX_REFRESH_TOKEN`) or `DROPBOX_ACCESS_TOKEN`, plus
+`DROPBOX_APP_FOLDER` (default `/projectflow`). Upload writes Dropbox first; `external_id`
+stores the file id. Dual store falls back to local disk for legacy rows.
+ADMIN `POST /api/attachments/backfill?limit=` migrates local-only rows to Dropbox.
 
 `GET /api/attachments?taskId=` lists newest first; `GET /api/attachments/{id}/content` downloads;
 `DELETE /api/attachments/{id}` requires the uploader, current project owner or ADMIN with live
@@ -257,7 +259,7 @@ the current MVP slice and will land later when credentials, channel choice and c
 
 | Item | Why deferred |
 |------|----------------|
-| Dropbox OAuth / per-user accounts / backfill of local files | v1 uses a single refresh/access token in env; local files stay until a future job |
+| Dropbox per-user OAuth accounts | App-folder refresh token in env + ADMIN backfill; not end-user OAuth |
 | Rich HTML email branding | Plain-text digests and immediate mail only |
 | Hard resource leveling / calendars | Soft contention flags on Gantt/workload only; dates are not shifted |
 | Per-project / per-assignee break windows | Global fixed lunch 13:00–14:00 is shipped; custom windows deferred |
