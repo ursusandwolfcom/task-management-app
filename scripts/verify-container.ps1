@@ -282,7 +282,7 @@ try {
     Assert-MigrationHistory
     Assert-IdentityBootstrap
     Start-TaskPersistenceSmoke
-    Write-Output 'Container startup: health UP, identity protected, alpha disabled, UID 10001, UTC, migrations 20.'
+    Write-Output 'Container startup: health UP, identity protected, alpha disabled, UID 10001, UTC, migrations 21.'
 
     $restartTime = [DateTime]::UtcNow.ToString('o')
     Invoke-Compose @('restart', 'app')
@@ -291,7 +291,7 @@ try {
     Assert-MigrationHistory
     $restartLog = Invoke-Compose @('logs', '--no-color', '--since', $restartTime, 'app') | Out-String
     $restartLog | Set-Content -LiteralPath (Join-Path $logDirectory 'restart.log') -Encoding UTF8
-    if ($restartLog -notmatch 'Run:\s+0' -or $restartLog -notmatch 'Previously run:\s+20') {
+    if ($restartLog -notmatch 'Run:\s+0' -or $restartLog -notmatch 'Previously run:\s+21') {
         throw 'Restart reapplied migrations or did not preserve Liquibase history'
     }
     Complete-TaskPersistenceSmoke
