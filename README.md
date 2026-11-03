@@ -34,11 +34,7 @@ CPM + Gantt + what-if Портфель рисков + workload  Workspace UI (т
 
 ### Что сознательно позже
 
-<<<<<<< Updated upstream
-Dropbox, email, resource leveling, финансовые KPI — перечислены в таблице **Deferred** ниже. В демо их **не** обещать. Праздники, фиксированный обед 13–14 и Telegram v1 уже поддерживаются.
-=======
 Dropbox, email, hard leveling, финансовые KPI — перечислены в таблице **Deferred** ниже. В демо их **не** обещать. Праздники, обед 13–14, soft contention и Telegram v1 уже поддерживаются.
->>>>>>> Stashed changes
 
 ### Как запустить демо
 
@@ -241,13 +237,8 @@ the current MVP slice and will land later when credentials, channel choice and c
 |------|----------------|
 | Dropbox (or other cloud) attachment storage | Needs app keys, token lifecycle and delete sync; local disk covers the API/UI path now |
 | Email notifications | Channel policy unresolved; Telegram v1 + in-app outbox cover push |
-<<<<<<< Updated upstream
-| Resource calendars / leveling | Unlimited parallel resources by design until a resource module exists |
-| Per-project / per-assignee break windows | Global fixed lunch 13:00–14:00 is shipped; custom windows deferred |
-=======
 | Hard resource leveling / calendars | Soft contention flags on Gantt/workload only; dates are not shifted |
-| Working-calendar breaks (lunch etc.) | CPM uses Mon–Fri 09–17; project holidays are supported via API |
->>>>>>> Stashed changes
+| Per-project / per-assignee break windows | Global fixed lunch 13:00–14:00 is shipped; custom windows deferred |
 | Financial / actual-effort KPI | Estimates are planning inputs, not timesheets |
 
 Do not treat README assignment notes that mention Dropbox/email as shipped behavior.
