@@ -204,6 +204,7 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
+| S45 | Per-user Dropbox OAuth (`/api/dropbox`, Liquibase 020); uploads use linked account when present |
 | S44 | Member daily capacity / FTE (`GET/PUT /api/projects/{id}/capacities`, Liquibase 019) |
 | S43 | Timesheets / actual effort (`POST/GET/DELETE /api/time-entries`, Liquibase 018) |
 | S42 | Per-project break windows (`GET/PUT /api/projects/{id}/breaks`, Liquibase 017) |
@@ -248,6 +249,16 @@ ADMIN `POST /api/attachments/backfill?limit=` migrates local-only rows to Dropbo
 access. Uploads/deletes use the project write lock and do not change task or planning revisions.
 Task deletion cascades attachment rows; Dropbox delete is best-effort. Workspace task detail
 shows the attachment panel. Browser-cookie writes require CSRF.
+
+## Per-user Dropbox OAuth
+
+When `DROPBOX_APP_KEY` / `DROPBOX_APP_SECRET` and `DROPBOX_OAUTH_REDIRECT_URI` are set,
+users can link their own Dropbox: `POST /api/dropbox/authorize` → browser →
+`POST /api/dropbox/callback` with `{code,state}`. Status/unlink:
+`GET /api/dropbox`, `DELETE /api/dropbox/link`. Refresh token is stored on `users`
+(Liquibase 020). With `ATTACHMENT_STORAGE=dropbox`, uploads/downloads for a linked user
+go to that account under `{DROPBOX_APP_FOLDER}/u{userId}`; otherwise the app-folder
+token is used. App-folder env credentials remain required for unlinked users and backfill.
 
 ## Project holidays
 
@@ -295,11 +306,9 @@ the current MVP slice and will land later when credentials, channel choice and c
 
 | Item | Why deferred |
 |------|----------------|
-| Dropbox per-user OAuth accounts | App-folder refresh token in env + ADMIN backfill; not end-user OAuth |
 | Advanced email templates / i18n themes | Multipart HTML wrapper ships; no per-tenant themes |
 | Per-assignee break windows | Project-level breaks ship; capacity is daily minutes, not separate break sets |
-
-Do not treat README assignment notes that mention per-user Dropbox OAuth as shipped.
+| Dropbox Business / team admin | Personal app-folder OAuth ships; Business/team scopes stay out of scope |
 
 ## Comments and project labels
 

@@ -66,7 +66,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         HttpStatus status = switch (exception.reason()) {
             case ATTACHMENT_NOT_FOUND, TASK_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case FORBIDDEN -> HttpStatus.FORBIDDEN;
-            case VALIDATION_ERROR -> HttpStatus.BAD_REQUEST;
+            case VALIDATION_ERROR, OAUTH_NOT_CONFIGURED, OAUTH_STATE_INVALID -> HttpStatus.BAD_REQUEST;
             case STORAGE_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
         return uncachedProblem(status, exception.reason().name(),
@@ -114,9 +114,9 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             case INVALID_CREDENTIALS, INVALID_SESSION -> HttpStatus.UNAUTHORIZED;
             case FORBIDDEN -> HttpStatus.FORBIDDEN;
             case USER_NOT_FOUND -> HttpStatus.NOT_FOUND;
-            case DUPLICATE_IDENTITY, VERSION_CONFLICT, ADMIN_ALREADY_EXISTS, LAST_ADMIN, TELEGRAM_CHAT_TAKEN
-                    -> HttpStatus.CONFLICT;
-            case TELEGRAM_LINK_INVALID -> HttpStatus.BAD_REQUEST;
+            case DUPLICATE_IDENTITY, VERSION_CONFLICT, ADMIN_ALREADY_EXISTS, LAST_ADMIN, TELEGRAM_CHAT_TAKEN,
+                    DROPBOX_ACCOUNT_TAKEN -> HttpStatus.CONFLICT;
+            case TELEGRAM_LINK_INVALID, VALIDATION_ERROR -> HttpStatus.BAD_REQUEST;
         };
         return uncachedProblem(status, exception.reason().name(), "The identity operation could not be completed.");
     }
