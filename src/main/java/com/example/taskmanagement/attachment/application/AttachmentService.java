@@ -9,16 +9,20 @@ import com.example.taskmanagement.attachment.persistence.AttachmentEntity;
 import com.example.taskmanagement.attachment.persistence.AttachmentRepository;
 import com.example.taskmanagement.identity.api.IdentityOperations;
 import com.example.taskmanagement.identity.api.UserRole;
+import com.example.taskmanagement.integration.outbox.api.OutboxEvents;
+import com.example.taskmanagement.integration.outbox.api.OutboxOperations;
 import com.example.taskmanagement.shared.persistence.PageRequests;
 import java.io.InputStream;
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 @Validated
@@ -33,15 +37,20 @@ public class AttachmentService implements AttachmentOperations {
     private final AttachmentAccess access;
     private final IdentityOperations identity;
     private final ActivityOperations activity;
+    private final OutboxOperations outbox;
+    private final ObjectMapper json;
     private final Clock clock;
 
     public AttachmentService(AttachmentRepository attachments, AttachmentObjectStore store, AttachmentAccess access,
-            IdentityOperations identity, ActivityOperations activity, Clock clock) {
+            IdentityOperations identity, ActivityOperations activity, OutboxOperations outbox, ObjectMapper json,
+            Clock clock) {
         this.attachments = attachments;
         this.store = store;
         this.access = access;
         this.identity = identity;
         this.activity = activity;
+        this.outbox = outbox;
+        this.json = json;
         this.clock = clock;
     }
 
@@ -54,6 +63,7 @@ public class AttachmentService implements AttachmentOperations {
             throw error(AttachmentException.Reason.VALIDATION_ERROR);
         }
         var project = access.lockTask(actorId, taskId);
+        var task = access.task(actorId, taskId);
         String key = UUID.randomUUID().toString().replace("-", "");
         store.put(key, body, sizeBytes);
         try {
@@ -61,6 +71,13 @@ public class AttachmentService implements AttachmentOperations {
                     sizeBytes, key, clock.instant().truncatedTo(ChronoUnit.MICROS))).view();
             activity.record(actorId, project.id(), taskId, ActivityEvents.ATTACHMENT_UPLOADED,
                     "Файл: " + created.fileName());
+            var bodyJson = new LinkedHashMap<String, Object>();
+            bodyJson.put("actorId", actorId);
+            bodyJson.put("assigneeId", task.assigneeId());
+            bodyJson.put("projectId", project.id());
+            bodyJson.put("taskId", taskId);
+            bodyJson.put("fileName", created.fileName());
+            outbox.append(OutboxEvents.ATTACHMENT_UPLOADED, json.writeValueAsString(bodyJson));
             return created;
         } catch (RuntimeException exception) {
             store.delete(key);

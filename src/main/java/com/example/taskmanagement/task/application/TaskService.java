@@ -177,9 +177,9 @@ public class TaskService implements TaskOperations {
         tasks.saveAndFlush(task);
         coordination.markInputChanged(actorId, project.id());
         activity.record(actorId, project.id(), taskId, lifecycleAction(command), lifecycleSummary(command));
-        if (command == Command.START || command == Command.COMPLETE) {
-            outbox.append(command == Command.START ? OutboxEvents.TASK_STARTED : OutboxEvents.TASK_COMPLETED,
-                    payload(actorId, task.view(), project.ownerId()));
+        String lifecycleOutbox = lifecycleOutbox(command);
+        if (lifecycleOutbox != null) {
+            outbox.append(lifecycleOutbox, payload(actorId, task.view(), project.ownerId()));
         }
         return task.view();
     }
@@ -275,6 +275,16 @@ public class TaskService implements TaskOperations {
             case FAIL -> "Задача провалена";
             case CANCEL -> "Задача отменена";
             case RETRY -> "Повторная попытка";
+        };
+    }
+
+    private static String lifecycleOutbox(Command command) {
+        return switch (command) {
+            case START -> OutboxEvents.TASK_STARTED;
+            case COMPLETE -> OutboxEvents.TASK_COMPLETED;
+            case FAIL -> OutboxEvents.TASK_FAILED;
+            case CANCEL -> OutboxEvents.TASK_CANCELLED;
+            case RETRY -> null;
         };
     }
 

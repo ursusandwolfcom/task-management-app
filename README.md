@@ -183,8 +183,9 @@ for bounded, ordered project-edge reads; previous migrations remain unchanged.
 
 ## In-app notifications
 
-Task assignment, comments, start and complete enqueue durable `outbox_messages` rows
-(`task.assigned`, `comment.created`, `task.started`, `task.completed`) in the same write
+Task assignment, comments, lifecycle (start/complete/fail/cancel) and attachment uploads
+enqueue durable `outbox_messages` rows (`task.assigned`, `comment.created`, `task.started`,
+`task.completed`, `task.failed`, `task.cancelled`, `attachment.uploaded`) in the same write
 transaction. `GET /api/notifications` drains a small outbox batch into per-user in-app
 notifications, then returns a page with `unreadCount`.
 `POST /api/notifications/{id}/read` and `POST /api/notifications/read-all` mark items read.
