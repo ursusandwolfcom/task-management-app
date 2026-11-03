@@ -1,5 +1,7 @@
 package com.example.taskmanagement.collaboration.application;
 
+import com.example.taskmanagement.activity.api.ActivityEvents;
+import com.example.taskmanagement.activity.api.ActivityOperations;
 import com.example.taskmanagement.collaboration.api.CollaborationException;
 import com.example.taskmanagement.collaboration.api.CommentData;
 import com.example.taskmanagement.collaboration.api.CommentOperations;
@@ -29,16 +31,19 @@ public class CommentService implements CommentOperations {
     private final IdentityOperations identity;
     private final TaskOperations tasks;
     private final OutboxOperations outbox;
+    private final ActivityOperations activity;
     private final ObjectMapper json;
     private final Clock clock;
 
     public CommentService(CommentRepository comments, CollaborationAccess access, IdentityOperations identity,
-            TaskOperations tasks, OutboxOperations outbox, ObjectMapper json, Clock clock) {
+            TaskOperations tasks, OutboxOperations outbox, ActivityOperations activity, ObjectMapper json,
+            Clock clock) {
         this.comments = comments;
         this.access = access;
         this.identity = identity;
         this.tasks = tasks;
         this.outbox = outbox;
+        this.activity = activity;
         this.json = json;
         this.clock = clock;
     }
@@ -49,6 +54,7 @@ public class CommentService implements CommentOperations {
         var created = comments.saveAndFlush(new CommentEntity(project.id(), data.taskId(), actorId, data.text(),
                 clock.instant().truncatedTo(ChronoUnit.MICROS))).view();
         var task = tasks.read(actorId, data.taskId());
+        activity.record(actorId, project.id(), data.taskId(), ActivityEvents.COMMENT_CREATED, "Добавлен комментарий");
         var body = new LinkedHashMap<String, Object>();
         body.put("authorId", actorId);
         body.put("assigneeId", task.assigneeId());
@@ -83,6 +89,8 @@ public class CommentService implements CommentOperations {
                 && identity.currentRole(actorId) != UserRole.ADMIN) {
             throw error(CollaborationException.Reason.FORBIDDEN);
         }
+        activity.record(actorId, projectId, comment.view().taskId(), ActivityEvents.COMMENT_DELETED,
+                "Удалён комментарий");
         comments.delete(comment);
         comments.flush();
     }
