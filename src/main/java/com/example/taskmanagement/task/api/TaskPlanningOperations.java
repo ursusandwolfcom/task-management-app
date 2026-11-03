@@ -41,7 +41,8 @@ public interface TaskPlanningOperations {
             Instant lateFinish,
             long floatMinutes,
             boolean critical,
-            boolean deadlineOverrun) {
+            boolean deadlineOverrun,
+            boolean resourceContention) {
     }
 
     record CriticalDependency(long predecessorId, long successorId) {

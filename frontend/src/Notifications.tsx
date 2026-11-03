@@ -23,7 +23,7 @@ export function Notifications({ user }: { user: User }) {
         command.setNotice('Все прочитаны.'); query.reload();
       })}>Прочитать все</button>
     </PageHeader>
-    <p className="muted">In-app через outbox. Telegram — опциональный канал (assigned / comment / complete / fail).</p>
+    <p className="muted">In-app всегда. Telegram — опционально (assigned / comment / complete / fail), если бот настроен на сервере.</p>
     <section className="panel">
       <h2>Telegram</h2>
       {telegram.loading && <Loading />}

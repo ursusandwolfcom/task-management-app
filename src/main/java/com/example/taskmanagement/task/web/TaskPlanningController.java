@@ -69,9 +69,10 @@ public class TaskPlanningController {
 
     @GetMapping("/gantt")
     @Operation(summary = "Calculate working-time CPM / Gantt bars for the project graph",
-            description = "Mon–Fri 09:00–17:00 in the project timezone. Missing estimates are zero-length "
-                    + "milestones. Unlimited parallel resources; no resource leveling. "
-                    + "GET never mutates tasks; X-Project-Input-Revision mirrors the snapshot.")
+            description = "Mon–Fri 09:00–17:00 with lunch 13:00–14:00 in the project timezone. "
+                    + "Missing estimates are zero-length milestones. Unlimited parallel resources; "
+                    + "no resource leveling. GET never mutates tasks; "
+                    + "X-Project-Input-Revision mirrors the snapshot.")
     public ResponseEntity<ProjectGantt> gantt(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long id) {
         var result = planning.gantt(actor(jwt), id);
         return response(result, result.inputRevision());

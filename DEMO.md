@@ -5,7 +5,8 @@
 ## Подготовка (один раз)
 
 ```powershell
-Copy-Item .env.sample .env   # задайте POSTGRES_PASSWORD и JWT_SIGNING_KEY_BASE64
+Copy-Item .env.sample .env   # POSTGRES_PASSWORD, JWT_SIGNING_KEY_BASE64
+# Опционально Telegram: TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME, TELEGRAM_WEBHOOK_SECRET, APP_PUBLIC_BASE
 docker compose up -d --wait
 .\mvnw.cmd -q -DskipTests package
 java -jar target/task-management-app-0.0.1-SNAPSHOT.jar --spring.profiles.active=workspace
@@ -16,25 +17,27 @@ java -jar target/task-management-app-0.0.1-SNAPSHOT.jar --spring.profiles.active
 При первом запуске создайте ADMIN через bootstrap (см. README), затем двух USER:
 `owner_demo` и `member_demo` (регистрация в UI) **или** один OWNER + добавление участника по ID.
 
-## Сценарий ~10 минут
+## Сценарий ~12 минут
 
 | Мин | Действие | Что сказать |
 |-----|----------|-------------|
-| 0–1 | Войти как владелец | Постоянная cookie-сессия, CSRF; данные в PostgreSQL |
+| 0–1 | Войти как владелец | Cookie-сессия, CSRF; данные в PostgreSQL |
 | 1–2 | Создать проект, добавить участника | Чужой аккаунт не увидит проект |
-| 2–4 | Задачи **A** и **B**, зависимость A→B, назначить member на обе, bucket WORK | Оценка 15+ мин; исполнитель только из команды |
-| 4–5 | Войти как member → «Мои задачи» | B заблокирована с причиной; A доступна |
-| 5–6 | Start/Complete A → B открывается; на B Fail → Retry → Start | История попыток не теряется |
-| 6–7 | Карточка проекта: Gantt; what-if с большей оценкой | CPM Mon–Fri 09–17; what-if **не** пишет в БД |
-| 7–8 | «Обзор»: риск портфеля + загрузка исполнителей | Показатели из сохранённых данных |
-| 8–9 | Комментарий от owner на задачу member; метка; TXT/PNG вложение | Файлы на диске сервера (не Dropbox) |
-| 9–10 | «Уведомления» у member | In-app через outbox; email/Telegram — позже |
+| 2–3 | Праздники проекта (будни) | Нерабочие даты для CPM/Gantt |
+| 3–5 | Задачи **A** и **B**, зависимость A→B, назначить member, bucket WORK | Оценка 15+ мин; исполнитель из команды |
+| 5–6 | Войти как member → «Мои задачи» | B заблокирована; A доступна |
+| 6–7 | Start/Complete A → B открывается; на B Fail → Retry → Start | История попыток |
+| 7–8 | Карточка проекта: Gantt; what-if | Пн–Пт 09–17 + обед 13–14; what-if **не** пишет в БД |
+| 8–9 | «Обзор»: риск + загрузка | Soft warn при пересечении планов одного исполнителя |
+| 9–10 | Комментарий / метка / TXT-вложение | Файлы на диске (не Dropbox) |
+| 10–11 | «Уведомления» у member | In-app outbox; опционально привязка Telegram |
+| 11–12 | Activity на задаче | Append-only история событий |
 
 ## Что не обещать
 
-См. таблицу **Deferred** в [README](README.md#deferred-explicit-technical-debt): Dropbox, email/Telegram, leveling, праздники, финKPI.
+См. **Deferred** в [README](README.md#deferred-explicit-technical-debt): Dropbox, email, hard leveling, финKPI.
 
-## Alpha (по желанию, отдельно)
+## Alpha (по желанию)
 
-<http://127.0.0.1:8080/alpha/> — локальные сценарии в браузере + серверный `POST /alpha/plan`.
+<http://127.0.0.1:8080/alpha/> — браузерный прототип + `POST /alpha/plan`.
 Не смешивать ID/статусы alpha с PostgreSQL workspace.

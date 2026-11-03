@@ -24,6 +24,22 @@ class WorkingCalendarTest {
     }
 
     @Test
+    void lunchBreakIsSkippedAndShortensNetDay() {
+        assertEquals(ZonedDateTime.of(2026, 11, 2, 14, 0, 0, 0, ZoneId.of("UTC")).toInstant(),
+                calendar.normalizeStart(
+                        ZonedDateTime.of(2026, 11, 2, 13, 30, 0, 0, ZoneId.of("UTC")).toInstant()));
+        Instant noon = ZonedDateTime.of(2026, 11, 2, 12, 0, 0, 0, ZoneId.of("UTC")).toInstant();
+        // Morning segment ends at 13:00 (exclusive); the next working minute is 14:00.
+        assertEquals(ZonedDateTime.of(2026, 11, 2, 13, 0, 0, 0, ZoneId.of("UTC")).toInstant(),
+                calendar.addWorkingMinutes(noon, 60));
+        assertEquals(ZonedDateTime.of(2026, 11, 2, 14, 1, 0, 0, ZoneId.of("UTC")).toInstant(),
+                calendar.addWorkingMinutes(noon, 61));
+        assertEquals(120L, calendar.workingMinutesBetween(noon,
+                ZonedDateTime.of(2026, 11, 2, 15, 0, 0, 0, ZoneId.of("UTC")).toInstant()));
+        assertEquals(420, WorkingCalendar.MINUTES_PER_DAY);
+    }
+
+    @Test
     void fullWorkingDayAndCrossWeekendAddition() {
         Instant monday = calendar.projectOrigin(LocalDate.of(2026, 11, 2));
         assertEquals(ZonedDateTime.of(2026, 11, 2, 17, 0, 0, 0, ZoneId.of("UTC")).toInstant(),
