@@ -5,6 +5,8 @@ import com.example.taskmanagement.project.api.ProjectCoordination;
 import com.example.taskmanagement.task.api.TaskException;
 import com.example.taskmanagement.task.persistence.DependencyRepository;
 import com.example.taskmanagement.task.persistence.TaskRepository;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -47,9 +49,15 @@ public class TaskGraphLoader {
         var breaks = coordination.breaks(projectId).stream()
                 .map(window -> new BreakWindow(window.start(), window.end()))
                 .toList();
+        Map<Long, java.util.List<BreakWindow>> memberBreaks = coordination.memberBreaks(projectId).entrySet()
+                .stream()
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey,
+                        entry -> entry.getValue().stream()
+                                .map(window -> new BreakWindow(window.start(), window.end()))
+                                .toList()));
         return new TaskGraphInput(projectId, project.inputRevision(), project.calendarRevision(),
                 project.startDate(), project.endDate(), project.timezone(), coordination.holidays(projectId),
-                breaks, coordination.capacities(projectId), nodes, edges);
+                breaks, coordination.capacities(projectId), memberBreaks, nodes, edges);
     }
 
     int maxDependencies() {

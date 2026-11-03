@@ -466,6 +466,31 @@ class ProjectIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void memberBreaksReplaceAndRequireMembership() throws Exception {
+        var project = create();
+        project = projects.addMember(owner.id(), project.id(), member.id(), project.version());
+        String token = bearer(owner);
+        mvc.perform(put("/api/projects/" + project.id() + "/member-breaks")
+                .header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"entries\":[{\"userId\":" + member.id()
+                        + ",\"windows\":[{\"start\":\"12:00:00\",\"end\":\"12:30:00\"}]}],\"version\":"
+                        + project.version() + "}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.calendarRevision").value(1));
+        mvc.perform(get("/api/projects/" + project.id() + "/member-breaks").header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].userId").value((int) member.id()))
+                .andExpect(jsonPath("$[0].windows[0].start").value("12:00:00"))
+                .andExpect(jsonPath("$[0].windows[0].end").value("12:30:00"));
+        long version = projects.read(owner.id(), project.id()).version();
+        mvc.perform(put("/api/projects/" + project.id() + "/member-breaks")
+                .header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"entries\":[{\"userId\":" + outsider.id()
+                        + ",\"windows\":[{\"start\":\"12:00:00\",\"end\":\"12:30:00\"}]}],\"version\":"
+                        + version + "}"))
+                .andExpect(status().isBadRequest());
+    }
+
     private UserView register(String name) {
         return identity.register(command(name));
     }

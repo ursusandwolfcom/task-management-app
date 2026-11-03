@@ -69,4 +69,14 @@ public interface ProjectOperations {
      */
     ProjectView replaceCapacities(long actorId, long projectId, List<MemberCapacity> capacities,
             @PositiveOrZero long version);
+
+    /** Stored member break overrides only (not expanded with project defaults). */
+    List<MemberBreaks> memberBreaks(long actorId, long projectId);
+
+    /**
+     * Replaces stored member break windows and bumps calendarRevision.
+     * Users must be current project members; empty list clears overrides.
+     */
+    ProjectView replaceMemberBreaks(long actorId, long projectId, List<MemberBreaks> entries,
+            @PositiveOrZero long version);
 }

@@ -11,17 +11,20 @@ import com.example.taskmanagement.project.api.ProjectOperations;
 import com.example.taskmanagement.project.api.ProjectPatch;
 import com.example.taskmanagement.project.api.ProjectView;
 import com.example.taskmanagement.project.persistence.ProjectEntity;
+import com.example.taskmanagement.project.api.MemberBreaks;
 import com.example.taskmanagement.project.api.MemberCapacity;
 import com.example.taskmanagement.project.api.ProjectBreakWindow;
 import com.example.taskmanagement.project.persistence.ProjectBreakRepository;
 import com.example.taskmanagement.project.persistence.ProjectCapacityRepository;
 import com.example.taskmanagement.project.persistence.ProjectHolidayRepository;
+import com.example.taskmanagement.project.persistence.ProjectMemberBreakRepository;
 import com.example.taskmanagement.project.persistence.ProjectMemberEntity;
 import com.example.taskmanagement.project.persistence.ProjectMemberRepository;
 import com.example.taskmanagement.project.persistence.ProjectRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.validation.Validator;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -42,6 +45,7 @@ public class ProjectService implements ProjectOperations, ProjectCoordination {
     private final ProjectHolidayRepository holidayRepository;
     private final ProjectBreakRepository breakRepository;
     private final ProjectCapacityRepository capacityRepository;
+    private final ProjectMemberBreakRepository memberBreakRepository;
     private final IdentityOperations identity;
     private final EntityManager entityManager;
     private final Validator validator;
@@ -49,13 +53,15 @@ public class ProjectService implements ProjectOperations, ProjectCoordination {
 
     public ProjectService(ProjectRepository projects, ProjectMemberRepository members,
             ProjectHolidayRepository holidayRepository, ProjectBreakRepository breakRepository,
-            ProjectCapacityRepository capacityRepository, IdentityOperations identity, EntityManager entityManager,
-            Validator validator, List<ProjectContentGuard> contentGuards) {
+            ProjectCapacityRepository capacityRepository, ProjectMemberBreakRepository memberBreakRepository,
+            IdentityOperations identity, EntityManager entityManager, Validator validator,
+            List<ProjectContentGuard> contentGuards) {
         this.projects = projects;
         this.members = members;
         this.holidayRepository = holidayRepository;
         this.breakRepository = breakRepository;
         this.capacityRepository = capacityRepository;
+        this.memberBreakRepository = memberBreakRepository;
         this.identity = identity;
         this.entityManager = entityManager;
         this.validator = validator;
@@ -276,6 +282,49 @@ public class ProjectService implements ProjectOperations, ProjectCoordination {
             }
         }
         capacityRepository.replace(projectId, next);
+        project.calendarChanged();
+        return projects.saveAndFlush(project).view();
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Map<Long, List<ProjectBreakWindow>> memberBreaks(long projectId) {
+        return memberBreakRepository.list(projectId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MemberBreaks> memberBreaks(long actorId, long projectId) {
+        read(actorId, projectId);
+        return memberBreakRepository.list(projectId).entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> new MemberBreaks(entry.getKey(), entry.getValue()))
+                .toList();
+    }
+
+    @Override
+    public ProjectView replaceMemberBreaks(long actorId, long projectId, List<MemberBreaks> entries, long version) {
+        var project = managed(actorId, projectId, version);
+        List<MemberBreaks> next = new ArrayList<>();
+        if (entries != null) {
+            for (MemberBreaks entry : entries) {
+                if (entry == null || entry.windows().isEmpty()
+                        || !members.existsByProjectIdAndUserId(projectId, entry.userId())) {
+                    throw error(ProjectException.Reason.VALIDATION_ERROR);
+                }
+                List<ProjectBreakWindow> windows;
+                try {
+                    windows = ProjectBreakWindow.normalize(entry.windows());
+                } catch (IllegalArgumentException ex) {
+                    throw error(ProjectException.Reason.VALIDATION_ERROR);
+                }
+                if (next.stream().anyMatch(existing -> existing.userId() == entry.userId())) {
+                    throw error(ProjectException.Reason.VALIDATION_ERROR);
+                }
+                next.add(new MemberBreaks(entry.userId(), windows));
+            }
+        }
+        memberBreakRepository.replace(projectId, next);
         project.calendarChanged();
         return projects.saveAndFlush(project).view();
     }

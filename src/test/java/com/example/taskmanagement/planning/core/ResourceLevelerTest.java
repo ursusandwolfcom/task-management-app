@@ -57,4 +57,23 @@ class ResourceLevelerTest {
         assertThat(leveled.get(1).earlyStart()).isEqualTo(secondStart);
         assertThat(leveled.get(1).earlyFinish()).isEqualTo(capped.addWorkingMinutes(secondStart, 60L));
     }
+
+    @Test
+    void appliesAssigneeBreakOverrideWhenLeveling() {
+        Instant nine = Instant.parse("2026-11-02T09:00:00Z");
+        Instant twelve = Instant.parse("2026-11-02T12:00:00Z");
+        var shortBreaks = List.of(new BreakWindow(java.time.LocalTime.of(12, 0), java.time.LocalTime.of(12, 30)));
+        var assigneeCalendar = new WorkingCalendar(calendar.zone(), calendar.holidays(), shortBreaks);
+        var a = new TaskSchedule(1L, 180L, nine, twelve, nine, twelve, 0L, true, false);
+        var b = new TaskSchedule(2L, 180L, nine, twelve, nine, twelve, 0L, true, false);
+        var leveled = ResourceLeveler.level(List.of(a, b), Map.of(1L, 10L, 2L, 10L), calendar, Map.of(),
+                Map.of(10L, shortBreaks));
+        Instant firstFinish = assigneeCalendar.addWorkingMinutes(nine, 180L);
+        assertThat(leveled.get(0).earlyFinish()).isEqualTo(firstFinish);
+        Instant secondStart = assigneeCalendar.normalizeStart(firstFinish);
+        assertThat(secondStart).isEqualTo(Instant.parse("2026-11-02T12:30:00Z"));
+        assertThat(leveled.get(1).earlyStart()).isEqualTo(secondStart);
+        assertThat(leveled.get(1).earlyFinish())
+                .isEqualTo(assigneeCalendar.addWorkingMinutes(secondStart, 180L));
+    }
 }
