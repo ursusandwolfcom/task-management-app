@@ -44,7 +44,7 @@ public class PortfolioService implements PortfolioOperations {
         var cards = new ArrayList<ProjectRisk>(listed.content().size());
         for (var project : listed.content()) {
             var input = loader.load(actorId, project.id());
-            var calendar = new WorkingCalendar(ZoneId.of(input.timezone()));
+            var calendar = new WorkingCalendar(ZoneId.of(input.timezone()), input.holidays());
             var schedule = criticalPath.schedule(input.graph(), calendar, calendar.projectOrigin(input.startDate()),
                     input.endDate());
             long open = input.tasks().stream().filter(task -> OPEN.contains(task.status())).count();

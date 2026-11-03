@@ -64,7 +64,7 @@ public class TaskPlanningService implements TaskPlanningOperations {
     @Override
     public ProjectGantt gantt(long actorId, long projectId) {
         var input = loader.load(actorId, projectId);
-        var calendar = new WorkingCalendar(ZoneId.of(input.timezone()));
+        var calendar = new WorkingCalendar(ZoneId.of(input.timezone()), input.holidays());
         return toGantt(projectId, input, criticalPath.schedule(input.graph(), calendar,
                 calendar.projectOrigin(input.startDate()), input.endDate()));
     }
@@ -84,7 +84,7 @@ public class TaskPlanningService implements TaskPlanningOperations {
             }
             overrides.put(item.taskId(), item.estimatedMinutes());
         }
-        var calendar = new WorkingCalendar(ZoneId.of(input.timezone()));
+        var calendar = new WorkingCalendar(ZoneId.of(input.timezone()), input.holidays());
         var graph = GraphSnapshot.of(input.tasks().stream().map(task -> node(task, overrides)).toList(), input.edges());
         return toGantt(projectId, input, criticalPath.schedule(graph, calendar,
                 calendar.projectOrigin(input.startDate()), input.endDate()));

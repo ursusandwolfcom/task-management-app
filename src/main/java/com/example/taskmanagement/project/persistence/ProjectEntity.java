@@ -88,4 +88,8 @@ public class ProjectEntity {
     public void inputChanged() {
         inputRevision = Math.addExact(inputRevision, 1);
     }
+
+    public void calendarChanged() {
+        calendarRevision = Math.addExact(calendarRevision, 1);
+    }
 }
