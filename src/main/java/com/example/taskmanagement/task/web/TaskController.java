@@ -72,6 +72,22 @@ public class TaskController {
                 filter(status, null, dueFrom, dueTo, labelId, bucket), page, size));
     }
 
+    @GetMapping("/api/tasks/assigned")
+    @Operation(summary = "List tasks of an assignee in projects the caller can access",
+            description = "Portfolio workload drill-down. Newest first. Same optional filters as /mine. "
+                    + "Non-members never see tasks outside their projects; ADMIN sees all.")
+    public ResponseEntity<TaskPage> assigned(@AuthenticationPrincipal Jwt jwt,
+            @RequestParam @Positive long assigneeId,
+            @RequestParam(required = false) TaskStatus status,
+            @RequestParam(required = false) LocalDate dueFrom,
+            @RequestParam(required = false) LocalDate dueTo,
+            @RequestParam(required = false) @Positive Long labelId,
+            @RequestParam(required = false) TaskBucket bucket,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+        return response(tasks.listAssignedTo(actor(jwt), assigneeId,
+                filter(status, null, dueFrom, dueTo, labelId, bucket), page, size));
+    }
+
     @GetMapping({"/api/tasks", "/api/projects/{projectId}/tasks"})
     @Operation(summary = "List project tasks, newest first; page 0..1000000, size 1..100",
             description = "projectId is required as a query parameter on /api/tasks. "

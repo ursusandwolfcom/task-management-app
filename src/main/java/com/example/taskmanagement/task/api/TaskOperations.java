@@ -29,6 +29,12 @@ public interface TaskOperations {
     /** Tasks assigned to the actor across accessible projects (ADMIN sees all assigned to self). */
     TaskPage listAssigned(long actorId, @NotNull TaskFilter filter, int page, int size);
 
+    /**
+     * Tasks assigned to {@code assigneeId} in projects the actor can access.
+     * Portfolio workload uses this to open the concrete task list behind a load row.
+     */
+    TaskPage listAssignedTo(long actorId, long assigneeId, @NotNull TaskFilter filter, int page, int size);
+
     TaskView replace(long actorId, long taskId, @NotNull @Valid TaskData data, @PositiveOrZero long version);
 
     TaskView execute(long actorId, long taskId, @NotNull Command command, @PositiveOrZero long version);

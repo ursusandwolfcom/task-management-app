@@ -4,6 +4,7 @@ import { ApiError } from './client.ts';
 import { useCommand, useLoad } from './hooks.ts';
 import { userId } from './json.ts';
 import { useSession } from './session.tsx';
+import { hashRoute, taskQueryFromParams } from './hashRoute.ts';
 import { emptyTaskQuery, taskQueryString } from './taskQuery.ts';
 import { Alert, Empty, Field, Loading, Notice, PageHeader, Pagination } from './ui.tsx';
 import type {
@@ -98,14 +99,24 @@ function TaskFieldsForm({ fields, change }: { fields: TaskFields; change: (value
 
 export function MyTasks({ user }: { user: User }) {
   const { client, generation } = useSession();
+  const fromHash = taskQueryFromParams(hashRoute().params);
+  const focusAssignee = fromHash.assigneeId;
+  const initial = { ...emptyTaskQuery(), ...fromHash, assigneeId: focusAssignee };
   const [page, setPage] = useState(0);
-  const [draft, setDraft] = useState(emptyTaskQuery);
-  const [applied, setApplied] = useState(emptyTaskQuery);
-  const query = useLoad(`${user.id}:${generation}:${page}:${JSON.stringify(applied)}`, signal =>
-    client.request<Page<Task>>(user.id, `/api/tasks/mine?${taskQueryString({ page, size: 20 }, {
-      ...applied, assigneeId: ''
-    })}`, 'GET', undefined, signal));
-  return <><PageHeader eyebrow="ОЧЕРЕДЬ" title="Мои задачи" />
+  const [draft, setDraft] = useState(initial);
+  const [applied, setApplied] = useState(initial);
+  const other = focusAssignee !== '' && focusAssignee !== String(user.id);
+  const query = useLoad(`${user.id}:${generation}:${page}:${JSON.stringify(applied)}:${focusAssignee}`, signal => {
+    const path = other
+      ? `/api/tasks/assigned?${taskQueryString({ page, size: 20, assigneeId: focusAssignee }, {
+        ...applied, assigneeId: ''
+      })}`
+      : `/api/tasks/mine?${taskQueryString({ page, size: 20 }, { ...applied, assigneeId: '' })}`;
+    return client.request<Page<Task>>(user.id, path, 'GET', undefined, signal);
+  });
+  return <><PageHeader eyebrow="ОЧЕРЕДЬ" title={other ? `Задачи исполнителя ${focusAssignee}` : 'Мои задачи'}>
+    {other && <a href="#/overview">← К обзору</a>}
+  </PageHeader>
     <BucketTabs value={draft.bucket} change={bucket => { setDraft({ ...draft, bucket }); setPage(0); setApplied({ ...draft, bucket }); }} />
     <form className="card filter-card" onSubmit={event => { event.preventDefault(); setPage(0); setApplied(draft); }}>
       <TaskFilters value={draft} change={setDraft} showAssignee={false} />
@@ -113,9 +124,9 @@ export function MyTasks({ user }: { user: User }) {
     </form>
     <Alert error={query.error} />{query.loading && <Loading />}
     {query.value && <>
-      <p className="count-label">НАЗНАЧЕНО ВАМ: {String(query.value.totalElements)}</p>
+      <p className="count-label">{other ? 'НАЗНАЧЕНО ИСПОЛНИТЕЛЮ: ' : 'НАЗНАЧЕНО ВАМ: '}{String(query.value.totalElements)}</p>
       {query.value.content.length === 0 ? <Empty title="Нет назначенных задач">
-        Когда вас назначат исполнителем, задачи появятся здесь.
+        {other ? 'В доступных вам проектах у этого исполнителя нет задач.' : 'Когда вас назначат исполнителем, задачи появятся здесь.'}
       </Empty> : <ul className="task-list">{query.value.content.map(task =>
         <li key={String(task.id)}><a href={`#/tasks/${task.id}`}>
           <strong>{task.name}</strong>
@@ -180,11 +191,14 @@ export function ProjectSchedule({ user, project }: { user: User; project: Projec
   </section>;
 }
 
-export function ProjectTasks({ user, project, manage }: { user: User; project: Project; manage: boolean }) {
+export function ProjectTasks({ user, project, manage, initialFilters }: {
+  user: User; project: Project; manage: boolean; initialFilters?: ReturnType<typeof emptyTaskQuery>
+}) {
   const { client, generation } = useSession();
+  const seed = { ...emptyTaskQuery(), ...initialFilters };
   const [page, setPage] = useState(0);
-  const [draft, setDraft] = useState(emptyTaskQuery);
-  const [applied, setApplied] = useState(emptyTaskQuery);
+  const [draft, setDraft] = useState(seed);
+  const [applied, setApplied] = useState(seed);
   const [fields, setFields] = useState(emptyFields);
   const command = useCommand();
   const list = useLoad(`${user.id}:${generation}:${project.id}:${project.inputRevision}:${page}:${JSON.stringify(applied)}`,
