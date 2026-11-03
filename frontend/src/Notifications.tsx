@@ -1,7 +1,7 @@
 import { useCommand, useLoad } from './hooks.ts';
 import { useSession } from './session.tsx';
 import { Alert, Empty, Loading, Notice, PageHeader, Pagination } from './ui.tsx';
-import type { NotificationPage, TelegramLink, TelegramStatus, User } from './types.ts';
+import type { EmailStatus, NotificationPage, TelegramLink, TelegramStatus, User } from './types.ts';
 import { useState } from 'react';
 
 export function Notifications({ user }: { user: User }) {
@@ -15,15 +15,33 @@ export function Notifications({ user }: { user: User }) {
       `/api/notifications?page=${page}&size=20&unreadOnly=${unreadOnly}`, 'GET', undefined, signal));
   const telegram = useLoad(`${user.id}:${generation}:telegram`, signal =>
     client.request<TelegramStatus>(user.id, '/api/telegram', 'GET', undefined, signal));
+  const email = useLoad(`${user.id}:${generation}:email`, signal =>
+    client.request<EmailStatus>(user.id, '/api/email', 'GET', undefined, signal));
   return <>
     <PageHeader eyebrow="УВЕДОМЛЕНИЯ" title="Входящие">
-      <button disabled={query.loading} onClick={() => { query.reload(); telegram.reload(); }}>Обновить</button>
+      <button disabled={query.loading} onClick={() => { query.reload(); telegram.reload(); email.reload(); }}>Обновить</button>
       <button disabled={command.busy || !query.value?.unreadCount} onClick={() => void command.run(async () => {
         await client.request<void>(user.id, '/api/notifications/read-all', 'POST');
         command.setNotice('Все прочитаны.'); query.reload();
       })}>Прочитать все</button>
     </PageHeader>
-    <p className="muted">In-app всегда. Telegram — опционально (assigned / comment / complete / fail), если бот настроен на сервере.</p>
+    <p className="muted">In-app всегда. Telegram/Email — опционально (assigned / comment / complete / fail).</p>
+    <section className="panel">
+      <h2>Email</h2>
+      {email.loading && <Loading />}
+      <Alert error={email.error} />
+      {email.value && <>
+        {!email.value.configured && <p className="muted">SMTP не настроен (`MAIL_HOST`).</p>}
+        {email.value.configured && <>
+          <p>{email.value.address} · {email.value.enabled ? 'уведомления включены' : 'уведомления выключены'}</p>
+          <button disabled={command.busy} onClick={() => void command.run(async () => {
+            await client.request<EmailStatus>(user.id, '/api/email/enabled', 'PUT',
+              { enabled: !email.value!.enabled });
+            email.reload();
+          })}>{email.value.enabled ? 'Выключить' : 'Включить'}</button>
+        </>}
+      </>}
+    </section>
     <section className="panel">
       <h2>Telegram</h2>
       {telegram.loading && <Loading />}

@@ -1,0 +1,18 @@
+databaseChangeLog:
+  - changeSet:
+      id: 014-email-notifications
+      author: task-management
+      changes:
+        - sql:
+            sql: |
+              ALTER TABLE task_management.users ADD COLUMN email_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+              ALTER TABLE task_management.outbox_messages
+                ADD COLUMN email_processed_at TIMESTAMP WITH TIME ZONE NULL;
+              CREATE INDEX outbox_email_unprocessed_idx
+                ON task_management.outbox_messages(email_processed_at, id);
+      rollback:
+        - sql:
+            sql: |
+              DROP INDEX IF EXISTS task_management.outbox_email_unprocessed_idx;
+              ALTER TABLE task_management.outbox_messages DROP COLUMN email_processed_at;
+              ALTER TABLE task_management.users DROP COLUMN email_enabled;

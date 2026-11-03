@@ -11,4 +11,8 @@ public interface OutboxConsumerOperations {
     List<OutboxMessage> claimTelegramUnprocessed(int limit);
 
     void markTelegramProcessed(long id);
+
+    List<OutboxMessage> claimEmailUnprocessed(int limit);
+
+    void markEmailProcessed(long id);
 }

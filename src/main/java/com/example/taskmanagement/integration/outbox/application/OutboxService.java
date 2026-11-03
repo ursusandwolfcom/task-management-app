@@ -59,6 +59,20 @@ public class OutboxService implements OutboxOperations, OutboxConsumerOperations
         });
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<OutboxMessage> claimEmailUnprocessed(int limit) {
+        return map(messages.findEmailUnprocessed(PageRequest.of(0, size(limit))));
+    }
+
+    @Override
+    public void markEmailProcessed(long id) {
+        messages.findById(id).ifPresent(row -> {
+            row.markEmailProcessed(clock.instant().truncatedTo(ChronoUnit.MICROS));
+            messages.saveAndFlush(row);
+        });
+    }
+
     private static List<OutboxMessage> map(List<OutboxMessageEntity> rows) {
         return rows.stream().map(row -> new OutboxMessage(row.id(), row.eventType(), row.payload())).toList();
     }

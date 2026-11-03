@@ -2,6 +2,7 @@ package com.example.taskmanagement.config;
 
 import com.example.taskmanagement.attachment.api.AttachmentException;
 import com.example.taskmanagement.collaboration.api.CollaborationException;
+import com.example.taskmanagement.integration.email.api.EmailException;
 import com.example.taskmanagement.integration.telegram.api.TelegramException;
 import com.example.taskmanagement.notification.api.NotificationException;
 import com.example.taskmanagement.planning.core.GraphValidationException;
@@ -25,6 +26,17 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 /** Shared HTTP representation; pure graph and lifecycle modules remain unaware of HTTP. */
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
+
+    @ExceptionHandler(EmailException.class)
+    public ResponseEntity<ProblemDetail> emailProblem(EmailException exception) {
+        HttpStatus status = switch (exception.reason()) {
+            case DISABLED -> HttpStatus.SERVICE_UNAVAILABLE;
+            case VALIDATION_ERROR -> HttpStatus.BAD_REQUEST;
+            case DELIVERY_FAILED -> HttpStatus.BAD_GATEWAY;
+        };
+        return uncachedProblem(status, exception.reason().name(),
+                "The email operation could not be completed.");
+    }
 
     @ExceptionHandler(TelegramException.class)
     public ResponseEntity<ProblemDetail> telegramProblem(TelegramException exception) {

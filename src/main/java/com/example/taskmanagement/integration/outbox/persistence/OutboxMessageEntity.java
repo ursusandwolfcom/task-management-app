@@ -24,6 +24,8 @@ public class OutboxMessageEntity {
     private Instant processedAt;
     @Column(name = "telegram_processed_at")
     private Instant telegramProcessedAt;
+    @Column(name = "email_processed_at")
+    private Instant emailProcessedAt;
 
     protected OutboxMessageEntity() {
     }
@@ -52,5 +54,9 @@ public class OutboxMessageEntity {
 
     public void markTelegramProcessed(Instant at) {
         this.telegramProcessedAt = at;
+    }
+
+    public void markEmailProcessed(Instant at) {
+        this.emailProcessedAt = at;
     }
 }
