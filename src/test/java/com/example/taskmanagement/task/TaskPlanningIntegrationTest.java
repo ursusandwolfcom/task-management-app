@@ -119,10 +119,10 @@ class TaskPlanningIntegrationTest {
     void whatIfRecalculatesWithoutPersistingEstimates() throws Exception {
         var first = tasks.create(owner.id(), project.id(),
                 new TaskData("Base", "", TaskPriority.MEDIUM, 480, null, owner.id(), TaskBucket.WORK));
-        var baseline = planning.gantt(member.id(), project.id()).durationMinutes();
+        var baseline = planning.gantt(member.id(), project.id(), false).durationMinutes();
         var scenario = planning.whatIf(member.id(), project.id(),
                 new TaskPlanningOperations.WhatIfRequest(List.of(
-                        new TaskPlanningOperations.EstimateOverride(first.id(), 960))));
+                        new TaskPlanningOperations.EstimateOverride(first.id(), 960))), false);
         assertThat(scenario.durationMinutes()).isEqualTo(960);
         assertThat(baseline).isEqualTo(480);
         assertThat(tasks.read(owner.id(), first.id()).estimatedMinutes()).isEqualTo(480);
@@ -164,7 +164,7 @@ class TaskPlanningIntegrationTest {
                 new TaskData("Half day", "", TaskPriority.LOW, 240, null, owner.id(), TaskBucket.WORK));
         edge(second, first);
         edge(side, first);
-        var gantt = planning.gantt(member.id(), project.id());
+        var gantt = planning.gantt(member.id(), project.id(), false);
         assertThat(gantt.durationMinutes()).isEqualTo(960);
         assertThat(gantt.criticalTaskIds()).containsExactly(first.id(), second.id());
         assertThat(gantt.criticalEdges()).containsExactly(
