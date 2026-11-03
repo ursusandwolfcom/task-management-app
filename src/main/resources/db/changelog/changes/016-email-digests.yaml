@@ -1,0 +1,27 @@
+databaseChangeLog:
+  - changeSet:
+      id: 016-email-digests
+      author: projectflow
+      changes:
+        - sql:
+            sql: |
+              ALTER TABLE task_management.users
+                ADD COLUMN email_digest_mode VARCHAR(16) NOT NULL DEFAULT 'IMMEDIATE';
+              ALTER TABLE task_management.users
+                ADD CONSTRAINT users_email_digest_mode_check
+                CHECK (email_digest_mode IN ('IMMEDIATE', 'DAILY'));
+              CREATE TABLE task_management.email_digest_entries (
+                id BIGSERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                subject_line VARCHAR(200) NOT NULL,
+                body_line VARCHAR(2000) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                CONSTRAINT email_digest_user_fk FOREIGN KEY (user_id)
+                  REFERENCES task_management.users(id) ON DELETE CASCADE
+              );
+              CREATE INDEX email_digest_user_idx ON task_management.email_digest_entries(user_id, id);
+        - rollback:
+            sql: |
+              DROP TABLE IF EXISTS task_management.email_digest_entries;
+              ALTER TABLE task_management.users DROP CONSTRAINT IF EXISTS users_email_digest_mode_check;
+              ALTER TABLE task_management.users DROP COLUMN email_digest_mode;

@@ -44,3 +44,6 @@ databaseChangeLog:
   - include:
       file: changes/015-attachment-external-id.yaml
       relativeToChangelogFile: true
+  - include:
+      file: changes/016-email-digests.yaml
+      relativeToChangelogFile: true

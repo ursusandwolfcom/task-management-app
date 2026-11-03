@@ -1,12 +1,20 @@
 package com.example.taskmanagement.integration.email.application;
 
+import com.example.taskmanagement.identity.api.EmailDigestMode;
 import com.example.taskmanagement.identity.api.EmailPreferenceOperations;
+import com.example.taskmanagement.identity.api.EmailPreferenceOperations.EmailTarget;
 import com.example.taskmanagement.integration.email.api.EmailException;
 import com.example.taskmanagement.integration.email.api.EmailOperations;
 import com.example.taskmanagement.integration.email.api.EmailSender;
+import com.example.taskmanagement.integration.email.persistence.EmailDigestEntryEntity;
+import com.example.taskmanagement.integration.email.persistence.EmailDigestEntryRepository;
 import com.example.taskmanagement.integration.outbox.api.OutboxConsumerOperations;
 import com.example.taskmanagement.integration.outbox.api.OutboxMessage;
 import com.example.taskmanagement.integration.outbox.api.OutboxPushProjection;
+import java.time.Clock;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -22,17 +30,22 @@ public class EmailService implements EmailOperations {
     private final EmailPreferenceOperations preferences;
     private final OutboxConsumerOperations outbox;
     private final EmailSender sender;
+    private final EmailDigestEntryRepository digests;
     private final ObjectMapper json;
+    private final Clock clock;
     private final String mailHost;
     private final String appPublicBase;
 
     public EmailService(EmailPreferenceOperations preferences, OutboxConsumerOperations outbox, EmailSender sender,
-            ObjectMapper json, @Value("${spring.mail.host:}") String mailHost,
+            EmailDigestEntryRepository digests, ObjectMapper json, Clock clock,
+            @Value("${spring.mail.host:}") String mailHost,
             @Value("${mail.app-public-base:}") String appPublicBase) {
         this.preferences = preferences;
         this.outbox = outbox;
         this.sender = sender;
+        this.digests = digests;
         this.json = json;
+        this.clock = clock;
         this.mailHost = blankToEmpty(mailHost);
         this.appPublicBase = blankToEmpty(appPublicBase);
     }
@@ -41,12 +54,22 @@ public class EmailService implements EmailOperations {
     @Transactional(readOnly = true)
     public EmailChannelStatus status(long userId) {
         var preference = preferences.status(userId);
-        return new EmailChannelStatus(configured(), preference.enabled(), preference.address());
+        long pending = digests.countByUserIdIn(List.of(userId));
+        return new EmailChannelStatus(configured(), preference.enabled(), preference.address(),
+                preference.digestMode(), pending);
     }
 
     @Override
     public void setEnabled(long userId, boolean enabled) {
         preferences.setEnabled(userId, enabled);
+    }
+
+    @Override
+    public void setDigestMode(long userId, EmailDigestMode mode) {
+        if (mode == null) {
+            throw new EmailException(EmailException.Reason.VALIDATION_ERROR);
+        }
+        preferences.setDigestMode(userId, mode);
     }
 
     @Override
@@ -63,6 +86,43 @@ public class EmailService implements EmailOperations {
         return delivered;
     }
 
+    @Override
+    public int flushDigests() {
+        if (!configured()) {
+            return 0;
+        }
+        int sent = 0;
+        for (Long userId : digests.findDistinctUserIds()) {
+            if (sendDigestForUser(userId)) {
+                sent++;
+            }
+        }
+        return sent;
+    }
+
+    private boolean sendDigestForUser(long userId) {
+        List<EmailDigestEntryEntity> entries = digests.findByUserIdOrderByIdAsc(userId);
+        if (entries.isEmpty()) {
+            return false;
+        }
+        var preference = preferences.status(userId);
+        if (!preference.enabled() || preference.address() == null || preference.address().isBlank()) {
+            digests.deleteByUserId(userId);
+            return false;
+        }
+        StringBuilder body = new StringBuilder("ProjectFlow — дайджест уведомлений\n\n");
+        for (EmailDigestEntryEntity entry : entries) {
+            body.append("• ").append(entry.subjectLine()).append('\n');
+            for (String line : entry.bodyLine().split("\n")) {
+                body.append("  ").append(line).append('\n');
+            }
+            body.append('\n');
+        }
+        sender.send(preference.address(), "ProjectFlow: дайджест (" + entries.size() + ")", body.toString().strip());
+        digests.deleteByUserId(userId);
+        return true;
+    }
+
     private void deliver(OutboxMessage message) {
         if (!OutboxPushProjection.isPushEvent(message.eventType())) {
             return;
@@ -73,18 +133,25 @@ public class EmailService implements EmailOperations {
         if (recipients.isEmpty()) {
             return;
         }
-        var addresses = preferences.enabledAddresses(recipients);
+        var targets = preferences.enabledTargets(recipients);
         var rendered = OutboxPushProjection.render(message.eventType(), payload, appPublicBase);
+        var now = clock.instant().truncatedTo(ChronoUnit.MICROS);
+        List<EmailDigestEntryEntity> queued = new ArrayList<>();
         for (Long userId : recipients) {
-            String to = addresses.get(userId);
-            if (to != null && !to.isBlank()) {
-                sender.send(to, rendered.title(), rendered.body());
+            EmailTarget target = targets.get(userId);
+            if (target == null || target.address() == null || target.address().isBlank()) {
+                continue;
+            }
+            if (target.digestMode() == EmailDigestMode.DAILY) {
+                queued.add(new EmailDigestEntryEntity(userId, truncate(rendered.title(), 200),
+                        truncate(rendered.body(), 2000), now));
+            } else {
+                sender.send(target.address(), rendered.title(), rendered.body());
             }
         }
-    }
-
-    private boolean configured() {
-        return !mailHost.isEmpty();
+        if (!queued.isEmpty()) {
+            digests.saveAll(queued);
+        }
     }
 
     private JsonNode parse(String payload) {
@@ -95,7 +162,18 @@ public class EmailService implements EmailOperations {
         }
     }
 
+    private boolean configured() {
+        return !mailHost.isEmpty();
+    }
+
     private static String blankToEmpty(String value) {
         return value == null ? "" : value.strip();
+    }
+
+    private static String truncate(String value, int max) {
+        if (value == null) {
+            return "";
+        }
+        return value.length() <= max ? value : value.substring(0, max);
     }
 }

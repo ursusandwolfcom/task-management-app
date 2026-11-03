@@ -33,12 +33,19 @@ export function Notifications({ user }: { user: User }) {
       {email.value && <>
         {!email.value.configured && <p className="muted">SMTP не настроен (`MAIL_HOST`).</p>}
         {email.value.configured && <>
-          <p>{email.value.address} · {email.value.enabled ? 'уведомления включены' : 'уведомления выключены'}</p>
+          <p>{email.value.address} · {email.value.enabled ? 'уведомления включены' : 'уведомления выключены'}
+            · {email.value.digestMode === 'DAILY' ? 'дайджест (ежедневно 08:00 UTC)' : 'сразу'}
+            {email.value.pendingDigestLines > 0 ? ` · в очереди ${email.value.pendingDigestLines}` : ''}</p>
           <button disabled={command.busy} onClick={() => void command.run(async () => {
             await client.request<EmailStatus>(user.id, '/api/email/enabled', 'PUT',
               { enabled: !email.value!.enabled });
             email.reload();
           })}>{email.value.enabled ? 'Выключить' : 'Включить'}</button>
+          <button disabled={command.busy || !email.value.enabled} onClick={() => void command.run(async () => {
+            const mode = email.value!.digestMode === 'DAILY' ? 'IMMEDIATE' : 'DAILY';
+            await client.request<EmailStatus>(user.id, '/api/email/digest', 'PUT', { mode });
+            email.reload();
+          })}>{email.value.digestMode === 'DAILY' ? 'Сразу по событию' : 'Ежедневный дайджест'}</button>
         </>}
       </>}
     </section>

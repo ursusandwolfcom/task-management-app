@@ -1,5 +1,6 @@
 package com.example.taskmanagement.integration.email.web;
 
+import com.example.taskmanagement.identity.api.EmailDigestMode;
 import com.example.taskmanagement.integration.email.api.EmailOperations;
 import com.example.taskmanagement.integration.email.api.EmailOperations.EmailChannelStatus;
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,6 +23,9 @@ public class EmailController {
     public record EnabledChange(@NotNull Boolean enabled) {
     }
 
+    public record DigestModeChange(@NotNull EmailDigestMode mode) {
+    }
+
     private final EmailOperations email;
 
     public EmailController(EmailOperations email) {
@@ -40,6 +44,14 @@ public class EmailController {
     public ResponseEntity<EmailChannelStatus> enabled(@AuthenticationPrincipal Jwt jwt,
             @RequestBody EnabledChange command) {
         email.setEnabled(actor(jwt), Boolean.TRUE.equals(command.enabled()));
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(email.status(actor(jwt)));
+    }
+
+    @PutMapping("/digest")
+    @Operation(summary = "IMMEDIATE per-event mail or DAILY plain-text digest")
+    public ResponseEntity<EmailChannelStatus> digest(@AuthenticationPrincipal Jwt jwt,
+            @RequestBody DigestModeChange command) {
+        email.setDigestMode(actor(jwt), command.mode());
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(email.status(actor(jwt)));
     }
 

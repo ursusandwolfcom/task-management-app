@@ -1,5 +1,6 @@
 package com.example.taskmanagement.identity.persistence;
 
+import com.example.taskmanagement.identity.api.EmailDigestMode;
 import com.example.taskmanagement.identity.api.UserRole;
 import com.example.taskmanagement.identity.api.UserView;
 import jakarta.persistence.Column;
@@ -41,6 +42,9 @@ public class UserEntity {
     private boolean telegramEnabled = true;
     @Column(name = "email_enabled", nullable = false)
     private boolean emailEnabled = true;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "email_digest_mode", nullable = false, length = 16)
+    private EmailDigestMode emailDigestMode = EmailDigestMode.IMMEDIATE;
 
     protected UserEntity() {
     }
@@ -97,6 +101,14 @@ public class UserEntity {
 
     public void setEmailEnabled(boolean enabled) {
         this.emailEnabled = enabled;
+    }
+
+    public EmailDigestMode emailDigestMode() {
+        return emailDigestMode;
+    }
+
+    public void setEmailDigestMode(EmailDigestMode mode) {
+        this.emailDigestMode = mode == null ? EmailDigestMode.IMMEDIATE : mode;
     }
 
     public void update(String username, String email, String firstName, String lastName) {
