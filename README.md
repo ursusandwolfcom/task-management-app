@@ -189,6 +189,14 @@ outbox batch into per-user in-app notifications, then returns a page with `unrea
 `POST /api/notifications/{id}/read` and `POST /api/notifications/read-all` mark items read.
 Channel is in-app only for this release. Liquibase 010. Workspace route: `#/notifications`.
 
+## Task activity history
+
+`GET /api/tasks/{id}/activity` returns an append-only audit trail for a task (newest first,
+paginated). Entries are written in the same transaction as create/update/lifecycle, comments,
+label link/unlink and attachment upload/delete. Foreign or inaccessible tasks return
+`TASK_NOT_FOUND`. Task deletion cascades activity rows (Liquibase 011). Workspace task detail
+shows «История действий» next to execution attempts.
+
 ## Task attachments
 
 Project members, owners and ADMIN can upload files through `POST /api/attachments?taskId={id}`

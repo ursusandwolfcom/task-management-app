@@ -9,7 +9,7 @@ import { emptyTaskQuery, taskQueryString } from './taskQuery.ts';
 import { Alert, Empty, Field, Loading, Notice, PageHeader, Pagination } from './ui.tsx';
 import type {
   Attachment, AvailableTasks, Comment, ExecutionAttempt, Label, Page, Predecessors, Project,
-  ProjectGantt, Task, TaskBucket, TaskFields, TaskPriority, TaskQuery, User
+  ProjectGantt, Task, TaskActivity, TaskBucket, TaskFields, TaskPriority, TaskQuery, User
 } from './types.ts';
 
 const statuses: Record<string, string> = {
@@ -307,6 +307,7 @@ function TaskWorkspace({ user, task, onReload }: { user: User; task: Task; onRel
         <Attempts user={user} taskId={task.id} />
         <Comments user={user} taskId={task.id} />
       </div>
+      <ActivityLog user={user} taskId={task.id} />
       <Attachments user={user} taskId={task.id} />
       <LabelsPanel user={user} task={task} />
     </>}
@@ -425,6 +426,26 @@ function Attempts({ user, taskId }: { user: User; taskId: bigint }) {
       <strong>Попытка {item.number}</strong>
       <span>{item.outcome ? statuses[item.outcome] : 'В процессе'}</span>
       <small>{item.actualStart}{item.actualEnd ? ` → ${item.actualEnd}` : ''}</small>
+    </li>)}</ul>
+    <Pagination page={page} total={query.value?.totalPages ?? 0} onChange={setPage} />
+  </section>;
+}
+
+function ActivityLog({ user, taskId }: { user: User; taskId: bigint }) {
+  const { client, generation } = useSession();
+  const [page, setPage] = useState(0);
+  const query = useLoad(`${user.id}:${generation}:${taskId}:activity:${page}`, signal =>
+    client.request<Page<TaskActivity>>(user.id,
+      `/api/tasks/${taskId}/activity?page=${page}&size=20`, 'GET', undefined, signal));
+  return <section className="card"><h2>История действий</h2>
+    <Alert error={query.error} />{query.loading && <Loading />}
+    {query.value?.content.length === 0 && <Empty title="Событий ещё нет">
+      Действия появятся после изменений задачи.
+    </Empty>}
+    <ul className="attempt-list">{query.value?.content.map(item => <li key={String(item.id)}>
+      <strong>{item.summary}</strong>
+      <span>Актор {String(item.actorId)} · {item.actionType}</span>
+      <small>{item.createdAt}</small>
     </li>)}</ul>
     <Pagination page={page} total={query.value?.totalPages ?? 0} onChange={setPage} />
   </section>;

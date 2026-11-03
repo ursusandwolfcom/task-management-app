@@ -1,5 +1,7 @@
 package com.example.taskmanagement.task.application;
 
+import com.example.taskmanagement.task.api.ActivityEvents;
+import com.example.taskmanagement.task.api.ActivityOperations;
 import com.example.taskmanagement.identity.api.IdentityOperations;
 import com.example.taskmanagement.identity.api.UserRole;
 import com.example.taskmanagement.integration.outbox.api.OutboxEvents;
@@ -46,6 +48,7 @@ public class TaskService implements TaskOperations {
     private final TaskProjectAccess access;
     private final IdentityOperations identity;
     private final OutboxOperations outbox;
+    private final ActivityOperations activity;
     private final ObjectMapper json;
     private final EntityManager entityManager;
     private final Validator validator;
@@ -53,8 +56,8 @@ public class TaskService implements TaskOperations {
 
     public TaskService(TaskRepository tasks, TaskQueryRepository queries, AttemptRepository attempts,
             ProjectCoordination coordination, TaskProjectAccess access, IdentityOperations identity,
-            OutboxOperations outbox, ObjectMapper json, EntityManager entityManager, Validator validator,
-            Clock clock) {
+            OutboxOperations outbox, ActivityOperations activity, ObjectMapper json, EntityManager entityManager,
+            Validator validator, Clock clock) {
         this.tasks = tasks;
         this.queries = queries;
         this.attempts = attempts;
@@ -62,6 +65,7 @@ public class TaskService implements TaskOperations {
         this.access = access;
         this.identity = identity;
         this.outbox = outbox;
+        this.activity = activity;
         this.json = json;
         this.entityManager = entityManager;
         this.validator = validator;
@@ -75,6 +79,7 @@ public class TaskService implements TaskOperations {
         var task = tasks.saveAndFlush(new TaskEntity(projectId, data));
         coordination.markInputChanged(actorId, projectId);
         var created = task.view();
+        activity.record(actorId, projectId, created.id(), ActivityEvents.TASK_CREATED, "Создана задача");
         if (created.assigneeId() != null) {
             outbox.append(OutboxEvents.TASK_ASSIGNED, payload(actorId, created));
         }
@@ -126,6 +131,7 @@ public class TaskService implements TaskOperations {
         tasks.saveAndFlush(task);
         coordination.markInputChanged(actorId, project.id());
         var updated = task.view();
+        activity.record(actorId, project.id(), taskId, ActivityEvents.TASK_UPDATED, "Обновлены поля задачи");
         if (!Objects.equals(previous.assigneeId(), updated.assigneeId()) && updated.assigneeId() != null) {
             outbox.append(OutboxEvents.TASK_ASSIGNED, payload(actorId, updated));
         }
@@ -170,6 +176,7 @@ public class TaskService implements TaskOperations {
         task.execute(next);
         tasks.saveAndFlush(task);
         coordination.markInputChanged(actorId, project.id());
+        activity.record(actorId, project.id(), taskId, lifecycleAction(command), lifecycleSummary(command));
         return task.view();
     }
 
@@ -238,6 +245,26 @@ public class TaskService implements TaskOperations {
         body.put("taskId", task.id());
         body.put("taskName", task.name());
         return json.writeValueAsString(body);
+    }
+
+    private static String lifecycleAction(Command command) {
+        return switch (command) {
+            case START -> ActivityEvents.TASK_STARTED;
+            case COMPLETE -> ActivityEvents.TASK_COMPLETED;
+            case FAIL -> ActivityEvents.TASK_FAILED;
+            case CANCEL -> ActivityEvents.TASK_CANCELLED;
+            case RETRY -> ActivityEvents.TASK_RETRIED;
+        };
+    }
+
+    private static String lifecycleSummary(Command command) {
+        return switch (command) {
+            case START -> "Задача запущена";
+            case COMPLETE -> "Задача завершена";
+            case FAIL -> "Задача провалена";
+            case CANCEL -> "Задача отменена";
+            case RETRY -> "Повторная попытка";
+        };
     }
 
     private static PageRequest paging(int page, int size, String property) {

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.example.taskmanagement.task.api.ActivityOperations;
 import com.example.taskmanagement.collaboration.api.CollaborationException;
 import com.example.taskmanagement.collaboration.api.CommentData;
 import com.example.taskmanagement.collaboration.persistence.CommentEntity;
@@ -41,7 +42,8 @@ class CommentServiceTest {
     private final IdentityOperations identity = mock(IdentityOperations.class);
     private final TaskOperations tasks = mock(TaskOperations.class);
     private final OutboxOperations outbox = mock(OutboxOperations.class);
-    private final CommentService service = new CommentService(comments, access, identity, tasks, outbox,
+    private final ActivityOperations activity = mock(ActivityOperations.class);
+    private final CommentService service = new CommentService(comments, access, identity, tasks, outbox, activity,
             JsonMapper.builder().build(), Clock.fixed(NOW, ZoneOffset.UTC));
 
     @Test
