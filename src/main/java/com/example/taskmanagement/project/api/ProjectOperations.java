@@ -1,5 +1,6 @@
 package com.example.taskmanagement.project.api;
 
+import com.example.taskmanagement.planning.core.BreakWindow;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -49,4 +50,13 @@ public interface ProjectOperations {
 
     /** Replaces the full holiday set and bumps calendarRevision; requires current project version. */
     ProjectView replaceHolidays(long actorId, long projectId, Set<LocalDate> holidays, @PositiveOrZero long version);
+
+    /** Effective break windows (default lunch when none stored). */
+    List<BreakWindow> breaks(long actorId, long projectId);
+
+    /**
+     * Replaces stored break windows and bumps calendarRevision; empty list restores the default lunch.
+     * Requires current project version.
+     */
+    ProjectView replaceBreaks(long actorId, long projectId, List<BreakWindow> breaks, @PositiveOrZero long version);
 }

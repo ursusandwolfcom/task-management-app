@@ -11,6 +11,9 @@ import com.example.taskmanagement.project.api.ProjectOperations;
 import com.example.taskmanagement.project.api.ProjectPatch;
 import com.example.taskmanagement.project.api.ProjectView;
 import com.example.taskmanagement.project.persistence.ProjectEntity;
+import com.example.taskmanagement.planning.core.BreakWindow;
+import com.example.taskmanagement.planning.core.WorkingCalendar;
+import com.example.taskmanagement.project.persistence.ProjectBreakRepository;
 import com.example.taskmanagement.project.persistence.ProjectHolidayRepository;
 import com.example.taskmanagement.project.persistence.ProjectMemberEntity;
 import com.example.taskmanagement.project.persistence.ProjectMemberRepository;
@@ -34,17 +37,20 @@ public class ProjectService implements ProjectOperations, ProjectCoordination {
     private final ProjectRepository projects;
     private final ProjectMemberRepository members;
     private final ProjectHolidayRepository holidayRepository;
+    private final ProjectBreakRepository breakRepository;
     private final IdentityOperations identity;
     private final EntityManager entityManager;
     private final Validator validator;
     private final List<ProjectContentGuard> contentGuards;
 
     public ProjectService(ProjectRepository projects, ProjectMemberRepository members,
-            ProjectHolidayRepository holidayRepository, IdentityOperations identity, EntityManager entityManager,
+            ProjectHolidayRepository holidayRepository, ProjectBreakRepository breakRepository,
+            IdentityOperations identity, EntityManager entityManager,
             Validator validator, List<ProjectContentGuard> contentGuards) {
         this.projects = projects;
         this.members = members;
         this.holidayRepository = holidayRepository;
+        this.breakRepository = breakRepository;
         this.identity = identity;
         this.entityManager = entityManager;
         this.validator = validator;
@@ -198,6 +204,39 @@ public class ProjectService implements ProjectOperations, ProjectCoordination {
         holidayRepository.replace(projectId, new HashSet<>(next));
         project.calendarChanged();
         return projects.saveAndFlush(project).view();
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public List<BreakWindow> breaks(long projectId) {
+        return effectiveBreaks(breakRepository.list(projectId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BreakWindow> breaks(long actorId, long projectId) {
+        read(actorId, projectId);
+        return effectiveBreaks(breakRepository.list(projectId));
+    }
+
+    @Override
+    public ProjectView replaceBreaks(long actorId, long projectId, List<BreakWindow> windows, long version) {
+        var project = managed(actorId, projectId, version);
+        List<BreakWindow> next;
+        try {
+            next = windows == null || windows.isEmpty()
+                    ? List.of()
+                    : WorkingCalendar.normalizeBreaks(windows);
+        } catch (IllegalArgumentException ex) {
+            throw error(ProjectException.Reason.VALIDATION_ERROR);
+        }
+        breakRepository.replace(projectId, next);
+        project.calendarChanged();
+        return projects.saveAndFlush(project).view();
+    }
+
+    private static List<BreakWindow> effectiveBreaks(List<BreakWindow> stored) {
+        return stored.isEmpty() ? WorkingCalendar.DEFAULT_BREAKS : List.copyOf(stored);
     }
 
     private ProjectEntity managed(long actorId, long projectId, long version) {

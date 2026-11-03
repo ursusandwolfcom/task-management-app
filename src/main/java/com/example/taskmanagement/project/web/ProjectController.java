@@ -1,6 +1,8 @@
 package com.example.taskmanagement.project.web;
 
+import com.example.taskmanagement.planning.core.BreakWindow;
 import com.example.taskmanagement.project.api.ProjectData;
+import com.example.taskmanagement.project.api.ProjectException;
 import com.example.taskmanagement.project.api.ProjectOperations;
 import com.example.taskmanagement.project.api.ProjectOperations.MemberPage;
 import com.example.taskmanagement.project.api.ProjectOperations.ProjectPage;
@@ -16,6 +18,7 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import java.net.URI;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Set;
 import org.springframework.http.CacheControl;
@@ -140,6 +143,33 @@ public class ProjectController {
     public ResponseEntity<ProjectView> replaceHolidays(@AuthenticationPrincipal Jwt jwt,
             @Positive @PathVariable long id, @Valid @RequestBody HolidaysRequest request) {
         return response(projects.replaceHolidays(actor(jwt), id, Set.copyOf(request.dates()), request.version()));
+    }
+
+    @GetMapping("/{id}/breaks")
+    @Operation(summary = "List effective project break windows (default lunch when none stored)")
+    public ResponseEntity<List<BreakWindow>> breaks(@AuthenticationPrincipal Jwt jwt, @Positive @PathVariable long id) {
+        return response(projects.breaks(actor(jwt), id));
+    }
+
+    public record BreakWindowBody(@NotNull LocalTime start, @NotNull LocalTime end) {
+    }
+
+    public record BreaksRequest(@NotNull List<BreakWindowBody> windows, @NotNull @PositiveOrZero Long version) {
+    }
+
+    @PutMapping("/{id}/breaks")
+    @Operation(summary = "Replace break windows; empty restores default lunch; bumps calendarRevision")
+    public ResponseEntity<ProjectView> replaceBreaks(@AuthenticationPrincipal Jwt jwt,
+            @Positive @PathVariable long id, @Valid @RequestBody BreaksRequest request) {
+        List<BreakWindow> windows;
+        try {
+            windows = request.windows().stream()
+                    .map(body -> new BreakWindow(body.start(), body.end()))
+                    .toList();
+        } catch (IllegalArgumentException ex) {
+            throw new ProjectException(ProjectException.Reason.VALIDATION_ERROR);
+        }
+        return response(projects.replaceBreaks(actor(jwt), id, windows, request.version()));
     }
 
     private static long actor(Jwt jwt) {

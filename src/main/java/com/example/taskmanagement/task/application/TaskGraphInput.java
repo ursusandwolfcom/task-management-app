@@ -1,5 +1,6 @@
 package com.example.taskmanagement.task.application;
 
+import com.example.taskmanagement.planning.core.BreakWindow;
 import com.example.taskmanagement.planning.core.DependencyEdge;
 import com.example.taskmanagement.planning.core.ExecutionFacts;
 import com.example.taskmanagement.planning.core.GraphSnapshot;
@@ -23,10 +24,12 @@ record TaskGraphInput(
         LocalDate endDate,
         String timezone,
         Set<LocalDate> holidays,
+        List<BreakWindow> breaks,
         List<TaskView> tasks,
         List<DependencyEdge> edges) {
     TaskGraphInput {
         holidays = Set.copyOf(holidays);
+        breaks = List.copyOf(breaks);
         tasks = List.copyOf(tasks);
         edges = List.copyOf(edges);
     }

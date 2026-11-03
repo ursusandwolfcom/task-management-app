@@ -45,7 +45,7 @@ public class TaskGraphLoader {
         }
         return new TaskGraphInput(projectId, project.inputRevision(), project.calendarRevision(),
                 project.startDate(), project.endDate(), project.timezone(), coordination.holidays(projectId),
-                nodes, edges);
+                coordination.breaks(projectId), nodes, edges);
     }
 
     int maxDependencies() {
