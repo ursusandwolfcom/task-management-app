@@ -436,6 +436,12 @@ class ProjectIntegrationTest {
                         {"windows":[{"start":"15:00:00","end":"14:00:00"}],"version":2}
                         """))
                 .andExpect(status().isBadRequest());
+        mvc.perform(put("/api/projects/" + project.id() + "/breaks")
+                .header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"windows":[{"start":"09:00:00","end":"17:00:00"}],"version":2}
+                        """))
+                .andExpect(status().isBadRequest());
     }
 
     private UserView register(String name) {

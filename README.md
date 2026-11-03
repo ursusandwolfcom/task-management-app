@@ -204,6 +204,7 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
+| S43 | Timesheets / actual effort (`POST/GET/DELETE /api/time-entries`, Liquibase 018) |
 | S42 | Per-project break windows (`GET/PUT /api/projects/{id}/breaks`, Liquibase 017) |
 | S41 | Rich HTML email (multipart alternative + brand wrapper) |
 | S40 | Portfolio estimate KPI (`plannedMinutes` / completion %) on overview |
@@ -263,8 +264,18 @@ range; the write bumps `calendarRevision` so Gantt/CPM reload. Liquibase 012.
 `PUT /api/projects/{id}/breaks` with
 `{"windows":[{"start":"12:00:00","end":"12:30:00"}],"version":N}` replaces stored windows
 (owner/ADMIN); empty `windows` clears storage and restores the default lunch. Windows must
-be non-overlapping and inside the working day; the write bumps `calendarRevision`.
-Liquibase 017. CPM/Gantt/portfolio use these windows via `WorkingCalendar`.
+be non-overlapping, inside the working day, and leave positive net working minutes; the write
+bumps `calendarRevision`. Liquibase 017. CPM/Gantt/portfolio use these windows via
+`WorkingCalendar`.
+
+## Timesheets (actual effort)
+
+`POST /api/time-entries` with `{"taskId":1,"workDate":"2026-11-03","minutes":90,"note":"..."}`
+logs actual minutes (1..1440) for the caller on an accessible task. Server sets `userId` and
+UTC `createdAt`; planning revisions are unchanged.
+`GET /api/time-entries?taskId=` lists newest first and returns `totalMinutes` across all pages.
+`DELETE /api/time-entries/{id}` allows the author, project owner or ADMIN. Liquibase 018.
+Portfolio completion % remains estimate-based.
 
 ## Deferred (explicit technical debt)
 
@@ -277,7 +288,6 @@ the current MVP slice and will land later when credentials, channel choice and c
 | Advanced email templates / i18n themes | Multipart HTML wrapper ships; no per-tenant themes |
 | Full resource calendars / FTE capacity | Opt-in hard leveling serializes assignee overlaps; not multi-calendar FTE |
 | Per-assignee break windows | Project-level breaks ship; assignee-specific calendars deferred with FTE |
-| Timesheet / actual-effort capture | Portfolio shows estimate-based completion %; no time tracking |
 
 Do not treat README assignment notes that mention per-user Dropbox OAuth as shipped.
 

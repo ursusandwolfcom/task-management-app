@@ -45,8 +45,12 @@ public final class WorkingCalendar {
         this.zone = Objects.requireNonNull(zone, "zone");
         this.holidays = Set.copyOf(Objects.requireNonNull(holidays, "holidays"));
         this.breaks = normalizeBreaks(Objects.requireNonNull(breaks, "breaks"));
+        long dayMinutes = Duration.between(DAY_START, DAY_END).toMinutes();
         long breakMinutes = this.breaks.stream().mapToLong(BreakWindow::minutes).sum();
-        this.minutesPerDay = (int) (Duration.between(DAY_START, DAY_END).toMinutes() - breakMinutes);
+        if (breakMinutes >= dayMinutes) {
+            throw new IllegalArgumentException("Breaks must leave positive working time in the day");
+        }
+        this.minutesPerDay = (int) (dayMinutes - breakMinutes);
     }
 
     public ZoneId zone() {
