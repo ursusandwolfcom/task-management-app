@@ -10,7 +10,7 @@
 
 ## Демо для заказчика
 
-Готовый **рабочий демо-срез** на ветке `main` (S45): MVP, планирование, портфель, timesheets, FTE, файлы, in-app / Telegram / Email / Dropbox. На `dev`: S46 member-breaks + S47 email themes (спринт). Это не production-deploy — остаток см. [Deferred](#deferred-explicit-technical-debt).
+Готовый **рабочий демо-срез** на ветке `main` (S45): MVP, планирование, портфель, timesheets, FTE, файлы, in-app / Telegram / Email / Dropbox. На `dev` догоняют S46–S48 (member-breaks, email themes, Dropbox team folder). Это не production-deploy.
 
 ### За 10 минут
 
@@ -34,7 +34,7 @@ CPM + Gantt + what-if Портфель рисков + workload  Workspace UI (т
 
 ### Что сознательно позже
 
-Осталось из Deferred: Dropbox team-folder mode (S48). Hard leveling, KPI, holidays, breaks, FTE, timesheets, Telegram/Email themes/Dropbox OAuth уже в срезе.
+Deferred MVP tech-debt закрыт (S46–S48). Hard leveling, KPI, holidays, breaks, FTE, timesheets, Telegram/Email themes/Dropbox app+team folder уже в срезе.
 
 ### Как запустить демо
 
@@ -205,6 +205,7 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
+| S48 | Dropbox team folder mode (`DROPBOX_MODE=app|team`, `DROPBOX_TEAM_FOLDER`) |
 | S47 | Email HTML themes (`mail.theme` / `MAIL_THEME=default|slate`) |
 | S46 | Per-assignee break overrides (`GET/PUT .../member-breaks`, Liquibase 021) for hard leveling |
 | S45 | Per-user Dropbox OAuth (`/api/dropbox`, Liquibase 020); uploads use linked account when present |
@@ -224,7 +225,7 @@ Workspace: `#/notifications`.
 | S31 | Telegram outbox channel (Liquibase 013) |
 | S30 | Notification UX + project holidays (012) |
 
-Release batches → `main`: S32–S34 (#65), S35 (#67), S37–S40, S41–S42 (`s41-s42`), S43–S45 (`s43-s45`). S46–S47 on `dev` pending next release with S48.
+Release batches → `main`: S32–S34 (#65), S35 (#67), S37–S40, S41–S42 (`s41-s42`), S43–S45 (`s43-s45`). S46–S48 → next release batch.
 
 ## Task activity history
 
@@ -243,7 +244,9 @@ PostgreSQL (Liquibase 009 + 015 `external_id`). Bytes use Strategy `AttachmentOb
 default `attachment.storage=local` (`attachment.storage-dir`); optional
 `ATTACHMENT_STORAGE=dropbox` with refresh OAuth (`DROPBOX_APP_KEY` /
 `DROPBOX_APP_SECRET` / `DROPBOX_REFRESH_TOKEN`) or `DROPBOX_ACCESS_TOKEN`, plus
-`DROPBOX_APP_FOLDER` (default `/projectflow`). Upload writes Dropbox first; `external_id`
+`DROPBOX_APP_FOLDER` (default `/projectflow`). Optional team shared root:
+`DROPBOX_MODE=team` and `DROPBOX_TEAM_FOLDER` (e.g. `/ProjectFlow Team`) — use a
+Business-capable token; no team-admin UI. Upload writes Dropbox first; `external_id`
 stores the file id. Dual store falls back to local disk for legacy rows.
 ADMIN `POST /api/attachments/backfill?limit=` migrates local-only rows to Dropbox.
 
@@ -260,8 +263,8 @@ users can link their own Dropbox: `POST /api/dropbox/authorize` → browser →
 `POST /api/dropbox/callback` with `{code,state}`. Status/unlink:
 `GET /api/dropbox`, `DELETE /api/dropbox/link`. Refresh token is stored on `users`
 (Liquibase 020). With `ATTACHMENT_STORAGE=dropbox`, uploads/downloads for a linked user
-go to that account under `{DROPBOX_APP_FOLDER}/u{userId}`; otherwise the app-folder
-token is used. App-folder env credentials remain required for unlinked users and backfill.
+go to that account under `{root}/u{userId}` (`root` = app or team folder); otherwise the
+shared app/team credentials are used for unlinked users and backfill.
 
 ## Project holidays
 
@@ -313,12 +316,8 @@ Portfolio completion % remains estimate-based.
 
 ## Deferred (explicit technical debt)
 
-These items are **not** implemented; they need disproportionate product/ops work relative to
-the current MVP slice and will land later when credentials, channel choice and capacity exist:
-
-| Item | Why deferred |
-|------|----------------|
-| Dropbox Business / team admin | Personal OAuth ships; minimal team folder mode lands in S48 |
+MVP tech-debt items from the finish plan are **closed** (S41–S48). Remaining product
+stretch goals (per-tenant email i18n copy, Dropbox Business admin UI) stay out of scope.
 
 ## Comments and project labels
 

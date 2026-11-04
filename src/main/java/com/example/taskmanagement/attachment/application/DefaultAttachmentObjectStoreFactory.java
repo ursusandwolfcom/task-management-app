@@ -10,19 +10,19 @@ public class DefaultAttachmentObjectStoreFactory implements AttachmentObjectStor
     private final DropboxAccountOperations accounts;
     private final String appKey;
     private final String appSecret;
-    private final String appFolder;
+    private final String rootFolder;
     private final boolean dropboxEnabled;
     private final Map<String, AttachmentObjectStore> cache = new ConcurrentHashMap<>();
 
     public DefaultAttachmentObjectStoreFactory(AttachmentObjectStore fallback, DropboxAccountOperations accounts,
             @Value("${attachment.storage:local}") String storageMode,
             @Value("${dropbox.app-key:}") String appKey, @Value("${dropbox.app-secret:}") String appSecret,
-            @Value("${dropbox.app-folder:/projectflow}") String appFolder) {
+            @Value("${dropbox.app-folder:/projectflow}") String rootFolder) {
         this.fallback = fallback;
         this.accounts = accounts;
         this.appKey = blank(appKey);
         this.appSecret = blank(appSecret);
-        this.appFolder = appFolder;
+        this.rootFolder = DropboxRootFolder.normalize(rootFolder);
         this.dropboxEnabled = "dropbox".equalsIgnoreCase(blank(storageMode));
     }
 
@@ -35,7 +35,7 @@ public class DefaultAttachmentObjectStoreFactory implements AttachmentObjectStor
                 .map(credential -> cache.computeIfAbsent(credential.refreshToken(),
                         token -> new DropboxAttachmentObjectStore(
                                 new SdkDropboxFileClient("", token, appKey, appSecret),
-                                appFolder + "/u" + userId)))
+                                DropboxRootFolder.userFolder(rootFolder, userId))))
                 .orElse(fallback);
     }
 
