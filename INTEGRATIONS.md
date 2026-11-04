@@ -1,154 +1,154 @@
-# API внешних сервисов
+# External service APIs
 
-Официальные источники проверены **2026-11-04**. Это карта API и инструкция для
-ProjectFlow, а не копия документации поставщиков. Перед изменением адаптера повторно
-проверьте соответствующий источник. Версии зависимостей определяет `pom.xml`;
-дата проверки страницы не означает обновление SDK в проекте.
+Official sources checked on **2026-11-04**. This is an API map and configuration guide
+for ProjectFlow, not a copy of vendor documentation. Recheck the relevant source before
+changing an adapter. Dependency versions come from `pom.xml`; a documentation review
+date does not imply an SDK upgrade.
 
-| Интеграция | В проекте | Официальная документация |
+| Integration | Project support | Official documentation |
 |---|---|---|
-| Dropbox API v2 | Загрузка/скачивание/удаление вложений, refresh OAuth, личное подключение, backfill | [OAuth](https://docs.dropboxapi.com/dropbox-api/docs/oauth), [HTTP API](https://www.dropbox.com/developers/documentation/http/documentation), [Java SDK](https://github.com/dropbox/dropbox-sdk-java) |
-| Telegram Bot API | Привязка чата через `/start`, webhook, доставка уведомлений | [Bot API](https://core.telegram.org/bots/api), [webhooks](https://core.telegram.org/bots/webhooks) |
-| Email / SMTP | Plain text + HTML, IMMEDIATE/DAILY, настройки пользователя | [Spring Boot mail](https://docs.spring.io/spring-boot/reference/io/email.html) |
-| MEGA | Личные аккаунты, нативный SDK, шифрование сессий, файловый адаптер | [SDK](https://github.com/meganz/sdk), [API header](https://github.com/meganz/sdk/blob/master/include/megaapi.h) |
+| Dropbox API v2 | Attachment upload/download/delete, OAuth refresh, personal linking, backfill | [OAuth](https://docs.dropboxapi.com/dropbox-api/docs/oauth), [HTTP API](https://www.dropbox.com/developers/documentation/http/documentation), [Java SDK](https://github.com/dropbox/dropbox-sdk-java) |
+| Telegram Bot API | Chat linking through `/start`, webhook, notification delivery | [Bot API](https://core.telegram.org/bots/api), [webhooks](https://core.telegram.org/bots/webhooks) |
+| Email / SMTP | Plain text + HTML, IMMEDIATE/DAILY, user preferences | [Spring Boot mail](https://docs.spring.io/spring-boot/reference/io/email.html) |
+| MEGA | Personal accounts, native SDK, encrypted sessions, attachment adapter | [SDK](https://github.com/meganz/sdk), [API header](https://github.com/meganz/sdk/blob/master/include/megaapi.h) |
 
-## Как передавать настройки
+## Supplying configuration
 
-Таблицы ниже используют **имена переменных окружения процесса Java**.
-Приложение также импортирует `.env` из рабочего каталога как Java properties
-(`spring.config.import` в [application.properties](src/main/resources/application.properties)).
-Для собственных настроек проекта там предусмотрены явные `${NAME:default}`.
-Для стандартных параметров Spring в таком файле используйте канонические имена,
-например `spring.mail.host`, либо передайте `SPRING_MAIL_HOST` как переменную окружения.
-Секреты хранятся локально, в репозиторий попадает только [.env.sample](.env.sample).
+The tables below use **Java process environment variable names**.
+The application also imports `.env` from its working directory as Java properties
+(`spring.config.import` in [application.properties](src/main/resources/application.properties)).
+Project-specific settings have explicit `${NAME:default}` bindings.
+For standard Spring settings in that file, use canonical names such as `spring.mail.host`,
+or supply `SPRING_MAIL_HOST` as a process environment variable.
+Keep secrets local; only [.env.sample](.env.sample) belongs in the repository.
 
-В [compose.yaml](compose.yaml) `app.environment` передаёт параметры БД, JWT, сервера
-и включение/ключи MEGA. Наличие другого ключа в Compose `.env` не передаёт его автоматически
-контейнеру приложения: для Dropbox/Telegram/SMTP нужна отдельная конфигурация окружения контейнера.
-Не добавляйте секреты в Dockerfile или build arguments.
+In [compose.yaml](compose.yaml), `app.environment` forwards database, JWT, server and
+MEGA enablement/key settings. Adding another key to the Compose `.env` file does not
+automatically pass it to the application container: Dropbox/Telegram/SMTP require
+separate container environment configuration. Do not put secrets in Dockerfiles or build arguments.
 
 ## Dropbox
 
-### API и разрешения
+### API and permissions
 
-| Операция адаптера | Внешний метод | Источник |
+| Adapter operation | External method | Source |
 |---|---|---|
-| Авторизация и обновление токенов | `/oauth2/authorize`, `/oauth2/token` | [OAuth guide](https://docs.dropboxapi.com/dropbox-api/docs/oauth) |
-| Идентификация подключённого аккаунта | `/2/users/get_current_account` | [Get Current Account](https://docs.dropboxapi.com/dropbox-api/api-reference/user-endpoints/users/get-current-account) |
-| Загрузка | `/2/files/upload` | [Upload](https://docs.dropboxapi.com/dropbox-api/api-reference/user-endpoints/files/upload) |
-| Скачивание | `/2/files/download` | [Download](https://docs.dropboxapi.com/dropbox-api/api-reference/user-endpoints/files/download) |
-| Удаление | `/2/files/delete_v2` | [Delete v2](https://docs.dropboxapi.com/dropbox-api/api-reference/user-endpoints/files/delete-v-2) |
+| Authorization and token refresh | `/oauth2/authorize`, `/oauth2/token` | [OAuth guide](https://docs.dropboxapi.com/dropbox-api/docs/oauth) |
+| Linked account identification | `/2/users/get_current_account` | [Get Current Account](https://docs.dropboxapi.com/dropbox-api/api-reference/user-endpoints/users/get-current-account) |
+| Upload | `/2/files/upload` | [Upload](https://docs.dropboxapi.com/dropbox-api/api-reference/user-endpoints/files/upload) |
+| Download | `/2/files/download` | [Download](https://docs.dropboxapi.com/dropbox-api/api-reference/user-endpoints/files/download) |
+| Delete | `/2/files/delete_v2` | [Delete v2](https://docs.dropboxapi.com/dropbox-api/api-reference/user-endpoints/files/delete-v-2) |
 
-Для offline-доступа OAuth-запрос включает `token_access_type=offline`; refresh token
-обменивается на новый access token через `grant_type=refresh_token`.
-Scopes для используемых операций: `account_info.read`, `files.content.read`,
-`files.content.write`; проверяйте их в актуальном справочнике и App Console.
-Scopes указаны в страницах соответствующих методов из таблицы выше.
-Тип доступа App Folder / Full Dropbox выбирается при настройке приложения и не
-меняется строкой пути в конфигурации ProjectFlow. [Источник: OAuth](https://docs.dropboxapi.com/dropbox-api/docs/oauth).
+For offline access, include `token_access_type=offline` in the authorization request;
+exchange the refresh token for a new access token using `grant_type=refresh_token`.
+The operations above use `account_info.read`, `files.content.read` and
+`files.content.write`; check the current reference and App Console configuration.
+Each method page in the table lists its scopes.
+Choose App Folder / Full Dropbox access when configuring the application; changing a
+ProjectFlow path does not change that access model. [Source: OAuth](https://docs.dropboxapi.com/dropbox-api/docs/oauth).
 
-Обычный upload рассчитан на файлы до 150 MiB; для больших файлов нужен upload session.
-ProjectFlow ограничивает вложение 5 MiB и дополнительно ограничивает MIME-типы;
-лимит провайдера не расширяет контракт приложения. [Источник: Upload](https://docs.dropboxapi.com/dropbox-api/api-reference/user-endpoints/files/upload).
+Simple upload supports files up to 150 MiB; larger files require upload sessions.
+ProjectFlow limits attachments to 5 MiB and restricts MIME types;
+the provider limit does not expand the application contract. [Source: Upload](https://docs.dropboxapi.com/dropbox-api/api-reference/user-endpoints/files/upload).
 
-В `pom.xml` установлен `dropbox-core-sdk:7.0.0`. На дату проверки README поставщика
-показывает 8.0.2 и требует Java 21+ для ветки 8.x. Обновление зависимости здесь не
-выполнялось. [Источник: Java SDK](https://github.com/dropbox/dropbox-sdk-java).
+`pom.xml` pins `dropbox-core-sdk:7.0.0`. At the review date, the vendor README lists
+8.0.2 and requires Java 21+ for the 8.x line. This work did not upgrade that dependency.
+[Source: Java SDK](https://github.com/dropbox/dropbox-sdk-java).
 
-### Настройка ProjectFlow
+### ProjectFlow configuration
 
-| Переменная | Назначение |
+| Variable | Purpose |
 |---|---|
-| `ATTACHMENT_STORAGE=dropbox` | Выбор Dropbox вместо локального диска |
-| `DROPBOX_APP_KEY`, `DROPBOX_APP_SECRET`, `DROPBOX_REFRESH_TOKEN` | Общий аккаунт приложения с обновлением access token |
-| `DROPBOX_ACCESS_TOKEN` | Альтернативный access token; без refresh имеет ограниченный срок |
-| `DROPBOX_APP_FOLDER` | Корневой путь, по умолчанию `/projectflow` |
-| `DROPBOX_MODE=app\|team`, `DROPBOX_TEAM_FOLDER` | Выбор настроенного пути; при team путь обязателен |
-| `DROPBOX_OAUTH_REDIRECT_URI` | Зарегистрированный redirect URI для личного OAuth |
+| `ATTACHMENT_STORAGE=dropbox` | Select Dropbox instead of local disk |
+| `DROPBOX_APP_KEY`, `DROPBOX_APP_SECRET`, `DROPBOX_REFRESH_TOKEN` | Shared application account with access token refresh |
+| `DROPBOX_ACCESS_TOKEN` | Alternative access token; expires without refresh |
+| `DROPBOX_APP_FOLDER` | Root path, default `/projectflow` |
+| `DROPBOX_MODE=app\|team`, `DROPBOX_TEAM_FOLDER` | Configured path selection; team mode requires a path |
+| `DROPBOX_OAUTH_REDIRECT_URI` | Registered redirect URI for personal OAuth |
 
-Личный OAuth: `POST /api/dropbox/authorize` возвращает `authorizeUrl` и подписанный
-`state`. После разрешения в браузере код и тот же state передаются авторизованным
-`POST /api/dropbox/callback` с JSON `{"code":"…","state":"…"}`.
-Это API для завершения обмена, а не публичный GET callback от Dropbox.
-Внешний redirect URI и обработчик возврата должны быть согласованы отдельно.
-Статус: `GET /api/dropbox`; отключение: `DELETE /api/dropbox/link`.
+Personal OAuth: `POST /api/dropbox/authorize` returns an `authorizeUrl` and signed
+`state`. After browser authorization, submit the code and the same state through
+authenticated `POST /api/dropbox/callback` with JSON `{"code":"…","state":"…"}`.
+This exchange-completion API is not a public GET callback from Dropbox.
+Configure the external redirect URI and return handler separately.
+Status: `GET /api/dropbox`; unlink: `DELETE /api/dropbox/link`.
 
-При выбранном Dropbox личное подключение используется для новых загрузок пользователя;
-без него используется общий store. Переподключение аккаунта и доступ к ранее загруженным
-файлам требуют отдельной приёмки; этот документ не обещает автоматическую миграцию.
-Backfill `POST /api/attachments/backfill` — существующая ADMIN-операция local → общий
-Dropbox store, а не перенос в личный аккаунт или MEGA.
+When Dropbox is selected, a user's personal link handles new uploads; without it,
+the shared store is used. Relinking and access to previously uploaded files require
+separate acceptance checks; this document does not promise automatic migration.
+Backfill `POST /api/attachments/backfill` is an existing ADMIN operation from local
+storage to the shared Dropbox store, not to a personal account or MEGA.
 
-### Граница поддержки Team Space
+### Team Space support boundary
 
-Официальный Team Files Guide описывает namespace и `Dropbox-API-Path-Root`; для
-team-linked токенов также различаются Select-User и Select-Admin. Одного пути
-недостаточно для доступа к Team Space. [Источник: Team Files](https://docs.dropboxapi.com/dropbox-api/docs/team-files).
+The official Team Files Guide describes namespaces and `Dropbox-API-Path-Root`;
+team-linked tokens also distinguish Select-User and Select-Admin. A folder path
+alone is insufficient for Team Space access. [Source: Team Files](https://docs.dropboxapi.com/dropbox-api/docs/team-files).
 
-В текущем [SdkDropboxFileClient](src/main/java/com/example/taskmanagement/attachment/application/SdkDropboxFileClient.java)
-нет `withPathRoot` или выбора участника/администратора. `DROPBOX_MODE=team` выбирает
-папку, но не реализует полную модель Dropbox Business / Team Space. Перед таким
-внедрением нужны отдельные изменения и проверка реального аккаунта.
+The current [SdkDropboxFileClient](src/main/java/com/example/taskmanagement/attachment/application/SdkDropboxFileClient.java)
+does not use `withPathRoot` or select a team member/administrator. `DROPBOX_MODE=team`
+selects a folder but does not implement the full Dropbox Business / Team Space model.
+That deployment requires additional implementation and real-account verification.
 
 ## Telegram
 
-Нужны бот и HTTPS-адрес webhook. Используемые методы поставщика:
+A bot and HTTPS webhook endpoint are required. Vendor methods used:
 [`sendMessage`](https://core.telegram.org/bots/api#sendmessage),
 [`setWebhook`](https://core.telegram.org/bots/api#setwebhook),
 [`getWebhookInfo`](https://core.telegram.org/bots/api#getwebhookinfo).
-`sendMessage.text` ограничен 4096 символами после разбора entities. При ограничении
-частоты API может вернуть `retry_after`. Webhook и `getUpdates` взаимно исключаются.
-Для webhook задаётся `secret_token`; Telegram передаёт его в заголовке
-`X-Telegram-Bot-Api-Secret-Token`. [Источник: Bot API](https://core.telegram.org/bots/api).
+`sendMessage.text` is limited to 4096 characters after entity parsing. Rate-limited
+responses may include `retry_after`. Webhooks and `getUpdates` are mutually exclusive.
+Configure webhook `secret_token`; Telegram sends it in the
+`X-Telegram-Bot-Api-Secret-Token` header. [Source: Bot API](https://core.telegram.org/bots/api).
 
-| Переменная | Назначение |
+| Variable | Purpose |
 |---|---|
-| `TELEGRAM_BOT_TOKEN` | Token бота; пустое значение отключает канал |
-| `TELEGRAM_BOT_USERNAME` | Username для deep link |
-| `TELEGRAM_WEBHOOK_SECRET` | Секрет проверки входящего webhook |
-| `APP_PUBLIC_BASE` | Публичный адрес приложения для ссылок |
+| `TELEGRAM_BOT_TOKEN` | Bot token; empty disables the channel |
+| `TELEGRAM_BOT_USERNAME` | Username for deep links |
+| `TELEGRAM_WEBHOOK_SECRET` | Incoming webhook verification secret |
+| `APP_PUBLIC_BASE` | Public application base URL for links |
 
-Webhook регистрируется оператором через `setWebhook`: URL
-`https://<адрес-приложения>/api/telegram/webhook`, `secret_token` равен настроенному
-`TELEGRAM_WEBHOOK_SECRET`. Используйте непустой секрет; текущий код проверяет
-заголовок только когда секрет задан. Само приложение `setWebhook` не вызывает.
-В документации Telegram для секрета разрешены `A-Z`, `a-z`, `0-9`, `_`, `-`, длина
-1–256. [Источник: setWebhook](https://core.telegram.org/bots/api#setwebhook).
+The operator registers the webhook with `setWebhook`: URL
+`https://<application-host>/api/telegram/webhook`, with `secret_token` matching
+`TELEGRAM_WEBHOOK_SECRET`. Use a nonempty secret; current code checks the header
+only when a secret is configured. The application does not call `setWebhook` itself.
+Telegram permits `A-Z`, `a-z`, `0-9`, `_` and `-`, length 1–256, for this secret.
+[Source: setWebhook](https://core.telegram.org/bots/api#setwebhook).
 
-Пользователь вызывает `POST /api/telegram/link`, открывает возвращённую ссылку
-и отправляет `/start` с одноразовым token. Статус: `GET /api/telegram`;
-mute: `PUT /api/telegram/enabled`; отвязка: `DELETE /api/telegram/link`.
-Вызов статуса также запускает обработку очереди доставки и может отправить сообщения.
+The user calls `POST /api/telegram/link`, opens the returned URL and sends `/start`
+with the single-use token. Status: `GET /api/telegram`; mute:
+`PUT /api/telegram/enabled`; unlink: `DELETE /api/telegram/link`.
+Reading status also processes the delivery queue and may send messages.
 
-Граница текущего адаптера: [HttpTelegramBotClient](src/main/java/com/example/taskmanagement/integration/telegram/application/HttpTelegramBotClient.java)
-отправляет JSON `sendMessage`, но не реализует backoff по `retry_after` или разбиение
-длинного текста. Код использует `disable_web_page_preview`; актуальный справочник
-описывает `link_preview_options`. Это пункты проверки совместимости будущего спринта,
-а не уже выполненные исправления. [Источник: sendMessage](https://core.telegram.org/bots/api#sendmessage).
+Current adapter limits: [HttpTelegramBotClient](src/main/java/com/example/taskmanagement/integration/telegram/application/HttpTelegramBotClient.java)
+sends JSON `sendMessage` requests but does not implement `retry_after` backoff or
+split long messages. Code uses `disable_web_page_preview`, while the current
+reference describes `link_preview_options`. These are compatibility review items
+for a future sprint, not completed fixes. [Source: sendMessage](https://core.telegram.org/bots/api#sendmessage).
 
 ## Email / SMTP
 
-Здесь нет отдельного HTTP API поставщика: ProjectFlow использует `JavaMailSender`
-и SMTP. Spring Boot создаёт sender при наличии mail-библиотек и `spring.mail.host`.
-В документации также приведены connection/read/write timeouts, поскольку некоторые
-значения по умолчанию не ограничивают ожидание. [Источник: Spring Boot mail](https://docs.spring.io/spring-boot/reference/io/email.html).
+There is no separate vendor HTTP API: ProjectFlow uses `JavaMailSender` and SMTP.
+Spring Boot creates a sender when mail libraries and `spring.mail.host` are present.
+Its documentation also shows connection/read/write timeouts because some defaults
+allow unbounded waiting. [Source: Spring Boot mail](https://docs.spring.io/spring-boot/reference/io/email.html).
 
-Провайдер SMTP ещё не выбран этим документом. Адрес сервера, порт, способы
-аутентификации, TLS и правила отправителя берутся у выбранного поставщика.
+This document does not select an SMTP provider. Obtain the server address, port,
+authentication, TLS and sender policies from the chosen provider.
 
-| Переменная | Назначение |
+| Variable | Purpose |
 |---|---|
 | `SPRING_MAIL_HOST`, `SPRING_MAIL_PORT` | SMTP endpoint |
-| `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD` | Учётные данные SMTP |
-| `MAIL_FROM` | Адрес отправителя |
-| `MAIL_BRAND_NAME`, `MAIL_THEME=default\|slate` | Оформление HTML |
-| `MAIL_DIGEST_CRON` | Расписание дайджеста, по умолчанию `0 0 8 * * *` |
-| `APP_PUBLIC_BASE` | Ссылки на приложение |
+| `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD` | SMTP credentials |
+| `MAIL_FROM` | Sender address |
+| `MAIL_BRAND_NAME`, `MAIL_THEME=default\|slate` | HTML appearance |
+| `MAIL_DIGEST_CRON` | Digest schedule, default `0 0 8 * * *` |
+| `APP_PUBLIC_BASE` | Application links |
 
-Если SMTP не настроен, **не задавайте `SPRING_MAIL_HOST`**. Проверка mail health
-в проекте отключена; `health=UP` не подтверждает успешную доставку писем.
-Ниже пример дополнительных **Java properties** для SMTP с STARTTLS; применяйте
-его только если провайдер поддерживает этот режим:
+If SMTP is not configured, **omit `SPRING_MAIL_HOST`**. Mail health is disabled in
+this project; `health=UP` does not establish successful email delivery.
+The following additional **Java properties** configure SMTP with STARTTLS;
+use them only when the provider supports that mode:
 
 ```properties
 spring.mail.properties.mail.smtp.auth=true
@@ -159,100 +159,100 @@ spring.mail.properties.mail.smtp.timeout=5000
 spring.mail.properties.mail.smtp.writetimeout=5000
 ```
 
-TLS/timeout-настройки в этом спринте не включены автоматически.
-Справочник SMTP properties, включая STARTTLS:
+This sprint does not automatically enable these TLS/timeout settings.
+SMTP property reference, including STARTTLS:
 [Eclipse Angus Mail SMTP](https://eclipse-ee4j.github.io/angus-mail/docs/api/org.eclipse.angus.mail/org/eclipse/angus/mail/smtp/package-summary.html).
-Статус: `GET /api/email`; mute: `PUT /api/email/enabled`;
-режим: `PUT /api/email/digest` с `{"mode":"IMMEDIATE"}` или `{"mode":"DAILY"}`.
-Чтение статуса также запускает доставку очереди и может отправить письма.
-Реализация: [EmailClientConfiguration](src/main/java/com/example/taskmanagement/integration/email/application/EmailClientConfiguration.java).
+Status: `GET /api/email`; mute: `PUT /api/email/enabled`;
+mode: `PUT /api/email/digest` with `{"mode":"IMMEDIATE"}` or `{"mode":"DAILY"}`.
+Reading status also processes the delivery queue and may send email.
+Implementation: [EmailClientConfiguration](src/main/java/com/example/taskmanagement/integration/email/application/EmailClientConfiguration.java).
 
-## MEGA — личный аккаунт пользователя
+## MEGA — personal user account
 
-Пользователь выбрал личные аккаунты, официальный SDK и unlink с предупреждением.
-В S52 добавлен нативный адаптер поверх SDK **10.22.0**, commit
+The user selected personal accounts, the official SDK and unlinking with a warning.
+S52 adds a native adapter using SDK **10.22.0**, commit
 `76771e3b2603bbe0d1b61d0e70861e345ae96af5`.
-`ATTACHMENT_STORAGE=mega` не используется: подключённый личный аккаунт имеет приоритет
-для новых загрузок, а без подключения используется текущий local/Dropbox store.
+There is no `ATTACHMENT_STORAGE=mega`: a linked personal account takes precedence
+for new uploads; otherwise, the existing local/Dropbox store is used.
 
-Официальный SDK написан на C++; документация API находится в
-[`megaapi.h`](https://github.com/meganz/sdk/blob/master/include/megaapi.h), Java API —
-в [`MegaApiJava.java`](https://github.com/meganz/sdk/blob/master/bindings/java/nz/mega/sdk/MegaApiJava.java).
-README SDK описывает CMake/VCPKG и Java-привязки на SWIG. Здесь Java 21 вызывает
-собственный небольшой C++ bridge через закрытые stdin/stdout pipes без shell.
-Каждая операция создаёт отдельный SDK-процесс без общего cache.
-[Источник: MEGA SDK](https://github.com/meganz/sdk).
+The official SDK is C++; API documentation is in
+[`megaapi.h`](https://github.com/meganz/sdk/blob/master/include/megaapi.h), and the Java API is in
+[`MegaApiJava.java`](https://github.com/meganz/sdk/blob/master/bindings/java/nz/mega/sdk/MegaApiJava.java).
+The SDK README describes CMake/VCPKG and SWIG Java bindings. Here, Java 21 calls a
+small project-owned C++ bridge through private stdin/stdout pipes without a shell.
+Each operation starts a separate SDK process without a shared cache.
+[Source: MEGA SDK](https://github.com/meganz/sdk).
 
-SDK требует app key и поддерживает session login/cache; это не Dropbox OAuth.
-[Источник: Java API](https://raw.githubusercontent.com/meganz/sdk/master/bindings/java/nz/mega/sdk/MegaApiJava.java).
-MEGAcmd и неофициальный MEGAJS не используются.
-Лицензия SDK опубликована в [LICENSE](https://github.com/meganz/sdk/blob/master/LICENSE);
-перед поставкой нужно проверить условия выбранной версии и её зависимостей.
+The SDK requires an app key and supports session login/cache; this is not Dropbox OAuth.
+[Source: Java API](https://raw.githubusercontent.com/meganz/sdk/master/bindings/java/nz/mega/sdk/MegaApiJava.java).
+Neither MEGAcmd nor the unofficial MEGAJS library is used.
+The SDK license is published in [LICENSE](https://github.com/meganz/sdk/blob/master/LICENSE);
+review the chosen version and dependency terms before distribution.
 
-### Настройка и подключение
+### Configuration and connection
 
-| Переменная | Назначение |
+| Variable | Purpose |
 |---|---|
-| `MEGA_ENABLED=true` | Разрешить личные аккаунты (по умолчанию false) |
-| `MEGA_APP_KEY` | Ключ приложения, зарегистрированного у MEGA |
-| `MEGA_SESSION_KEY_BASE64` | Отдельные 32 случайных байта в Base64 для AES-256-GCM сессий |
-| `MEGA_EXECUTABLE` | Путь к bridge; в образе `/usr/local/bin/projectflow-mega` |
-| `MEGA_TIMEOUT_SECONDS` | Дедлайн операции: по умолчанию 120, диапазон 1–600 |
+| `MEGA_ENABLED=true` | Enable personal accounts (default false) |
+| `MEGA_APP_KEY` | MEGA-registered application key |
+| `MEGA_SESSION_KEY_BASE64` | Separate 32 random bytes encoded as Base64 for AES-256-GCM sessions |
+| `MEGA_EXECUTABLE` | Bridge path; `/usr/local/bin/projectflow-mega` in the image |
+| `MEGA_TIMEOUT_SECONDS` | Operation deadline: default 120, range 1–600 |
 
-Ключ шифрования нужно сохранять при перезапуске. Замена без перешифрования делает
-старые сессии нечитаемыми; потребуется повторный вход. Пароли и сессии передаются
-нативному процессу через pipe, не как аргументы командной строки. В PostgreSQL
-сохраняется только зашифрованная session. Сессия предоставляет доступ к аккаунту:
-для вложений используется папка `ProjectFlow-u<userId>`, но это не ограниченный OAuth scope.
+Persist the encryption key across restarts. Replacing it without re-encryption makes
+old sessions unreadable and requires users to sign in again. Passwords and sessions
+reach the native process through pipes, not command-line arguments. PostgreSQL stores
+only the encrypted session. The session grants account access: attachments use
+`ProjectFlow-u<userId>`, but this folder does not provide a restricted OAuth scope.
 
-Docker-образ включает bridge из официального SDK. Runtime остаётся Java 21;
-Ubuntu 24.04 выбрана для совместимости с cURL SDK. Для JAR вне контейнера bridge
-собирается отдельно через [CMake](native/mega/CMakeLists.txt) и задаётся `MEGA_EXECUTABLE`.
-Проверка сборки в отдельном образе:
+The Docker image includes a bridge built from the official SDK. Runtime remains Java 21;
+Ubuntu 24.04 provides SDK/cURL compatibility. For a JAR outside the container, build the
+bridge separately using [CMake](native/mega/CMakeLists.txt) and set `MEGA_EXECUTABLE`.
+To verify the standalone image:
 
 ```powershell
 docker build -f native/mega/Dockerfile -t projectflow-mega-bridge:local .
 docker run --rm --network none projectflow-mega-bridge:local --self-test
 ```
 
-В профиле Workspace есть форма «Личный аккаунт MEGA»: email, пароль и, если требуется,
-шестизначный код 2FA. Используйте HTTPS вне loopback. Пароль/MFA очищаются после
-попытки и не сохраняются в browser storage.
+The Workspace profile contains a Personal MEGA account form: email, password and,
+when required, a six-digit 2FA code. Use HTTPS outside loopback. Password/MFA fields
+are cleared after an attempt and are not stored in browser storage.
 
-- `GET /api/mega` — статус и account ID, без session.
-- `POST /api/mega/link` — JSON `{"email":"…","password":"…","mfaCode":null}`;
-  при 2FA вместо null передаётся шестизначная строка. Cookie-сессия требует CSRF;
-  также поддерживается bearer auth. OpenAPI: `/v3/api-docs/mega` при профиле alpha.
-- `DELETE /api/mega/link` — локально удаляет подключение; файлы и метаданные остаются.
-  Перед отключением или сменой аккаунта UI требует подтвердить предупреждение.
+- `GET /api/mega`: status and account ID, without the session.
+- `POST /api/mega/link`: JSON `{"email":"…","password":"…","mfaCode":null}`;
+  supply a six-digit string instead of null for 2FA. Cookie sessions require CSRF;
+  bearer authentication is also supported. OpenAPI: `/v3/api-docs/mega` under the alpha profile.
+- `DELETE /api/mega/link`: removes the local link; files and metadata remain.
+  The UI requires warning acknowledgement before unlinking or switching accounts.
 
-Ссылка файла — `mega:<accountId>:<nodeHandle>`. Чтение участником проекта использует
-подключение загрузившего пользователя и проверяет исходный account ID. После unlink
-или подключения другого аккаунта старые файлы недоступны; повторный вход в исходный
-аккаунт восстанавливает доступ. Старые local/Dropbox записи не мигрируют.
-Удаление MEGA-вложения требует доступного исходного аккаунта; при отказе метаданные
-не удаляются. Unlink не отзывает сессию у MEGA: для отзыва используйте настройки
-безопасности MEGA. Перенос и очистка внешних orphan-объектов после неопределённого
-сбоя не реализованы.
+A file reference is `mega:<accountId>:<nodeHandle>`. A project member's read uses the
+uploader's link and verifies the original account ID. After unlinking or linking a
+different account, old files are unavailable; reconnecting the original account
+restores access. Existing local/Dropbox records are not migrated.
+Deleting a MEGA attachment requires the original account to be available; metadata
+is retained on failure. Unlinking does not revoke the session at MEGA: use MEGA's
+security settings for revocation. Migration and orphan reconciliation after an
+uncertain external failure are not implemented.
 
-Одновременно работают не более двух SDK-процессов. Превышение возвращает `MEGA_BUSY`
-(503), дедлайн — `MEGA_TIMEOUT` (504). Вывод SDK и секреты не включаются в ошибки;
-нативные библиотеки не загружаются в JVM.
+At most two SDK processes run concurrently. Excess requests return `MEGA_BUSY`
+(503); deadlines return `MEGA_TIMEOUT` (504). SDK output and secrets are excluded
+from errors; native libraries are not loaded into the JVM.
 
-## Приёмка реального подключения
+## Live connection acceptance
 
-Автоматические тесты проекта используют recording-адаптеры для внешних сервисов.
-Зелёный CI не заменяет следующие проверки с отдельными тестовыми аккаунтами:
+Automated tests use recording adapters for external services. Green CI does not
+replace the following checks with dedicated test accounts:
 
-1. Dropbox: upload → download с проверкой содержимого → delete; refresh после истечения
-   access token; личный OAuth с корректным/чужим state; отдельно — нужная модель Team Space.
-2. Telegram: привязка чата, секрет webhook, получение уведомления, mute/unlink;
-   недоступность API и rate limiting. Реальная отправка требует явного разрешения.
-3. SMTP: доставка plain/HTML и DAILY, режим TLS провайдера, неверный пароль,
-   недоступность сервера, ограниченное время ожидания. Реальная отправка требует разрешения.
-4. MEGA: login/2FA, upload/download/delete, доступ второго участника, unlink/relink
-   исходного и другого аккаунта. Сборка, offline self-test и recording-адаптер
-   проверяются автоматически; для живой приёмки нужен реальный аккаунт.
+1. Dropbox: upload → download and compare contents → delete; refresh after access
+   token expiry; personal OAuth with valid/foreign state; separately verify the required Team Space model.
+2. Telegram: link a chat, verify the webhook secret, receive a notification, mute/unlink;
+   API failure and rate limiting. Real messages require explicit authorization.
+3. SMTP: plain/HTML and DAILY delivery, provider TLS mode, invalid password,
+   server unavailability and bounded timeouts. Real messages require authorization.
+4. MEGA: login/2FA, upload/download/delete, second-member access, unlink/relink with
+   the original and a different account. Build, offline self-test and the recording
+   adapter are checked automatically; live acceptance requires a real account.
 
-Проверка текущего серверного контракта ProjectFlow описана в [README](README.md).
-Не отправляйте тестовые сообщения и не меняйте webhook внешнего бота автоматически.
+See [README](README.md) for verification of the current ProjectFlow server contract.
+Do not automatically send test messages or change an external bot's webhook.

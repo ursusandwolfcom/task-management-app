@@ -1,6 +1,7 @@
 # Project working rules
 
 Communicate in Russian. The project is developed by one developer with one AI agent.
+Write and maintain project documentation in English, including local plans and changelogs.
 Do not spawn sub-agents unless the user explicitly requests them.
 
 ## Required branch and verification cycle

@@ -1,108 +1,110 @@
-# ProjectFlow: от демонстрации к рабочей бизнес-системе
+# ProjectFlow: from demonstration to a working business system
 
-План предложен 2026-10-13 по запросу пользователя. Это приоритеты будущей реализации,
-а не список готовых функций. Сроки и новый номер спринта здесь не назначаются.
+Proposed on 2026-10-13 at the user's request. This describes implementation priorities,
+not a list of completed features. It does not assign dates or new sprint numbers.
+The initial snapshot below is historical; consult README and Git/PR history for current delivery status.
 
-Ценность продукта: пользователь видит, что делать следующим, кто отвечает за работу,
-что блокирует проект и как изменение задачи влияет на сроки. Основной экран — рабочее
-пространство проектов и задач. Обзорная страница помогает принять решение и перейти
-к действию; каждый показатель должен открывать соответствующие задачи или проекты.
+Product value: users see what to do next, who owns the work, what blocks the project
+and how a task change affects deadlines. The main screen is the project/task workspace.
+The overview helps users decide and act: every metric should open its underlying tasks or projects.
 
-## Что работает сейчас
+## Initial working baseline
 
-| Область | Реализовано | Граница |
+| Area | Implemented at the initial planning baseline | Boundary at that baseline |
 |---|---|---|
-| Планировщик | Java planning.core: порядок DAG, priority → due date → ID, готовность и следующий шаг, отклонение цикла | Alpha передаёт снимок графа; расписания дат и ресурсов ещё нет |
-| Пользователи | API и рабочий UI регистрации/входа, профиля, пароля и выхода; постоянная cookie-сессия с CSRF | Глобальные роли изменяются через ADMIN API; UI каталога пользователей нет |
-| Проекты | Защищённый PostgreSQL CRUD и UI каталога/карточки, участники, передача владения, проверки доступа и версии | Alpha-проекты отделены от этих API; серверные задачи ещё не подключены |
-| Выполнение | Чистый доменный lifecycle и попытки выполнения, проверенные тестами | Серверный Task CRUD и UI истории не подключены |
-| Интерфейс alpha | Проекты/задачи в браузере, список/Канбан, поиск/фильтры, зависимости, действия, показатели, восемь тем | Локальный прототип; не обеспечивает совместную работу аккаунтов |
-| Демо | Три сценария / 21 задача с настоящим серверным расчётом | Условные даты и локальные статусы |
+| Planner | Java planning.core: DAG order, priority → due date → ID, readiness/next, cycle rejection | Alpha submits a graph snapshot; date/resource scheduling is not yet present |
+| Users | Registration/login, profile, password and logout API/UI; persistent cookie session with CSRF | Global roles use the ADMIN API; no user-directory UI |
+| Projects | Protected PostgreSQL CRUD and directory/detail UI, membership, ownership transfer, access/version checks | Alpha projects are separate; server tasks are not yet connected |
+| Execution | Pure domain lifecycle and execution attempts covered by tests | Server task CRUD and history UI are not yet connected |
+| Alpha interface | Browser projects/tasks, list/Kanban, search/filters, dependencies, actions, metrics, eight themes | Local prototype; no collaboration between accounts |
+| Demo | Three scenarios / 21 tasks with actual server calculation | Illustrative dates and local statuses |
 
-## Приоритеты и проверяемый результат
+Later sprints added persisted tasks, collaboration, planning, portfolio, notifications,
+resource calendars and file integrations. The initial limitations above are retained
+as historical context rather than current defects.
 
-Рассмотрены три пути: расширять локальный прототип (быстрый визуальный результат,
-но без совместной работы); подключать существующие API и последовательно доводить
-серверные задачи (рекомендуемый путь); начинать с отчётов/интеграций (больше внешних
-зависимостей при ещё неполном рабочем цикле). Сохраняем текущий модульный монолит
-и независимое planning.core; изменение архитектурного стека для этого плана не требуется.
+## Priorities and verifiable outcomes
 
-| Этап | Что реализовать | Ценность и критерий приёмки |
+Three paths were considered: expand the local prototype (fast visual feedback without
+collaboration); connect existing APIs and incrementally complete server tasks (recommended);
+or start with reports/integrations (more external dependencies before the working loop is complete).
+Keep the modular monolith and independent planning.core; this plan does not require a new stack.
+
+| Stage | Implementation scope | Value and acceptance criterion |
 |---|---|---|
-| M1. Аккаунт и серверные проекты | Вход/регистрация/выход, профиль, список и карточка проекта, участники и владение через существующие API; обработка истечения сессии и конфликтов версии | Один аккаунт видит одинаковые проекты в двух браузерах. Посторонний аккаунт не читает и не меняет чужой проект. UI объясняет отказ и не теряет введённую форму |
-| M2. Серверные задачи | PostgreSQL CRUD задач, исполнитель из участников проекта, приоритет/срок/оценка, действия start/complete/fail/cancel/retry, история попыток; формы и карточка задачи | Задачи переживают смену браузера. Недопустимый переход отвергает сервер. Retry сохраняет предыдущую попытку. Правки и действия конкурирующих пользователей не стирают друг друга |
-| M3. Зависимости и рабочая очередь | Хранение DAG и транзакционные проверки графа/состояний, availability/next API; «Мои задачи», блокировки с причиной, список/Канбан на серверных данных | A → B: завершение A открывает B; цикл и связи между проектами запрещены. Одновременный start/edit не обходит проверку. В «Моих задачах» пользователь находит и выполняет свою доступную работу |
-| M4. Совместная работа | Комментарии, метки, фильтры по исполнителю/статусу/сроку/меткам, пагинация, история действий; Dropbox-вложения и выбранный канал уведомлений | Обсуждение и документы доступны в контексте задачи и только участникам. Внешний сбой не создаёт фиктивный успех; повторная доставка/загрузка не дублирует операции |
-| M5. Планирование | Плановые даты по DAG и календарю, Гант, доступность исполнителей между проектами, CPM и сценарий «что если» без сохранения исходных задач | План не пересекает занятость исполнителя и соблюдает зависимости/рабочее время. Изменение оценки показывает новую дату финиша, критическую ветвь и предупреждения о сроках |
-| M6. Управленческий обзор | Портфель проектов, риски/просрочки, загрузка команды, переход от показателя к списку задач; экспорт отчёта с проверками доступа | Руководитель из обзора открывает причину задержки и назначает действие. Показатели основаны на сохранённых данных, а экспорт содержит только доступную пользователю информацию |
+| M1. Account and server projects | Login/register/logout, profile, project list/detail, membership/ownership through existing APIs; session expiry and version conflict handling | One account sees the same projects in two browsers. Outsiders cannot read/change another project. UI explains denials and preserves form input |
+| M2. Server tasks | PostgreSQL task CRUD, team-member assignee, priority/deadline/estimate, start/complete/fail/cancel/retry, attempt history; task forms/detail | Tasks survive browser changes. Server rejects invalid transitions. Retry preserves the previous attempt. Concurrent edits/actions do not overwrite each other |
+| M3. Dependencies and work queue | Persisted DAG with transactional graph/state checks, availability/next API; My tasks, explained blocks, server-backed list/Kanban | A → B: completing A unblocks B; cycles and cross-project edges are rejected. Concurrent start/edit cannot bypass checks. Users find and execute ready work |
+| M4. Collaboration | Comments, labels, assignee/status/deadline/label filters, pagination, activity history; Dropbox attachments and chosen notification channel | Discussion/documents remain in task context and available only to members. External failures do not report false success; repeated delivery/upload does not duplicate operations |
+| M5. Planning | DAG/calendar dates, Gantt, cross-project assignee availability, CPM and non-persistent what-if | Plans respect dependencies, working time and assignee occupancy. Estimate changes show a new finish, critical branch and deadline warnings |
+| M6. Management overview | Portfolio, risk/overdue indicators, workload, drill-down to tasks; access-controlled report export | A manager opens the cause of a delay and assigns an action. Metrics use persisted data; exports include only accessible information |
 
-M1 можно начать на существующем бэкенде. M2 → M3 дают основной завершённый сценарий;
-совместная работа M4 и планировщик M5 развиваются после устойчивого хранения задач
-и зависимостей. M6 зависит от данных этих этапов. UI рабочего списка вводится вместе
-с API каждого этапа, а не откладывается до создания отдельной обзорной страницы.
+M1 can start on the existing backend. M2 → M3 deliver the central complete scenario.
+M4 collaboration and M5 planning follow reliable task/dependency persistence. M6 depends
+on their data. Add the working-list UI with each stage's API rather than postponing it
+until a separate dashboard exists.
 
-## Как должен выглядеть продукт
+## Intended product experience
 
-- **Проекты:** рабочий каталог, описание, участники, риски и доступные действия.
-- **Мои задачи:** персональная очередь с готовностью, сроками и причинами блокировки.
-- **Рабочее пространство проекта:** список/Канбан, фильтры, следующий шаг; позже Гант.
-- **Карточка задачи:** детали, исполнитель, зависимости, действия, история; позже обсуждение и файлы.
-- **Команда и настройки проекта:** участники, права и владение; позже рабочие календари.
-- **Обзор портфеля:** показатели с переходами к работе, без статических декоративных чисел.
-- **Профиль и настройки интерфейса:** тема, плотность, доступность; позже уведомления.
+- **Projects:** working directory, description, members, risks and available actions.
+- **My tasks:** personal queue with readiness, deadlines and reasons for blocks.
+- **Project workspace:** list/Kanban, filters, next action; Gantt later.
+- **Task card:** details, assignee, dependencies, actions, history; discussion/files later.
+- **Team and project settings:** membership, permissions and ownership; work calendars later.
+- **Portfolio overview:** metrics leading into work, without decorative static numbers.
+- **Profile and interface preferences:** theme, density, accessibility; notifications later.
 
-Пункты навигации появляются вместе с рабочими сценариями. Проект, фильтр и карточка
-задачи получают адреса для прямой ссылки и восстановления контекста. Загрузка, пустой
-список, отказ доступа, конфликт и сбой сети имеют понятные состояния и путь продолжения.
+These describe the original progression; later delivery is recorded in README.
+Navigation entries appear with working scenarios. Projects, filters and task cards
+have direct links and restore context. Loading, empty lists, access denial, conflicts
+and network failures have clear states and recovery actions.
 
-## Сценарий приёмки следующего полноценного MVP
+## Complete MVP acceptance scenario
 
-1. Владелец входит, создаёт проект и добавляет участника.
-2. Создаёт две серверные задачи A → B и назначает исполнителя из команды.
-3. Участник открывает свою очередь: B заблокирована с объяснением, A доступна.
-4. Завершает A; B становится доступна. После ошибки B повторная попытка сохраняется в истории.
-5. Второй браузер показывает то же сохранённое состояние; посторонний не получает доступ.
-6. Изменение графа с циклом или конфликт версии даёт явный отказ без потери формы.
+1. The owner signs in, creates a project and adds a member.
+2. Creates two server tasks A → B and assigns a team member.
+3. The member opens their queue: B is blocked with an explanation, A is ready.
+4. Completes A; B becomes ready. Failing B and retrying preserves attempt history.
+5. A second browser shows the same saved state; an outsider has no access.
+6. A cyclic graph change or version conflict produces a clear denial without losing form input.
 
-Этот сценарий требует M1–M3. Гант, файлы и уведомления не являются условием его готовности.
+This scenario requires M1–M3. Gantt, files and notifications are not prerequisites.
 
-## Решения до соответствующей реализации
+## Decisions for the relevant implementation stage
 
-### Интеграция вложений с MEGA (mega.nz)
+### MEGA attachment integration (mega.nz)
 
-Добавлено по запросу пользователя 2026-11-04. Позднее в той же сессии пользователь
-запросил реализацию, выбрал личные аккаунты, официальный SDK с нативной сборкой
-и unlink с предупреждением. Реализация S52 и инструкция — в [INTEGRATIONS.md](INTEGRATIONS.md).
-Существующие провайдеры вложений остаются доступными; приёмка с реальным аккаунтом требуется.
+Added at the user's request on 2026-11-04. Later that session, the user requested
+implementation and selected personal accounts, the official native SDK and unlinking
+with a warning. S52 implementation and instructions: [INTEGRATIONS.md](INTEGRATIONS.md).
+Existing attachment providers remain available; real-account acceptance is required.
 
-- Цель: загрузка, скачивание и удаление файлов задачи через MEGA с действующими
-  проверками доступа к проекту и хранением метаданных в PostgreSQL.
-- Точка расширения: адаптер `AttachmentObjectStore`; транспорт и криптография
-  остаются за границей бизнес-логики задач.
-- Выбраны личные аккаунты; сессии шифруются, пароли не сохраняются. При отключении
-  метаданные остаются; старые файлы требуют повторного входа в исходный аккаунт.
-- Проверить официальный [MEGA SDK](https://github.com/meganz/sdk), варианты интеграции
-  с Java 21 и контейнером и условия использования перед выбором зависимости.
-- Критерии приёмки: участник загружает и получает тот же файл; посторонний не получает
-  файл; сбой MEGA не возвращает фиктивный успех и не оставляет несогласованные метаданные;
-  повторные операции и удаление проверены контрактными и интеграционными тестами.
-- Автоматический перенос файлов из существующих хранилищ требует отдельного решения.
+- Goal: upload, download and delete task files through MEGA, retaining project access
+  checks and PostgreSQL metadata.
+- Extension point: `AttachmentObjectStore`; transport and cryptography stay outside task business logic.
+- Personal accounts are selected; sessions are encrypted and passwords are not persisted.
+  Unlink retains metadata; old files require reconnecting the original MEGA account.
+- Review the official [MEGA SDK](https://github.com/meganz/sdk), Java 21/container
+  integration and license terms before choosing a dependency. S52 pins SDK 10.22.0.
+- Acceptance: a member uploads and retrieves identical content; an outsider cannot
+  retrieve it; MEGA failure does not report false success or leave inconsistent metadata;
+  repeated operations/deletion have contract and integration coverage.
+- Automatic migration from existing stores requires a separate decision.
 
-### Остальные решения
+### Other decisions
 
-- Уточнить нерешённые права изменения/выполнения задач, обязательность исполнителя
-  и разрешённые правки при IN_PROGRESS по действующим требованиям.
-- Выбран постоянный браузерный вход через Secure HttpOnly cookie с CSRF поверх
-  текущих JWT/DB-сессий. Cookie API реализован; формы входа и восстановление/refresh
-  в рабочем UI реализованы с межвкладочной координацией и сохранением форм при конфликте.
-  Секреты не попадают в URL или демо.
-- Решить, нужен ли явный перенос локальных alpha-проектов в аккаунт. Автоматически
-  смешивать локальные ID и PostgreSQL ID нельзя; демо остаётся отдельным режимом.
-- Для календарей: рабочие часы, выходные, timezone и правила округления оценок.
-- Для уведомлений: канал и события; для файлов: ограничения размера, типов и доступа.
-- Для метрик: определения просрочки, риска и загрузки. Оценки длительности сейчас
-  не являются фактическими трудозатратами и не дают основания для финансовых KPI.
+- Resolve any remaining task edit/execute permissions, mandatory assignee rules and
+  permitted IN_PROGRESS changes against the applicable requirements.
+- Persistent browser login uses Secure HttpOnly cookies with CSRF over JWT/DB sessions.
+  Cookie APIs and workspace login/restore/refresh are implemented, including cross-tab
+  coordination and form preservation on conflicts. Secrets do not enter URLs or demos.
+- Decide whether explicit import of local alpha projects into an account is needed.
+  Never automatically mix local and PostgreSQL IDs; demo remains a separate mode.
+- Calendars: working hours, days off, timezone and estimate rounding rules.
+- Notifications: channels/events; files: size, type and access limits.
+- Metrics: overdue, risk and workload definitions. Duration estimates alone are not
+  actual effort and do not justify financial KPIs.
 
-Для каждого этапа: обновлённые контракты/README, интеграционные проверки на PostgreSQL,
-тесты доступа и конкуренции, браузерный сценарий с реальным API и проверка доступности.
-Интеграция сохраняет проектный цикл sprint → dev → main с проверками актуального SHA.
+Every stage requires current contracts/README, PostgreSQL integration checks,
+access/concurrency tests, a browser scenario with the real API and accessibility checks.
+Integration follows sprint → dev → main with checks on the exact current SHA.

@@ -1,44 +1,63 @@
-# Скрипт демо ProjectFlow для заказчика
+# ProjectFlow customer demo script
 
-Показывайте **серверный workspace** (`main`), не alpha. Alpha — отдельный браузерный прототип.
+Show the **server workspace** (`main`). Alpha is a separate browser prototype.
+The interface currently uses Russian labels; names below are their English equivalents.
 
-## Подготовка (один раз)
+## Preparation (once)
 
 ```powershell
-Copy-Item .env.sample .env   # POSTGRES_PASSWORD, JWT_SIGNING_KEY_BASE64
-# Опционально Telegram: TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME, TELEGRAM_WEBHOOK_SECRET, APP_PUBLIC_BASE
-# Опционально Email: SPRING_MAIL_* (см. .env.sample)
+Copy-Item .env.sample .env   # Configure POSTGRES_PASSWORD and JWT_SIGNING_KEY_BASE64
+# Optional Telegram: TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME, TELEGRAM_WEBHOOK_SECRET, APP_PUBLIC_BASE
+# Optional email: SPRING_MAIL_* (see .env.sample)
 docker compose up -d --wait
 .\mvnw.cmd -q -DskipTests package
 java -jar target/task-management-app-0.0.1-SNAPSHOT.jar --spring.profiles.active=workspace
 ```
 
-Откройте <http://127.0.0.1:8080/app/>.
+Open <http://127.0.0.1:8080/app/>.
 
-При первом запуске создайте ADMIN через bootstrap (см. README), затем двух USER:
-`owner_demo` и `member_demo` (регистрация в UI) **или** один OWNER + добавление участника по ID.
+On the first run, bootstrap an ADMIN (see README), then register two USER accounts,
+`owner_demo` and `member_demo`, through the UI. Alternatively, use an existing
+project owner and add a member by user ID. Project ownership is separate from the global user role.
 
-## Сценарий ~12 минут
+## Approximately 12-minute walkthrough
 
-| Мин | Действие | Что сказать |
-|-----|----------|-------------|
-| 0–1 | Войти как владелец | Cookie-сессия, CSRF; данные в PostgreSQL |
-| 1–2 | Создать проект, добавить участника | Чужой аккаунт не увидит проект |
-| 2–3 | Праздники проекта (будни) | Нерабочие даты для CPM/Gantt |
-| 3–5 | Задачи **A** и **B**, зависимость A→B, назначить member, bucket WORK | Оценка 15+ мин; исполнитель из команды |
-| 5–6 | Войти как member → «Мои задачи» | B заблокирована; A доступна |
-| 6–7 | Start/Complete A → B открывается; на B Fail → Retry → Start | История попыток |
-| 7–8 | Карточка проекта: Gantt; what-if | Пн–Пт 09–17 + обед 13–14; what-if **не** пишет в БД |
-| 8–9 | «Обзор»: риск + загрузка | Soft warn при пересечении планов одного исполнителя |
-| 9–10 | Комментарий / метка / TXT-вложение | Local disk by default; optional Dropbox via env |
-| 10–11 | «Уведомления» у member | In-app; опционально Telegram link + Email mute |
-| 11–12 | Activity на задаче | Append-only история событий |
+| Minute | Action | Talking point |
+|---|---|---|
+| 0–1 | Sign in as the owner | Cookie session, CSRF and PostgreSQL persistence |
+| 1–2 | Create a project and add a member | An unrelated account cannot see the project |
+| 2–3 | Add project holidays on weekdays | Non-working dates affect CPM/Gantt |
+| 3–5 | Create **A** and **B**, add dependency A → B, assign the member, set bucket WORK | Estimate at least 15 minutes; assignee must belong to the team |
+| 5–6 | Sign in as the member and open My tasks | B is blocked; A is ready |
+| 6–7 | Start/complete A; then fail → retry → start B | B becomes ready; attempt history is preserved |
+| 7–8 | Open project Gantt and what-if | Mon–Fri 09:00–17:00, lunch 13:00–14:00; what-if does **not** write to the database |
+| 8–9 | Open Overview: risk and workload | Soft warning when one assignee's plans overlap |
+| 9–10 | Add a comment, label and TXT attachment | Local disk by default; Dropbox and personal MEGA require configuration |
+| 10–11 | Open the member's Notifications | In-app notifications; optionally show Telegram linking and email mute |
+| 11–12 | Open task activity | Append-only event history |
 
-## Что не обещать
+## Optional personal MEGA demonstration
 
-См. **Deferred** в [README](README.md#deferred-explicit-technical-debt): Dropbox OAuth/backfill, rich HTML/digests, hard leveling, финKPI.
+Follow [MEGA setup and API](INTEGRATIONS.md#mega--personal-user-account).
+Configure the native bridge, app key and separate session encryption key, then enable MEGA.
+Use a dedicated test account in Profile, including its six-digit MFA code when required.
+Upload and download a file, compare its contents, then delete it. Verify access as a
+second project member and denial as an outsider. Demonstrate the warning before unlinking;
+reconnecting the original account restores access to its remaining files.
 
-## Alpha (по желанию)
+Screenshots prepared during S53 use a mocked MEGA API and explicitly say so.
+They do not establish successful live cloud transfers. A real-account acceptance run is still required.
 
-<http://127.0.0.1:8080/alpha/> — браузерный прототип + `POST /alpha/plan`.
-Не смешивать ID/статусы alpha с PostgreSQL workspace.
+## Claims to avoid
+
+Use the current [integration limits](INTEGRATIONS.md) and
+[deferred work](README.md#deferred-explicit-technical-debt).
+Do not claim full Dropbox Team Space support, automatic storage migration,
+remote MEGA session revocation on unlink, or production readiness based on mocked tests.
+Earlier deferrals such as hard leveling and email digests have since been implemented;
+the integration reference describes their current boundaries.
+
+## Alpha (optional)
+
+<http://127.0.0.1:8080/alpha/> is a browser prototype with `POST /alpha/plan`.
+Keep alpha IDs and statuses separate from the PostgreSQL workspace.

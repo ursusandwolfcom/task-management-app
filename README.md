@@ -1,47 +1,47 @@
 # ProjectFlow
 
-> Планирование и выполнение командной работы: что делать дальше, кто отвечает, что блокирует сроки.
+> Plan and execute team work: what to do next, who owns it, and what puts deadlines at risk.
 
 [![CI](https://github.com/ursusandwolfcom/task-management-app/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ursusandwolfcom/task-management-app/actions/workflows/ci.yml)
 [![Java 21](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)](#local-development)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-модульный%20монолит-6DB33F?logo=springboot&logoColor=white)](#local-development)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-modular%20monolith-6DB33F?logo=springboot&logoColor=white)](#local-development)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Liquibase-4169E1?logo=postgresql&logoColor=white)](#local-development)
 [![React](https://img.shields.io/badge/Workspace-React%20%2B%20TypeScript-61DAFB?logo=react&logoColor=black)](#local-development)
 
-## Демо для заказчика
+## Customer demo
 
-Документация внешних API, настройки и границы интеграций:
-**[Dropbox, Telegram, SMTP и MEGA](INTEGRATIONS.md)** (официальные источники проверены 2026-11-04).
+External API documentation, configuration and integration limits:
+**[Dropbox, Telegram, SMTP and MEGA](INTEGRATIONS.md)** (official sources checked on 2026-11-04).
 
-Готовый **рабочий демо-срез**: MVP, планирование, портфель, timesheets, FTE, файлы, in-app / Telegram / Email / Dropbox, личные перерывы, темы писем и выбор папки Dropbox. Полная поддержка Team Space требует отдельной доработки; см. [границы интеграции](INTEGRATIONS.md#граница-поддержки-team-space). Это не production-deploy.
+A **working demo** is available: MVP, planning, portfolio, timesheets, FTE, files, in-app / Telegram / Email / Dropbox, personal breaks, email themes and Dropbox folder selection. Full Team Space support requires additional work; see [integration limits](INTEGRATIONS.md#team-space-support-boundary). This is not a production deployment.
 
-### За 10 минут
+### In 10 minutes
 
-| # | Что показать | Зачем |
+| # | What to show | Purpose |
 |---|--------------|--------|
-| 1 | Регистрация / вход (cookie-сессия) | Один аккаунт = одни данные в двух вкладках |
-| 2 | Проект → участник → задачи **A → B** | Зависимости и права на живых данных |
-| 3 | «Мои задачи»: B заблокирована, A готова | Очередь с причиной, не «магический» статус |
-| 4 | Завершить A → B открывается; fail → retry | История попыток сохраняется |
-| 5 | Gantt / what-if по оценкам | CPM Пн–Пт 09–17 + обед 13–14, сценарий без записи в БД |
-| 6 | Обзор портфеля + загрузка исполнителей | Риск и нагрузка → переход к работе |
-| 7 | Комментарий, метка, вложение, уведомление | Совместная работа в карточке задачи |
+| 1 | Register / sign in (cookie session) | One account sees the same data in two tabs |
+| 2 | Project → member → tasks **A → B** | Dependencies and permissions on persisted data |
+| 3 | My tasks: B is blocked, A is ready | A queue with an explanation of readiness |
+| 4 | Complete A → B becomes ready; fail → retry | Execution attempt history is preserved |
+| 5 | Gantt / what-if using estimates | CPM Mon–Fri 09:00–17:00 with lunch 13:00–14:00; scenarios do not write to the database |
+| 6 | Portfolio overview + assignee workload | Move from risk and workload indicators to actionable tasks |
+| 7 | Comment, label, attachment, notification | Collaborate within the task card |
 
-### Что уже в демо
+### Included in the demo
 
 ```text
-Аккаунт и проекты     Задачи и lifecycle     DAG / очередь / next
-Комментарии и метки   Вложения (локальный диск)   In-app уведомления (outbox)
-CPM + Gantt + what-if Портфель рисков + workload  Workspace UI (темы, CSRF)
+Account and projects   Tasks and lifecycle        DAG / queue / next
+Comments and labels    Attachments (local disk)   In-app notifications (outbox)
+CPM + Gantt + what-if  Portfolio risk + workload  Workspace UI (themes, CSRF)
 ```
 
-### Что сознательно позже
+### Integration scope
 
-Hard leveling, KPI, holidays, breaks, FTE, timesheets, Telegram/Email themes и настройка папки Dropbox уже в срезе. Личный MEGA-аккаунт подключается в профиле; нужен официальный native bridge и настройки администратора. Границы внешних API и сценарии реального подключения описаны в [INTEGRATIONS.md](INTEGRATIONS.md).
+Hard leveling, KPI, holidays, breaks, FTE, timesheets, Telegram/Email themes and Dropbox folder configuration are already included. Connect a personal MEGA account in the profile; this requires the official native bridge and administrator configuration. External API limits and live connection acceptance scenarios are documented in [INTEGRATIONS.md](INTEGRATIONS.md).
 
-### Как запустить демо
+### Run the demo
 
-Полный пошаговый скрипт с таймингом: **[DEMO.md](DEMO.md)**.
+For the complete timed walkthrough, see **[DEMO.md](DEMO.md)**.
 
 ```powershell
 docker compose up -d --wait
@@ -50,7 +50,7 @@ java -jar target/task-management-app-0.0.1-SNAPSHOT.jar --spring.profiles.active
 # UI: http://127.0.0.1:8080/app/
 ```
 
-Подробные контракты API — в разделах ниже. Alpha (`/alpha`) — отдельный браузерный прототип, не путать с серверным workspace.
+Detailed API contracts are provided below. Alpha (`/alpha`) is a separate browser prototype; keep it separate from the server workspace.
 
 ---
 
@@ -123,7 +123,7 @@ writes require CSRF.
 
 Liquibase migration 004 adds tasks, execution attempts and same-project dependency
 constraints. The React workspace exposes project task boards, filters, lifecycle
-actions, dependency editing, attempt history, comments/labels and «Мои задачи».
+actions, dependency editing, attempt history, comments/labels and My tasks.
 Alpha import and resource reservations remain subsequent work. Alpha browser tasks
 remain prototype data.
 
@@ -208,7 +208,7 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
-| S53 | Compact MEGA warning checkbox and separate disconnect action, verified in the profile demo |
+| S53 | Compact MEGA warning checkbox, separate disconnect action and English project documentation |
 | S52 | Personal MEGA accounts through official SDK 10.22.0; encrypted sessions, MFA, file routing, unlink/reconnect UI; Liquibase 022 |
 | S51 | Official external API reference and setup guide; explicit Dropbox Team Space and MEGA boundaries |
 | S50 | Resource delays propagate through DAG dependencies, other assignees, unassigned tasks and milestones |
@@ -251,7 +251,7 @@ accounts keeps metadata and remote files, with a UI warning; reconnecting the
 original account restores access. Old local/Dropbox objects are not migrated.
 Unlink removes local credentials; revoke the remote session in MEGA security settings.
 Real-account acceptance remains separate from automated recording-transport tests.
-See [setup, limits and API](INTEGRATIONS.md#mega--личный-аккаунт-пользователя).
+See [setup, limits and API](INTEGRATIONS.md#mega--personal-user-account).
 
 ## Task activity history
 
@@ -259,7 +259,7 @@ See [setup, limits and API](INTEGRATIONS.md#mega--личный-аккаунт-п
 paginated). Entries are written in the same transaction as create/update/lifecycle, comments,
 label link/unlink, attachment upload/delete and dependency add/remove. Foreign or inaccessible
 tasks return `TASK_NOT_FOUND`. Task deletion cascades activity rows (Liquibase 011). Workspace
-task detail shows «История действий» next to execution attempts.
+task detail shows Activity history next to execution attempts.
 
 ## Task attachments
 
@@ -299,7 +299,7 @@ shared app/team credentials are used for unlinked users and backfill.
 full set (owner/ADMIN, optimistic `version`). Dates must lie within the project start/end
 range; the write bumps `calendarRevision` so Gantt/CPM reload. Liquibase 012.
 `WorkingCalendar` skips these dates in addition to Sat/Sun. Workspace project detail has a
-«Праздничные дни» panel.
+Public holidays panel.
 
 ## Project break windows
 
@@ -539,7 +539,7 @@ A rejected/replayed refresh returns 401 without deleting cookies, preserving a c
 winner's new credentials. Do not automatically replay a business write after a network error.
 The workspace at `/app/` provides account forms, server project screens, project tasks
 (with readiness queue and filters), task cards (lifecycle, dependencies, attempt history,
-comments, labels) and «Мои задачи». The alpha UI
+comments, labels) and My tasks. The alpha UI
 still uses its separate local projects and does not log in automatically.
 
 ### Browser workspace
@@ -887,7 +887,7 @@ Search, display settings and sorting never rewrite workspace data or recalculate
 Fresh browsers include three business demo projects alongside the introductory project:
 client portal (parallel dependencies and all four states), service recovery (retry and
 blocked successors), and priority queue (priority, due date and ID tie-breaks).
-Choose **Открыть демо-сценарии** to add missing scenarios to an existing workspace
+Choose **Open demo scenarios** to add missing scenarios to an existing workspace
 and open the client portal. Loading them again preserves edits and avoids duplicates.
 Each demo project includes a presentation guide. All graph results come from `/alpha/plan`;
 demo data and prototype statuses stay in browser storage. Dates are illustrative;
@@ -1001,16 +1001,19 @@ database/startup tests. Local planning documents and secrets are excluded from G
 Manage tasks and projects effectively through a web-based application. This system enables task creation, assignment, progress tracking, and completion.
 
 
-## If you work in a team
+## Original assignment (historical reference)
+
+The sections below preserve the original educational assignment. Its direct feature-to-main
+workflow is superseded by AGENTS.md and the contribution process above. Original tutorial
+screenshots are not included in this repository.
+
+### If you work in a team
 
 1. Create an organization on GitHub
-   ![Create an organization](./description/create-an-organization.png)
 2. Choose a `Free` plan
 3. Use a name like `fe-feb20-team0` (your group + your team name)
 4. It should belong to your personal account
-   ![Set up your team](./description/set-up-your-team.png)
 5. Add your teammates to the team by their usernames on Github
-   ![Add your teammate](./description/add-your-teammate.png)
 
 ## Instructions
 
@@ -1022,18 +1025,8 @@ Manage tasks and projects effectively through a web-based application. This syst
       <details>
         <summary>Tutorial for branch protection rules</summary>
 
-      Go to the repository settings
-      STEP #1
-      ![Add your teammate](./description/first-step-for-branch-protection-rules.png)
-
-      STEP #2
-      ![Add your teammate](./description/second-step-for-branch-protection-rules.png)
-
-      Add the rule with only the next settings
-      STEP #3
-      ![Add your teammate](./description/third-step-for-branch-protection-rules.png)
-
-      More information about all other settings at
+      The original screenshot-only steps are unavailable. Follow the current repository
+      protection requirements in AGENTS.md and use GitHub's reference for configuration:
       the [link](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/defining-the-mergeability-of-pull-requests/managing-a-branch-protection-rule)
       </details>
 
@@ -1175,7 +1168,7 @@ To store the attachments of tasks, we will use the Dropbox API. The general flow
 
 This approach allows us to leverage Dropbox's robust file storage system, keeping our system lightweight and focused on task management.
 
-Read more about [Dropbox API](./dropbox.md)
+Read more about [Dropbox API](INTEGRATIONS.md#dropbox)
 
 ## Tasks
 
