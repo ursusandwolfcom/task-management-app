@@ -176,6 +176,67 @@ class TaskPlanningIntegrationTest {
     }
 
     @Test
+    void levelingRecalculatesTaskAndProjectDeadlineOverrunsWithoutPersisting() {
+        LocalDate deadline = project.startDate();
+        project = projects.replace(owner.id(), project.id(), new ProjectData(project.name(), "",
+                deadline, deadline, "UTC"), project.version());
+        var first = tasks.create(owner.id(), project.id(),
+                new TaskData("First day", "", TaskPriority.MEDIUM, 420, deadline, owner.id(), TaskBucket.WORK));
+        var second = tasks.create(owner.id(), project.id(),
+                new TaskData("Second day", "", TaskPriority.MEDIUM, 420, deadline, owner.id(), TaskBucket.WORK));
+        var baseline = planning.gantt(member.id(), project.id(), false);
+        assertThat(baseline.projectDeadlineOverrun()).isFalse();
+        assertThat(baseline.tasks()).allMatch(task -> !task.deadlineOverrun());
+        for (var leveled : List.of(planning.gantt(member.id(), project.id(), true),
+                planning.whatIf(member.id(), project.id(),
+                        new TaskPlanningOperations.WhatIfRequest(List.of()), true))) {
+            assertThat(leveled.projectDeadlineOverrun()).isTrue();
+            assertThat(leveled.tasks()).filteredOn(task -> task.taskId() == second.id())
+                    .allMatch(TaskPlanningOperations.GanttTask::deadlineOverrun).hasSize(1);
+            assertThat(leveled.tasks()).filteredOn(task -> task.taskId() == first.id())
+                    .allMatch(task -> !task.deadlineOverrun()).hasSize(1);
+        }
+        assertThat(tasks.read(owner.id(), second.id())).isEqualTo(second);
+        assertThat(planning.gantt(member.id(), project.id(), false).projectFinish())
+                .isEqualTo(baseline.projectFinish());
+    }
+
+    @Test
+    void levelingPropagatesDependenciesAcrossAssigneesAndUnassignedMilestones() {
+        var first = tasks.create(owner.id(), project.id(),
+                new TaskData("First resource slot", "", TaskPriority.MEDIUM, 420, null, owner.id(), TaskBucket.WORK));
+        var second = tasks.create(owner.id(), project.id(),
+                new TaskData("Second resource slot", "", TaskPriority.MEDIUM, 420, null, owner.id(), TaskBucket.WORK));
+        var successor = tasks.create(owner.id(), project.id(),
+                new TaskData("Other resource", "", TaskPriority.MEDIUM, 60, null, member.id(), TaskBucket.WORK));
+        var milestone = tasks.create(owner.id(), project.id(),
+                new TaskData("Unassigned milestone", "", TaskPriority.MEDIUM, null, null, null, TaskBucket.WORK));
+        var tail = tasks.create(owner.id(), project.id(),
+                new TaskData("Unassigned tail", "", TaskPriority.MEDIUM, 60, null, null, TaskBucket.WORK));
+        edge(successor, second);
+        edge(milestone, successor);
+        edge(tail, milestone);
+        var soft = planning.gantt(member.id(), project.id(), false);
+        for (var result : List.of(planning.gantt(member.id(), project.id(), true),
+                planning.whatIf(member.id(), project.id(),
+                        new TaskPlanningOperations.WhatIfRequest(List.of(
+                                new TaskPlanningOperations.EstimateOverride(second.id(), 840))), true))) {
+            var byId = result.tasks().stream().collect(java.util.stream.Collectors.toMap(
+                    TaskPlanningOperations.GanttTask::taskId, java.util.function.Function.identity()));
+            assertThat(byId.get(second.id()).earlyStart()).isAfterOrEqualTo(byId.get(first.id()).earlyFinish());
+            assertThat(byId.get(successor.id()).earlyStart()).isAfterOrEqualTo(byId.get(second.id()).earlyFinish());
+            assertThat(byId.get(milestone.id()).earlyStart()).isEqualTo(byId.get(successor.id()).earlyFinish());
+            assertThat(byId.get(milestone.id()).earlyFinish()).isEqualTo(byId.get(milestone.id()).earlyStart());
+            assertThat(byId.get(tail.id()).earlyStart()).isAfterOrEqualTo(byId.get(milestone.id()).earlyFinish());
+            assertThat(result.projectFinish()).isEqualTo(byId.get(tail.id()).earlyFinish());
+            assertThat(result.tasks()).noneMatch(TaskPlanningOperations.GanttTask::resourceContention);
+        }
+        assertThat(planning.gantt(member.id(), project.id(), false).tasks()).isEqualTo(soft.tasks());
+        assertThat(tasks.read(owner.id(), second.id())).isEqualTo(second);
+    }
+
+
+    @Test
     void pureCoreOrdersPersistedGraphAndOnlyActualCompletionUnlocksSuccessorWithoutGetWrites() throws Exception {
         var predecessor = create("Predecessor", TaskPriority.LOW);
         var successor = create("Successor", TaskPriority.CRITICAL);

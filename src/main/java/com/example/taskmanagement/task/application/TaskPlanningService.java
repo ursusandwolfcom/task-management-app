@@ -13,6 +13,7 @@ import com.example.taskmanagement.task.api.TaskException;
 import com.example.taskmanagement.task.api.TaskPlanningOperations;
 import com.example.taskmanagement.task.api.TaskView;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -121,16 +122,18 @@ public class TaskPlanningService implements TaskPlanningOperations {
         List<TaskSchedule> scheduleTasks = planned.tasks();
         if (resourceLeveling) {
             scheduleTasks = ResourceLeveler.level(scheduleTasks, assignees, calendar, input.capacities(),
-                    input.memberBreaks());
+                    input.memberBreaks(), input.edges());
         }
         var contended = ResourceContention.contendedTaskIds(scheduleTasks, assignees);
         Instant projectFinish = scheduleTasks.stream().map(TaskSchedule::earlyFinish).max(Instant::compareTo)
                 .orElse(planned.projectFinish());
         long durationMinutes = calendar.workingMinutesBetween(planned.projectStart(), projectFinish);
+        var views = input.viewsById();
         var tasks = scheduleTasks.stream()
                 .map(task -> new GanttTask(task.taskId(), task.durationMinutes(), task.earlyStart(),
                         task.earlyFinish(), task.lateStart(), task.lateFinish(), task.floatMinutes(),
-                        task.critical(), task.deadlineOverrun(), contended.contains(task.taskId())))
+                        task.critical(), isOverrun(views.get(task.taskId()).dueDate(), task.earlyFinish(), calendar),
+                        contended.contains(task.taskId())))
                 .toList();
         var edges = planned.criticalEdges().stream()
                 .map(edge -> new CriticalDependency(edge.predecessorId(), edge.successorId()))
@@ -138,6 +141,10 @@ public class TaskPlanningService implements TaskPlanningOperations {
         var criticalIds = scheduleTasks.stream().filter(TaskSchedule::critical).map(TaskSchedule::taskId).toList();
         return new ProjectGantt(projectId, input.inputRevision(), input.calendarRevision(), input.timezone(),
                 Instant.now(), planned.projectStart(), projectFinish, durationMinutes,
-                planned.projectDeadlineOverrun(), tasks, criticalIds, edges);
+                isOverrun(input.endDate(), projectFinish, calendar), tasks, criticalIds, edges);
+    }
+
+    private static boolean isOverrun(LocalDate deadline, Instant finish, WorkingCalendar calendar) {
+        return deadline != null && finish.atZone(calendar.zone()).toLocalDate().isAfter(deadline);
     }
 }
