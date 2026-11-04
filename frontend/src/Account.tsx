@@ -5,6 +5,7 @@ import { useCommand } from './hooks.ts';
 import { useSession } from './session.tsx';
 import { Alert, Field, Notice, PageHeader } from './ui.tsx';
 import type { ProfileFields, User } from './types.ts';
+import { MegaAccount } from './Mega.tsx';
 
 function fieldsOf(user: ProfileFields): ProfileFields {
   const { username, email, firstName, lastName } = user;
@@ -99,7 +100,8 @@ export function Profile({ user }: { user: User }) {
     </section><aside className="card"><p className="eyebrow">ДОСТУП</p><h2>ID {String(user.id)}</h2>
       <p>Передайте этот ID владельцу проекта, чтобы он добавил вас в команду.</p>
       <dl><dt>Роль</dt><dd>{user.role === 'ADMIN' ? 'Администратор' : 'Пользователь'}</dd></dl>
-      <Password user={user} /></aside></div></>;
+      <Password user={user} /></aside></div>
+    <MegaAccount key={String(user.id)} user={user} /></>;
 }
 
 function Password({ user }: { user: User }) {

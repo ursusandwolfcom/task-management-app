@@ -62,3 +62,6 @@ databaseChangeLog:
   - include:
       file: changes/021-create-project-member-breaks.yaml
       relativeToChangelogFile: true
+  - include:
+      file: changes/022-user-mega-links.yaml
+      relativeToChangelogFile: true
