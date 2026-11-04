@@ -76,4 +76,26 @@ class ResourceLevelerTest {
         assertThat(leveled.get(1).earlyFinish())
                 .isEqualTo(assigneeCalendar.addWorkingMinutes(secondStart, 180L));
     }
+
+    @Test
+    void normalizesFirstTaskStartAgainstAssigneeCalendar() {
+        Instant noon = Instant.parse("2026-11-02T12:00:00Z");
+        Instant fourteen = Instant.parse("2026-11-02T14:00:00Z");
+        var task = new TaskSchedule(1L, 60L, noon, fourteen, noon, fourteen, 0L, true, false);
+        var breaks = List.of(new BreakWindow(java.time.LocalTime.NOON, java.time.LocalTime.of(13, 0)));
+        var leveled = ResourceLeveler.level(List.of(task), Map.of(1L, 10L), calendar, Map.of(),
+                Map.of(10L, breaks));
+        assertThat(leveled.getFirst().earlyStart()).isEqualTo(Instant.parse("2026-11-02T13:00:00Z"));
+        assertThat(leveled.getFirst().earlyFinish()).isEqualTo(fourteen);
+    }
+
+    @Test
+    void normalizesFirstTaskStartAfterDailyCapacityIsExhausted() {
+        Instant fourteen = Instant.parse("2026-11-02T14:00:00Z");
+        Instant fifteen = Instant.parse("2026-11-02T15:00:00Z");
+        var task = new TaskSchedule(1L, 60L, fourteen, fifteen, fourteen, fifteen, 0L, true, false);
+        var leveled = ResourceLeveler.level(List.of(task), Map.of(1L, 10L), calendar, Map.of(10L, 210));
+        assertThat(leveled.getFirst().earlyStart()).isEqualTo(Instant.parse("2026-11-03T09:00:00Z"));
+        assertThat(leveled.getFirst().earlyFinish()).isEqualTo(Instant.parse("2026-11-03T10:00:00Z"));
+    }
 }

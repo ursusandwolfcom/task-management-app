@@ -176,6 +176,32 @@ class TaskPlanningIntegrationTest {
     }
 
     @Test
+    void levelingRecalculatesTaskAndProjectDeadlineOverrunsWithoutPersisting() {
+        LocalDate deadline = project.startDate();
+        project = projects.replace(owner.id(), project.id(), new ProjectData(project.name(), "",
+                deadline, deadline, "UTC"), project.version());
+        var first = tasks.create(owner.id(), project.id(),
+                new TaskData("First day", "", TaskPriority.MEDIUM, 420, deadline, owner.id(), TaskBucket.WORK));
+        var second = tasks.create(owner.id(), project.id(),
+                new TaskData("Second day", "", TaskPriority.MEDIUM, 420, deadline, owner.id(), TaskBucket.WORK));
+        var baseline = planning.gantt(member.id(), project.id(), false);
+        assertThat(baseline.projectDeadlineOverrun()).isFalse();
+        assertThat(baseline.tasks()).allMatch(task -> !task.deadlineOverrun());
+        for (var leveled : List.of(planning.gantt(member.id(), project.id(), true),
+                planning.whatIf(member.id(), project.id(),
+                        new TaskPlanningOperations.WhatIfRequest(List.of()), true))) {
+            assertThat(leveled.projectDeadlineOverrun()).isTrue();
+            assertThat(leveled.tasks()).filteredOn(task -> task.taskId() == second.id())
+                    .allMatch(TaskPlanningOperations.GanttTask::deadlineOverrun).hasSize(1);
+            assertThat(leveled.tasks()).filteredOn(task -> task.taskId() == first.id())
+                    .allMatch(task -> !task.deadlineOverrun()).hasSize(1);
+        }
+        assertThat(tasks.read(owner.id(), second.id())).isEqualTo(second);
+        assertThat(planning.gantt(member.id(), project.id(), false).projectFinish())
+                .isEqualTo(baseline.projectFinish());
+    }
+
+    @Test
     void pureCoreOrdersPersistedGraphAndOnlyActualCompletionUnlocksSuccessorWithoutGetWrites() throws Exception {
         var predecessor = create("Predecessor", TaskPriority.LOW);
         var successor = create("Successor", TaskPriority.CRITICAL);

@@ -73,7 +73,8 @@ public class TaskPlanningController {
             description = "Mon–Fri 09:00–17:00 with lunch 13:00–14:00 in the project timezone. "
                     + "Missing estimates are zero-length milestones. Default unlimited parallel resources "
                     + "(soft contention flags). Optional resourceLeveling=true serializes overlapping "
-                    + "assignee windows as a projection (does not persist). GET never mutates tasks; "
+                    + "assignee windows using member calendars as a projection (does not persist). "
+                    + "Deadline overrun flags use the resulting projected finishes. GET never mutates tasks; "
                     + "X-Project-Input-Revision mirrors the snapshot.")
     public ResponseEntity<ProjectGantt> gantt(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long id,
             @RequestParam(defaultValue = "false") boolean resourceLeveling) {

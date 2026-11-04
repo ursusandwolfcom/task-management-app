@@ -58,8 +58,9 @@ public final class ResourceLeveler {
             for (TaskSchedule task : group) {
                 Instant start = task.earlyStart();
                 if (cursor != null && start.isBefore(cursor)) {
-                    start = assigneeCalendar.normalizeStart(cursor);
+                    start = cursor;
                 }
+                start = assigneeCalendar.normalizeStart(start);
                 Instant finish = assigneeCalendar.addWorkingMinutes(start, task.durationMinutes());
                 long floatMinutes = task.lateStart().isBefore(start) ? 0L
                         : assigneeCalendar.workingMinutesBetween(start, task.lateStart());
