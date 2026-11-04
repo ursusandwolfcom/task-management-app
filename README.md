@@ -205,6 +205,7 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
+| S50 | Resource delays propagate through DAG dependencies, other assignees, unassigned tasks and milestones |
 | S49 | Review fixes: normalize leveled starts using member calendars; recalculate deadline overruns after leveling |
 | S48 | Dropbox team folder mode (`DROPBOX_MODE=app|team`, `DROPBOX_TEAM_FOLDER`) |
 | S47 | Email HTML themes (`mail.theme` / `MAIL_THEME=default|slate`) |
@@ -299,6 +300,14 @@ assignee's capacity via a capped `WorkingCalendar`. Liquibase 019.
 Leveled starts are normalized against the effective member calendar even for the first
 task of an assignee. Task and project deadline overrun flags use the projected finish
 dates in the project timezone, including what-if scenarios; the persisted tasks do not change.
+Hard leveling processes dependency-ready tasks in original earlyStart → ID order.
+Each successor waits for all projected predecessor finishes, even across assignees;
+unassigned tasks and zero-duration milestones also follow those shifts. Positive work
+starts at a valid instant in its effective calendar. The result is a conservative
+forward projection within one project, not an optimal resource-constrained schedule or
+a cross-project reservation. Late dates and critical edges retain the unlimited-resource
+CPM baseline; float is remaining baseline slack clamped to zero, and a task is marked
+critical when that remaining slack is zero.
 
 ## Member break overrides
 

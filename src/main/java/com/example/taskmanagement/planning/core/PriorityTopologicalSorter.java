@@ -1,6 +1,7 @@
 package com.example.taskmanagement.planning.core;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
@@ -11,9 +12,15 @@ public final class PriorityTopologicalSorter {
 
     /** Returns all vertices in dependency order; processing a vertex does not mark it completed. */
     public List<TaskNode> executionOrder(GraphSnapshot graph) {
+        return executionOrder(graph, TaskOrder.PRIORITY_THEN_DUE_DATE_THEN_ID);
+    }
+
+    /** Internal scheduling policy; dependencies always take precedence over the comparator. */
+    List<TaskNode> executionOrder(GraphSnapshot graph, Comparator<TaskNode> selectionOrder) {
         Objects.requireNonNull(graph, "graph");
+        Objects.requireNonNull(selectionOrder, "selectionOrder");
         var remainingDegrees = new HashMap<Long, Integer>();
-        var ready = new PriorityQueue<>(TaskOrder.PRIORITY_THEN_DUE_DATE_THEN_ID);
+        var ready = new PriorityQueue<>(selectionOrder);
         for (var node : graph.nodes().values()) {
             int degree = graph.predecessors(node.id()).size();
             remainingDegrees.put(node.id(), degree);

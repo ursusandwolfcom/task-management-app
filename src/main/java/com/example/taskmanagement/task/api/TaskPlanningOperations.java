@@ -86,7 +86,9 @@ public interface TaskPlanningOperations {
 
     /**
      * @param resourceLeveling when true, serialize overlapping assignee windows (hard leveling
-     *                         projection; does not persist). Soft contention flags stay for soft mode.
+     *                         projection respecting dependencies; does not persist). Member calendars
+     *                         apply to assigned work. Late dates/critical edges retain the unlimited-resource
+     *                         CPM baseline; float shows remaining baseline slack, clamped to zero.
      */
     ProjectGantt gantt(long actorId, long projectId, boolean resourceLeveling);
 

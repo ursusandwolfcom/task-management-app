@@ -74,6 +74,9 @@ public class TaskPlanningController {
                     + "Missing estimates are zero-length milestones. Default unlimited parallel resources "
                     + "(soft contention flags). Optional resourceLeveling=true serializes overlapping "
                     + "assignee windows using member calendars as a projection (does not persist). "
+                    + "Resource delays propagate through dependencies, including unassigned tasks and milestones. "
+                    + "Late dates and critical edges retain the unlimited-resource CPM baseline; "
+                    + "float is remaining baseline slack clamped to zero. "
                     + "Deadline overrun flags use the resulting projected finishes. GET never mutates tasks; "
                     + "X-Project-Input-Revision mirrors the snapshot.")
     public ResponseEntity<ProjectGantt> gantt(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long id,
