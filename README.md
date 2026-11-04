@@ -208,6 +208,7 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
+| S53 | Compact MEGA warning checkbox and separate disconnect action, verified in the profile demo |
 | S52 | Personal MEGA accounts through official SDK 10.22.0; encrypted sessions, MFA, file routing, unlink/reconnect UI; Liquibase 022 |
 | S51 | Official external API reference and setup guide; explicit Dropbox Team Space and MEGA boundaries |
 | S50 | Resource delays propagate through DAG dependencies, other assignees, unassigned tasks and milestones |
@@ -234,7 +235,7 @@ Workspace: `#/notifications`.
 
 Release batches → `main`: S32–S34 (#65), S35 (#67), S37–S40, S41–S42 (`s41-s42`), S43–S45 (`s43-s45`), S46–S48 (#88, `s46-s48`).
 
-S49–S50 released in #91. S51–S52 form the next integration/documentation batch.
+S49–S50 released in #91. S51–S53: official API documentation, personal MEGA and connection UI.
 
 ## Personal MEGA attachments
 
