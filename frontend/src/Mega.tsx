@@ -55,10 +55,11 @@ export function MegaAccount({ user }: { user: User }) {
         <p id="mega-warning">Отключение или смена аккаунта сохранит записи вложений, но файлы из прежнего
           аккаунта станут недоступны до его повторного подключения. Перенос файлов не выполняется.
           Для отзыва сессии MEGA используйте настройки безопасности MEGA.</p>
-        <label><input type="checkbox" checked={acknowledged} disabled={command.busy}
+        <label className="mega-confirmation"><input type="checkbox" checked={acknowledged} disabled={command.busy}
           aria-describedby="mega-warning" onChange={event => setAcknowledged(event.target.checked)} />
           Я понимаю, что прежние файлы могут стать недоступны</label>
-        <button disabled={command.busy || !acknowledged} onClick={() => void command.run(async () => {
+        <button className="mega-disconnect" disabled={command.busy || !acknowledged}
+          onClick={() => void command.run(async () => {
           await unlink(); setAcknowledged(false);
         })}>Отключить MEGA</button>
       </>}

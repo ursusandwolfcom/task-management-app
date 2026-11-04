@@ -115,3 +115,6 @@ dt { color:var(--muted); font-size:12px; } dd { margin:6px 0 20px; font-size:14p
   .auth-story > p { display:none; } .auth-card { max-width:none; } .workspace-footer { padding:20px; } .workspace-footer span { display:none; }
   .account-summary { gap:10px; } .project-overview { gap:10px; } .project-overview button { margin-left:0; }
 }
+:root .mega-confirmation { display: flex; align-items: flex-start; gap: .6rem; margin: 1rem 0; }
+:root .mega-confirmation input { width: auto; flex: 0 0 auto; margin: .2rem 0 0; padding: 0; }
+:root .mega-disconnect { display: block; margin: 0 0 1.5rem; }

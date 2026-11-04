@@ -1,7 +1,9 @@
 # Handoff — ProjectFlow / S35 (2026-11-03)
 
+> Historical S35 handoff. Its branch state, next steps and deferred items describe 2026-11-03, not current delivery. Current rules in AGENTS.md take precedence.
+
 For Codex / other agents. Read `AGENTS.md` first. Workflow: `sprint/sNN` → `dev` → `main`.
-Language with user: Ukrainian (brief). Project rules in `AGENTS.md`: Russian ok for agent notes.
+Current communication language: Russian, as required by `AGENTS.md`.
 Do **not** spawn sub-agents unless asked. No force-push / history rewrite. Do not commit `.env`. `/docs/` is gitignored (local only).
 
 ## Goal right now
