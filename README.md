@@ -10,7 +10,7 @@
 
 ## Демо для заказчика
 
-Готовый **рабочий демо-срез** на ветке `main` (S45): MVP, планирование, портфель, timesheets, FTE, файлы, in-app / Telegram / Email / Dropbox. На `dev` уже S46 (per-assignee breaks). Это не production-deploy — остаток см. [Deferred](#deferred-explicit-technical-debt).
+Готовый **рабочий демо-срез** на ветке `main` (S45): MVP, планирование, портфель, timesheets, FTE, файлы, in-app / Telegram / Email / Dropbox. На `dev`: S46 member-breaks + S47 email themes (спринт). Это не production-deploy — остаток см. [Deferred](#deferred-explicit-technical-debt).
 
 ### За 10 минут
 
@@ -34,7 +34,7 @@ CPM + Gantt + what-if Портфель рисков + workload  Workspace UI (т
 
 ### Что сознательно позже
 
-Осталось из Deferred: email themes (S47) и Dropbox team-folder mode (S48). Hard leveling, KPI, holidays, breaks, FTE, timesheets, Telegram/Email/Dropbox OAuth уже в срезе.
+Осталось из Deferred: Dropbox team-folder mode (S48). Hard leveling, KPI, holidays, breaks, FTE, timesheets, Telegram/Email themes/Dropbox OAuth уже в срезе.
 
 ### Как запустить демо
 
@@ -198,12 +198,14 @@ bind via `POST /api/telegram/link` → `/start <token>`. Email: set `SPRING_MAIL
 disable. Shared `OutboxPushProjection` formats recipient + text for both channels (Strategy:
 `TelegramBotClient` / `EmailSender`). `GET/PUT /api/email` status, mute, digest mode
 (`IMMEDIATE` default or `DAILY` plain-text digest at 08:00 UTC via `mail.digest.cron`).
+HTML wrapper theme: `MAIL_THEME=default|slate` (`mail.theme`, default `default`).
 Workspace: `#/notifications`.
 
 ## Changelog (recent)
 
 | Sprint | Delivered |
 |--------|-----------|
+| S47 | Email HTML themes (`mail.theme` / `MAIL_THEME=default|slate`) |
 | S46 | Per-assignee break overrides (`GET/PUT .../member-breaks`, Liquibase 021) for hard leveling |
 | S45 | Per-user Dropbox OAuth (`/api/dropbox`, Liquibase 020); uploads use linked account when present |
 | S44 | Member daily capacity / FTE (`GET/PUT /api/projects/{id}/capacities`, Liquibase 019) |
@@ -222,7 +224,7 @@ Workspace: `#/notifications`.
 | S31 | Telegram outbox channel (Liquibase 013) |
 | S30 | Notification UX + project holidays (012) |
 
-Release batches → `main`: S32–S34 (#65), S35 (#67), S37–S40, S41–S42 (`s41-s42`), S43–S45 (`s43-s45`). S46 on `dev` pending next release.
+Release batches → `main`: S32–S34 (#65), S35 (#67), S37–S40, S41–S42 (`s41-s42`), S43–S45 (`s43-s45`). S46–S47 on `dev` pending next release with S48.
 
 ## Task activity history
 
@@ -316,7 +318,6 @@ the current MVP slice and will land later when credentials, channel choice and c
 
 | Item | Why deferred |
 |------|----------------|
-| Advanced email templates / i18n themes | Multipart HTML wrapper ships; themes land in S47 |
 | Dropbox Business / team admin | Personal OAuth ships; minimal team folder mode lands in S48 |
 
 ## Comments and project labels
