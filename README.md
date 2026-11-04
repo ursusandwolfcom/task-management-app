@@ -10,7 +10,7 @@
 
 ## Демо для заказчика
 
-Готовый **рабочий демо-срез** на ветке `main` (S45): MVP, планирование, портфель, timesheets, FTE, файлы, in-app / Telegram / Email / Dropbox. На `dev` догоняют S46–S48 (member-breaks, email themes, Dropbox team folder). Это не production-deploy.
+Готовый **рабочий демо-срез** на ветке `main` (S48): MVP, планирование, портфель, timesheets, FTE, файлы, in-app / Telegram / Email / Dropbox, личные перерывы, темы писем и Dropbox team folder. Это не production-deploy.
 
 ### За 10 минут
 
@@ -205,6 +205,7 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
+| S49 | Review fixes: normalize leveled starts using member calendars; recalculate deadline overruns after leveling |
 | S48 | Dropbox team folder mode (`DROPBOX_MODE=app|team`, `DROPBOX_TEAM_FOLDER`) |
 | S47 | Email HTML themes (`mail.theme` / `MAIL_THEME=default|slate`) |
 | S46 | Per-assignee break overrides (`GET/PUT .../member-breaks`, Liquibase 021) for hard leveling |
@@ -225,7 +226,7 @@ Workspace: `#/notifications`.
 | S31 | Telegram outbox channel (Liquibase 013) |
 | S30 | Notification UX + project holidays (012) |
 
-Release batches → `main`: S32–S34 (#65), S35 (#67), S37–S40, S41–S42 (`s41-s42`), S43–S45 (`s43-s45`). S46–S48 → next release batch.
+Release batches → `main`: S32–S34 (#65), S35 (#67), S37–S40, S41–S42 (`s41-s42`), S43–S45 (`s43-s45`), S46–S48 (#88, `s46-s48`).
 
 ## Task activity history
 
@@ -295,6 +296,9 @@ bumps `calendarRevision`. Liquibase 017. CPM/Gantt/portfolio use these windows v
 (owner/ADMIN); empty `entries` clears customs; users must be members; bumps
 `calendarRevision`. With `?resourceLeveling=true`, hard leveling applies each
 assignee's capacity via a capped `WorkingCalendar`. Liquibase 019.
+Leveled starts are normalized against the effective member calendar even for the first
+task of an assignee. Task and project deadline overrun flags use the projected finish
+dates in the project timezone, including what-if scenarios; the persisted tasks do not change.
 
 ## Member break overrides
 
