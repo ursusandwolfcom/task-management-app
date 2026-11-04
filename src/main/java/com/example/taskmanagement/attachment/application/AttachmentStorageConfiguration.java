@@ -2,6 +2,7 @@ package com.example.taskmanagement.attachment.application;
 
 import com.example.taskmanagement.attachment.api.DropboxFileClient;
 import com.example.taskmanagement.attachment.api.DropboxOAuthClient;
+import com.example.taskmanagement.attachment.api.MegaClient;
 import com.example.taskmanagement.identity.api.DropboxAccountOperations;
 import java.io.IOException;
 import org.springframework.beans.factory.annotation.Value;
@@ -55,7 +56,8 @@ public class AttachmentStorageConfiguration {
 
     @Bean
     AttachmentObjectStoreFactory attachmentObjectStoreFactory(AttachmentObjectStore primary,
-            DropboxAccountOperations accounts, @Value("${attachment.storage:local}") String storageMode,
+            DropboxAccountOperations accounts, MegaAccountService megaAccounts, MegaClient mega,
+            @Value("${attachment.storage:local}") String storageMode,
             @Value("${dropbox.app-key:}") String appKey, @Value("${dropbox.app-secret:}") String appSecret,
             @Value("${dropbox.mode:app}") String mode,
             @Value("${dropbox.app-folder:/projectflow}") String appFolder,
@@ -63,6 +65,15 @@ public class AttachmentStorageConfiguration {
         String root = "dropbox".equalsIgnoreCase(storageMode == null ? "local" : storageMode.strip())
                 ? DropboxRootFolder.resolve(mode, appFolder, teamFolder)
                 : DropboxRootFolder.normalize(appFolder);
-        return new DefaultAttachmentObjectStoreFactory(primary, accounts, storageMode, appKey, appSecret, root);
+        var legacy = new DefaultAttachmentObjectStoreFactory(primary, accounts, storageMode, appKey, appSecret, root);
+        return new MegaAwareObjectStoreFactory(legacy, megaAccounts, mega);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(MegaClient.class)
+    MegaClient megaClient(@Value("${mega.enabled:false}") boolean enabled,
+            @Value("${mega.executable:/usr/local/bin/projectflow-mega}") String executable,
+            @Value("${mega.app-key:}") String appKey, @Value("${mega.timeout-seconds:120}") int timeout) {
+        return new NativeMegaClient(enabled, executable, appKey, timeout);
     }
 }

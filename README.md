@@ -37,7 +37,7 @@ CPM + Gantt + what-if Портфель рисков + workload  Workspace UI (т
 
 ### Что сознательно позже
 
-Hard leveling, KPI, holidays, breaks, FTE, timesheets, Telegram/Email themes и настройка папки Dropbox уже в срезе. Оставшиеся границы внешних API и условия реального подключения перечислены в [INTEGRATIONS.md](INTEGRATIONS.md); MEGA пока только в backlog.
+Hard leveling, KPI, holidays, breaks, FTE, timesheets, Telegram/Email themes и настройка папки Dropbox уже в срезе. Личный MEGA-аккаунт подключается в профиле; нужен официальный native bridge и настройки администратора. Границы внешних API и сценарии реального подключения описаны в [INTEGRATIONS.md](INTEGRATIONS.md).
 
 ### Как запустить демо
 
@@ -208,6 +208,7 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
+| S52 | Personal MEGA accounts through official SDK 10.22.0; encrypted sessions, MFA, file routing, unlink/reconnect UI; Liquibase 022 |
 | S51 | Official external API reference and setup guide; explicit Dropbox Team Space and MEGA boundaries |
 | S50 | Resource delays propagate through DAG dependencies, other assignees, unassigned tasks and milestones |
 | S49 | Review fixes: normalize leveled starts using member calendars; recalculate deadline overruns after leveling |
@@ -232,6 +233,24 @@ Workspace: `#/notifications`.
 | S30 | Notification UX + project holidays (012) |
 
 Release batches → `main`: S32–S34 (#65), S35 (#67), S37–S40, S41–S42 (`s41-s42`), S43–S45 (`s43-s45`), S46–S48 (#88, `s46-s48`).
+
+S49–S50 released in #91. S51–S52 form the next integration/documentation batch.
+
+## Personal MEGA attachments
+
+The profile page connects a personal MEGA account using email/password and optional
+six-digit MFA. The password is not persisted; a separate `MEGA_SESSION_KEY_BASE64`
+encrypts the stored session. Enable with `MEGA_ENABLED=true` and `MEGA_APP_KEY`.
+The Docker image builds the official SDK 10.22.0 bridge at an immutable commit;
+Java remains version 21. Runtime uses Ubuntu 24.04 for SDK/cURL compatibility.
+
+New uploads prefer the linked personal MEGA account. Readers still need project
+access; file references bind to the original uploader account. Unlink or changing
+accounts keeps metadata and remote files, with a UI warning; reconnecting the
+original account restores access. Old local/Dropbox objects are not migrated.
+Unlink removes local credentials; revoke the remote session in MEGA security settings.
+Real-account acceptance remains separate from automated recording-transport tests.
+See [setup, limits and API](INTEGRATIONS.md#mega--личный-аккаунт-пользователя).
 
 ## Task activity history
 

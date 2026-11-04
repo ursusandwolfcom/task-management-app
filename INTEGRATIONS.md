@@ -10,7 +10,7 @@ ProjectFlow, а не копия документации поставщиков.
 | Dropbox API v2 | Загрузка/скачивание/удаление вложений, refresh OAuth, личное подключение, backfill | [OAuth](https://docs.dropboxapi.com/dropbox-api/docs/oauth), [HTTP API](https://www.dropbox.com/developers/documentation/http/documentation), [Java SDK](https://github.com/dropbox/dropbox-sdk-java) |
 | Telegram Bot API | Привязка чата через `/start`, webhook, доставка уведомлений | [Bot API](https://core.telegram.org/bots/api), [webhooks](https://core.telegram.org/bots/webhooks) |
 | Email / SMTP | Plain text + HTML, IMMEDIATE/DAILY, настройки пользователя | [Spring Boot mail](https://docs.spring.io/spring-boot/reference/io/email.html) |
-| MEGA | Только backlog, адаптера и конфигурации нет | [SDK](https://github.com/meganz/sdk), [Java bindings](https://github.com/meganz/sdk/blob/master/bindings/java/nz/mega/sdk/MegaApiJava.java), [MEGAcmd](https://github.com/meganz/MEGAcmd) |
+| MEGA | Личные аккаунты, нативный SDK, шифрование сессий, файловый адаптер | [SDK](https://github.com/meganz/sdk), [API header](https://github.com/meganz/sdk/blob/master/include/megaapi.h) |
 
 ## Как передавать настройки
 
@@ -22,9 +22,9 @@ ProjectFlow, а не копия документации поставщиков.
 например `spring.mail.host`, либо передайте `SPRING_MAIL_HOST` как переменную окружения.
 Секреты хранятся локально, в репозиторий попадает только [.env.sample](.env.sample).
 
-В [compose.yaml](compose.yaml) `app.environment` сейчас перечисляет только параметры
-БД, JWT и сервера. Наличие ключа в Compose `.env` не передаёт его автоматически
-контейнеру приложения: для интеграций нужна отдельная конфигурация окружения контейнера.
+В [compose.yaml](compose.yaml) `app.environment` передаёт параметры БД, JWT, сервера
+и включение/ключи MEGA. Наличие другого ключа в Compose `.env` не передаёт его автоматически
+контейнеру приложения: для Dropbox/Telegram/SMTP нужна отдельная конфигурация окружения контейнера.
 Не добавляйте секреты в Dockerfile или build arguments.
 
 ## Dropbox
@@ -167,29 +167,77 @@ TLS/timeout-настройки в этом спринте не включены 
 Чтение статуса также запускает доставку очереди и может отправить письма.
 Реализация: [EmailClientConfiguration](src/main/java/com/example/taskmanagement/integration/email/application/EmailClientConfiguration.java).
 
-## MEGA — подготовка будущей интеграции
+## MEGA — личный аккаунт пользователя
 
-По ранее согласованному объёму MEGA остаётся в [backlog](PRODUCT_ROADMAP.md).
-`ATTACHMENT_STORAGE=mega` **не поддерживается**. В этом спринте добавлены источники,
-а не адаптер, native-библиотеки или подключение аккаунта.
+Пользователь выбрал личные аккаунты, официальный SDK и unlink с предупреждением.
+В S52 добавлен нативный адаптер поверх SDK **10.22.0**, commit
+`76771e3b2603bbe0d1b61d0e70861e345ae96af5`.
+`ATTACHMENT_STORAGE=mega` не используется: подключённый личный аккаунт имеет приоритет
+для новых загрузок, а без подключения используется текущий local/Dropbox store.
 
 Официальный SDK написан на C++; документация API находится в
 [`megaapi.h`](https://github.com/meganz/sdk/blob/master/include/megaapi.h), Java API —
 в [`MegaApiJava.java`](https://github.com/meganz/sdk/blob/master/bindings/java/nz/mega/sdk/MegaApiJava.java).
-README SDK описывает CMake/VCPKG и Java-привязки на SWIG. Для контейнера Java 21
-потребуется отдельно проверить сборку и загрузку native-зависимостей.
+README SDK описывает CMake/VCPKG и Java-привязки на SWIG. Здесь Java 21 вызывает
+собственный небольшой C++ bridge через закрытые stdin/stdout pipes без shell.
+Каждая операция создаёт отдельный SDK-процесс без общего cache.
 [Источник: MEGA SDK](https://github.com/meganz/sdk).
 
-Java API требует app key и описывает session login/cache; его нельзя считать
-заменой Dropbox OAuth с теми же параметрами. [Источник: Java API](https://raw.githubusercontent.com/meganz/sdk/master/bindings/java/nz/mega/sdk/MegaApiJava.java).
-Альтернатива для исследования — официальный scriptable
-[MEGAcmd](https://github.com/meganz/MEGAcmd); способ подключения не выбран.
+SDK требует app key и поддерживает session login/cache; это не Dropbox OAuth.
+[Источник: Java API](https://raw.githubusercontent.com/meganz/sdk/master/bindings/java/nz/mega/sdk/MegaApiJava.java).
+MEGAcmd и неофициальный MEGAJS не используются.
 Лицензия SDK опубликована в [LICENSE](https://github.com/meganz/sdk/blob/master/LICENSE);
 перед поставкой нужно проверить условия выбранной версии и её зависимостей.
 
-До реализации согласовать модель аккаунта, хранение сессий/ключей, лимиты,
-повторные операции и поведение при unlink/relink. Для существующих вложений нужен
-явный план миграции. Точка расширения проекта — `AttachmentObjectStore`.
+### Настройка и подключение
+
+| Переменная | Назначение |
+|---|---|
+| `MEGA_ENABLED=true` | Разрешить личные аккаунты (по умолчанию false) |
+| `MEGA_APP_KEY` | Ключ приложения, зарегистрированного у MEGA |
+| `MEGA_SESSION_KEY_BASE64` | Отдельные 32 случайных байта в Base64 для AES-256-GCM сессий |
+| `MEGA_EXECUTABLE` | Путь к bridge; в образе `/usr/local/bin/projectflow-mega` |
+| `MEGA_TIMEOUT_SECONDS` | Дедлайн операции: по умолчанию 120, диапазон 1–600 |
+
+Ключ шифрования нужно сохранять при перезапуске. Замена без перешифрования делает
+старые сессии нечитаемыми; потребуется повторный вход. Пароли и сессии передаются
+нативному процессу через pipe, не как аргументы командной строки. В PostgreSQL
+сохраняется только зашифрованная session. Сессия предоставляет доступ к аккаунту:
+для вложений используется папка `ProjectFlow-u<userId>`, но это не ограниченный OAuth scope.
+
+Docker-образ включает bridge из официального SDK. Runtime остаётся Java 21;
+Ubuntu 24.04 выбрана для совместимости с cURL SDK. Для JAR вне контейнера bridge
+собирается отдельно через [CMake](native/mega/CMakeLists.txt) и задаётся `MEGA_EXECUTABLE`.
+Проверка сборки в отдельном образе:
+
+```powershell
+docker build -f native/mega/Dockerfile -t projectflow-mega-bridge:local .
+docker run --rm --network none projectflow-mega-bridge:local --self-test
+```
+
+В профиле Workspace есть форма «Личный аккаунт MEGA»: email, пароль и, если требуется,
+шестизначный код 2FA. Используйте HTTPS вне loopback. Пароль/MFA очищаются после
+попытки и не сохраняются в browser storage.
+
+- `GET /api/mega` — статус и account ID, без session.
+- `POST /api/mega/link` — JSON `{"email":"…","password":"…","mfaCode":null}`;
+  при 2FA вместо null передаётся шестизначная строка. Cookie-сессия требует CSRF;
+  также поддерживается bearer auth. OpenAPI: `/v3/api-docs/mega` при профиле alpha.
+- `DELETE /api/mega/link` — локально удаляет подключение; файлы и метаданные остаются.
+  Перед отключением или сменой аккаунта UI требует подтвердить предупреждение.
+
+Ссылка файла — `mega:<accountId>:<nodeHandle>`. Чтение участником проекта использует
+подключение загрузившего пользователя и проверяет исходный account ID. После unlink
+или подключения другого аккаунта старые файлы недоступны; повторный вход в исходный
+аккаунт восстанавливает доступ. Старые local/Dropbox записи не мигрируют.
+Удаление MEGA-вложения требует доступного исходного аккаунта; при отказе метаданные
+не удаляются. Unlink не отзывает сессию у MEGA: для отзыва используйте настройки
+безопасности MEGA. Перенос и очистка внешних orphan-объектов после неопределённого
+сбоя не реализованы.
+
+Одновременно работают не более двух SDK-процессов. Превышение возвращает `MEGA_BUSY`
+(503), дедлайн — `MEGA_TIMEOUT` (504). Вывод SDK и секреты не включаются в ошибки;
+нативные библиотеки не загружаются в JVM.
 
 ## Приёмка реального подключения
 
@@ -202,8 +250,9 @@ Java API требует app key и описывает session login/cache; ег�
    недоступность API и rate limiting. Реальная отправка требует явного разрешения.
 3. SMTP: доставка plain/HTML и DAILY, режим TLS провайдера, неверный пароль,
    недоступность сервера, ограниченное время ожидания. Реальная отправка требует разрешения.
-4. MEGA: сначала выбор и проверка адаптера, затем контрактные тесты файловых операций,
-   доступа, сбоев и повторов. Готовность этой интеграции пока не подтверждена.
+4. MEGA: login/2FA, upload/download/delete, доступ второго участника, unlink/relink
+   исходного и другого аккаунта. Сборка, offline self-test и recording-адаптер
+   проверяются автоматически; для живой приёмки нужен реальный аккаунт.
 
 Проверка текущего серверного контракта ProjectFlow описана в [README](README.md).
 Не отправляйте тестовые сообщения и не меняйте webhook внешнего бота автоматически.

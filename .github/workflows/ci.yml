@@ -17,7 +17,8 @@ jobs:
   verify:
     name: Build, tests and Checkstyle
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # The optional MEGA adapter is compiled against its pinned official C++ SDK in the image.
+    timeout-minutes: 45
     env:
       # Public disposable test fixture; never used as a runtime fallback.
       JWT_SIGNING_KEY_BASE64: dGVzdC1vbmx5LWtleS1mb3ItczA0LW5vdC1mb3ItcHJvZHVjdGlvbg==
