@@ -104,7 +104,8 @@ public class AttachmentService implements AttachmentOperations {
                 .orElseThrow(() -> error(AttachmentException.Reason.ATTACHMENT_NOT_FOUND));
         access.task(actorId, entity.view().taskId());
         return new AttachmentContent(entity.view(),
-                stores.forUser(entity.view().uploaderId()).open(entity.storageKey(), entity.externalId()));
+                stores.forAttachment(entity.view().uploaderId(), entity.externalId())
+                        .open(entity.storageKey(), entity.externalId()));
     }
 
     @Override
@@ -127,7 +128,7 @@ public class AttachmentService implements AttachmentOperations {
                 "Удалён файл: " + view.fileName());
         attachments.delete(entity);
         attachments.flush();
-        stores.forUser(view.uploaderId()).delete(key, externalId);
+        stores.forAttachment(view.uploaderId(), externalId).delete(key, externalId);
     }
 
     private static String sanitizeName(String fileName) {

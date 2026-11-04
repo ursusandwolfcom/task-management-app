@@ -1,6 +1,7 @@
 package com.example.taskmanagement.config;
 
 import com.example.taskmanagement.attachment.api.AttachmentException;
+import com.example.taskmanagement.attachment.api.MegaException;
 import com.example.taskmanagement.collaboration.api.CollaborationException;
 import com.example.taskmanagement.integration.email.api.EmailException;
 import com.example.taskmanagement.integration.telegram.api.TelegramException;
@@ -26,6 +27,18 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 /** Shared HTTP representation; pure graph and lifecycle modules remain unaware of HTTP. */
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
+
+    @ExceptionHandler(MegaException.class)
+    public ResponseEntity<ProblemDetail> megaProblem(MegaException exception) {
+        HttpStatus status = switch (exception.reason()) {
+            case MEGA_NOT_CONFIGURED, MEGA_BUSY -> HttpStatus.SERVICE_UNAVAILABLE;
+            case MEGA_AUTHENTICATION_FAILED, MEGA_MFA_REQUIRED -> HttpStatus.BAD_REQUEST;
+            case MEGA_ACCOUNT_UNAVAILABLE -> HttpStatus.CONFLICT;
+            case MEGA_TIMEOUT -> HttpStatus.GATEWAY_TIMEOUT;
+            case MEGA_STORAGE_ERROR, MEGA_PROTOCOL_ERROR -> HttpStatus.BAD_GATEWAY;
+        };
+        return uncachedProblem(status, exception.reason().name(), "The MEGA operation could not be completed.");
+    }
 
     @ExceptionHandler(EmailException.class)
     public ResponseEntity<ProblemDetail> emailProblem(EmailException exception) {

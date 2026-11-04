@@ -141,7 +141,9 @@ public class OpenApiConfiguration {
                     api.info(new Info().title("ProjectFlow attachments API").version("0.0.1")
                             .description("Task file attachments stored on local disk (max 5 MiB; "
                                     + "pdf/png/jpeg/webp/plain text). Metadata is in PostgreSQL; "
-                                    + "uploads do not change task or planning revisions. Dropbox deferred."));
+                                    + "uploads do not change task or planning revisions. "
+                                    + "Local, Dropbox and personal MEGA. "
+                                    + "MEGA references retain their original account across reconnects."));
                     api.getPaths().forEach((route, path) -> {
                         if (path.getPost() != null) {
                             var response = path.getPost().getResponses().remove("200");
@@ -211,6 +213,18 @@ public class OpenApiConfiguration {
                             setTaskBody(path.getPatch(), taskMetadata(false, true, false));
                         }
                     });
+                    addProtectedErrors(api);
+                }).build();
+    }
+
+    @Bean
+    public GroupedOpenApi megaOpenApi() {
+        return GroupedOpenApi.builder().group("mega").pathsToMatch("/api/mega/**")
+                .addOpenApiCustomizer(api -> {
+                    api.info(new Info().title("ProjectFlow personal MEGA API").version("0.0.1")
+                            .description("Official native SDK. Passwords are not persisted; sessions are encrypted. "
+                                    + "Unlink keeps remote files and metadata. "
+                                    + "Old files require their original account."));
                     addProtectedErrors(api);
                 }).build();
     }
