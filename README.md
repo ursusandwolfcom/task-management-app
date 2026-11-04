@@ -10,7 +10,10 @@
 
 ## Демо для заказчика
 
-Готовый **рабочий демо-срез** на ветке `main` (S48): MVP, планирование, портфель, timesheets, FTE, файлы, in-app / Telegram / Email / Dropbox, личные перерывы, темы писем и Dropbox team folder. Это не production-deploy.
+Документация внешних API, настройки и границы интеграций:
+**[Dropbox, Telegram, SMTP и MEGA](INTEGRATIONS.md)** (официальные источники проверены 2026-11-04).
+
+Готовый **рабочий демо-срез**: MVP, планирование, портфель, timesheets, FTE, файлы, in-app / Telegram / Email / Dropbox, личные перерывы, темы писем и выбор папки Dropbox. Полная поддержка Team Space требует отдельной доработки; см. [границы интеграции](INTEGRATIONS.md#граница-поддержки-team-space). Это не production-deploy.
 
 ### За 10 минут
 
@@ -34,7 +37,7 @@ CPM + Gantt + what-if Портфель рисков + workload  Workspace UI (т
 
 ### Что сознательно позже
 
-Deferred MVP tech-debt закрыт (S46–S48). Hard leveling, KPI, holidays, breaks, FTE, timesheets, Telegram/Email themes/Dropbox app+team folder уже в срезе.
+Hard leveling, KPI, holidays, breaks, FTE, timesheets, Telegram/Email themes и настройка папки Dropbox уже в срезе. Оставшиеся границы внешних API и условия реального подключения перечислены в [INTEGRATIONS.md](INTEGRATIONS.md); MEGA пока только в backlog.
 
 ### Как запустить демо
 
@@ -205,6 +208,7 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
+| S51 | Official external API reference and setup guide; explicit Dropbox Team Space and MEGA boundaries |
 | S50 | Resource delays propagate through DAG dependencies, other assignees, unassigned tasks and milestones |
 | S49 | Review fixes: normalize leveled starts using member calendars; recalculate deadline overruns after leveling |
 | S48 | Dropbox team folder mode (`DROPBOX_MODE=app|team`, `DROPBOX_TEAM_FOLDER`) |
