@@ -36,12 +36,14 @@ public class EmailService implements EmailOperations {
     private final String mailHost;
     private final String appPublicBase;
     private final String brand;
+    private final EmailHtmlFormatter.Theme theme;
 
     public EmailService(EmailPreferenceOperations preferences, OutboxConsumerOperations outbox, EmailSender sender,
             EmailDigestEntryRepository digests, ObjectMapper json, Clock clock,
             @Value("${spring.mail.host:}") String mailHost,
             @Value("${mail.app-public-base:}") String appPublicBase,
-            @Value("${mail.brand-name:ProjectFlow}") String brand) {
+            @Value("${mail.brand-name:ProjectFlow}") String brand,
+            @Value("${mail.theme:default}") String theme) {
         this.preferences = preferences;
         this.outbox = outbox;
         this.sender = sender;
@@ -51,6 +53,11 @@ public class EmailService implements EmailOperations {
         this.mailHost = blankToEmpty(mailHost);
         this.appPublicBase = blankToEmpty(appPublicBase);
         this.brand = blankToEmpty(brand).isEmpty() ? "ProjectFlow" : blankToEmpty(brand);
+        try {
+            this.theme = EmailHtmlFormatter.Theme.from(theme);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("mail.theme must be default or slate", ex);
+        }
     }
 
     @Override
@@ -160,7 +167,7 @@ public class EmailService implements EmailOperations {
     }
 
     private void dispatch(String to, String subject, String textBody) {
-        sender.send(to, subject, textBody, EmailHtmlFormatter.wrap(brand, subject, textBody));
+        sender.send(to, subject, textBody, EmailHtmlFormatter.wrap(brand, subject, textBody, theme));
     }
 
     private JsonNode parse(String payload) {

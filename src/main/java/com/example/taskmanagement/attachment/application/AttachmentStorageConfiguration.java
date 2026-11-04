@@ -39,8 +39,11 @@ public class AttachmentStorageConfiguration {
     @Primary
     @ConditionalOnProperty(name = "attachment.storage", havingValue = "dropbox")
     AttachmentObjectStore dropboxPrimaryAttachmentObjectStore(DropboxFileClient client,
-            LocalAttachmentObjectStore local, @Value("${dropbox.app-folder:/projectflow}") String appFolder) {
-        return new DualAttachmentObjectStore(new DropboxAttachmentObjectStore(client, appFolder), local);
+            LocalAttachmentObjectStore local, @Value("${dropbox.mode:app}") String mode,
+            @Value("${dropbox.app-folder:/projectflow}") String appFolder,
+            @Value("${dropbox.team-folder:}") String teamFolder) {
+        String root = DropboxRootFolder.resolve(mode, appFolder, teamFolder);
+        return new DualAttachmentObjectStore(new DropboxAttachmentObjectStore(client, root), local);
     }
 
     @Bean
@@ -54,7 +57,12 @@ public class AttachmentStorageConfiguration {
     AttachmentObjectStoreFactory attachmentObjectStoreFactory(AttachmentObjectStore primary,
             DropboxAccountOperations accounts, @Value("${attachment.storage:local}") String storageMode,
             @Value("${dropbox.app-key:}") String appKey, @Value("${dropbox.app-secret:}") String appSecret,
-            @Value("${dropbox.app-folder:/projectflow}") String appFolder) {
-        return new DefaultAttachmentObjectStoreFactory(primary, accounts, storageMode, appKey, appSecret, appFolder);
+            @Value("${dropbox.mode:app}") String mode,
+            @Value("${dropbox.app-folder:/projectflow}") String appFolder,
+            @Value("${dropbox.team-folder:}") String teamFolder) {
+        String root = "dropbox".equalsIgnoreCase(storageMode == null ? "local" : storageMode.strip())
+                ? DropboxRootFolder.resolve(mode, appFolder, teamFolder)
+                : DropboxRootFolder.normalize(appFolder);
+        return new DefaultAttachmentObjectStoreFactory(primary, accounts, storageMode, appKey, appSecret, root);
     }
 }

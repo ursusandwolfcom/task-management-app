@@ -65,7 +65,7 @@ public class TaskDependencyService implements TaskDependencyOperations {
         proposed.add(edge);
         sorter.executionOrder(new TaskGraphInput(projectId, input.inputRevision(), input.calendarRevision(),
                 input.startDate(), input.endDate(), input.timezone(), input.holidays(), input.breaks(),
-                input.capacities(), input.tasks(), proposed)
+                input.capacities(), input.memberBreaks(), input.tasks(), proposed)
                 .graph());
         dependencies.insert(projectId, taskId, dependsOnTaskId);
         activity.record(actorId, projectId, taskId, ActivityEvents.DEPENDENCY_ADDED,

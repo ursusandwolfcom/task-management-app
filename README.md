@@ -10,7 +10,7 @@
 
 ## Демо для заказчика
 
-Готовый **рабочий демо-срез** на ветке `main`: MVP, планирование (праздники, обед), портфель, файлы, in-app и опциональные Telegram/Email. Это не production-deploy — честный объём см. [Deferred](#deferred-explicit-technical-debt).
+Готовый **рабочий демо-срез** на ветке `main` (S45): MVP, планирование, портфель, timesheets, FTE, файлы, in-app / Telegram / Email / Dropbox. На `dev` догоняют S46–S48 (member-breaks, email themes, Dropbox team folder). Это не production-deploy.
 
 ### За 10 минут
 
@@ -34,7 +34,7 @@ CPM + Gantt + what-if Портфель рисков + workload  Workspace UI (т
 
 ### Что сознательно позже
 
-Hard leveling и финансовые KPI — в таблице **Deferred**. Праздники, обед, soft contention, Telegram, Email v1 и Dropbox storage (опционально) уже поддерживаются.
+Deferred MVP tech-debt закрыт (S46–S48). Hard leveling, KPI, holidays, breaks, FTE, timesheets, Telegram/Email themes/Dropbox app+team folder уже в срезе.
 
 ### Как запустить демо
 
@@ -198,12 +198,16 @@ bind via `POST /api/telegram/link` → `/start <token>`. Email: set `SPRING_MAIL
 disable. Shared `OutboxPushProjection` formats recipient + text for both channels (Strategy:
 `TelegramBotClient` / `EmailSender`). `GET/PUT /api/email` status, mute, digest mode
 (`IMMEDIATE` default or `DAILY` plain-text digest at 08:00 UTC via `mail.digest.cron`).
+HTML wrapper theme: `MAIL_THEME=default|slate` (`mail.theme`, default `default`).
 Workspace: `#/notifications`.
 
 ## Changelog (recent)
 
 | Sprint | Delivered |
 |--------|-----------|
+| S48 | Dropbox team folder mode (`DROPBOX_MODE=app|team`, `DROPBOX_TEAM_FOLDER`) |
+| S47 | Email HTML themes (`mail.theme` / `MAIL_THEME=default|slate`) |
+| S46 | Per-assignee break overrides (`GET/PUT .../member-breaks`, Liquibase 021) for hard leveling |
 | S45 | Per-user Dropbox OAuth (`/api/dropbox`, Liquibase 020); uploads use linked account when present |
 | S44 | Member daily capacity / FTE (`GET/PUT /api/projects/{id}/capacities`, Liquibase 019) |
 | S43 | Timesheets / actual effort (`POST/GET/DELETE /api/time-entries`, Liquibase 018) |
@@ -221,7 +225,7 @@ Workspace: `#/notifications`.
 | S31 | Telegram outbox channel (Liquibase 013) |
 | S30 | Notification UX + project holidays (012) |
 
-Release batch S32–S34 → `main` (#65); S35 Email → `main` (#67); S37–S40 → `main`.
+Release batches → `main`: S32–S34 (#65), S35 (#67), S37–S40, S41–S42 (`s41-s42`), S43–S45 (`s43-s45`). S46–S48 → next release batch.
 
 ## Task activity history
 
@@ -240,7 +244,9 @@ PostgreSQL (Liquibase 009 + 015 `external_id`). Bytes use Strategy `AttachmentOb
 default `attachment.storage=local` (`attachment.storage-dir`); optional
 `ATTACHMENT_STORAGE=dropbox` with refresh OAuth (`DROPBOX_APP_KEY` /
 `DROPBOX_APP_SECRET` / `DROPBOX_REFRESH_TOKEN`) or `DROPBOX_ACCESS_TOKEN`, plus
-`DROPBOX_APP_FOLDER` (default `/projectflow`). Upload writes Dropbox first; `external_id`
+`DROPBOX_APP_FOLDER` (default `/projectflow`). Optional team shared root:
+`DROPBOX_MODE=team` and `DROPBOX_TEAM_FOLDER` (e.g. `/ProjectFlow Team`) — use a
+Business-capable token; no team-admin UI. Upload writes Dropbox first; `external_id`
 stores the file id. Dual store falls back to local disk for legacy rows.
 ADMIN `POST /api/attachments/backfill?limit=` migrates local-only rows to Dropbox.
 
@@ -257,8 +263,8 @@ users can link their own Dropbox: `POST /api/dropbox/authorize` → browser →
 `POST /api/dropbox/callback` with `{code,state}`. Status/unlink:
 `GET /api/dropbox`, `DELETE /api/dropbox/link`. Refresh token is stored on `users`
 (Liquibase 020). With `ATTACHMENT_STORAGE=dropbox`, uploads/downloads for a linked user
-go to that account under `{DROPBOX_APP_FOLDER}/u{userId}`; otherwise the app-folder
-token is used. App-folder env credentials remain required for unlinked users and backfill.
+go to that account under `{root}/u{userId}` (`root` = app or team folder); otherwise the
+shared app/team credentials are used for unlinked users and backfill.
 
 ## Project holidays
 
@@ -290,6 +296,15 @@ bumps `calendarRevision`. Liquibase 017. CPM/Gantt/portfolio use these windows v
 `calendarRevision`. With `?resourceLeveling=true`, hard leveling applies each
 assignee's capacity via a capped `WorkingCalendar`. Liquibase 019.
 
+## Member break overrides
+
+`GET /api/projects/{id}/member-breaks` lists stored `{userId, windows}` overrides.
+Missing members use project breaks. `PUT` with
+`{"entries":[{"userId":2,"windows":[{"start":"12:00:00","end":"12:30:00"}]}],"version":N}`
+replaces the set (owner/ADMIN); empty `entries` clears; users must be members;
+windows validated like project breaks; bumps `calendarRevision`. Applied when
+`?resourceLeveling=true`. Liquibase 021.
+
 ## Timesheets (actual effort)
 
 `POST /api/time-entries` with `{"taskId":1,"workDate":"2026-11-03","minutes":90,"note":"..."}`
@@ -301,14 +316,8 @@ Portfolio completion % remains estimate-based.
 
 ## Deferred (explicit technical debt)
 
-These items are **not** implemented; they need disproportionate product/ops work relative to
-the current MVP slice and will land later when credentials, channel choice and capacity exist:
-
-| Item | Why deferred |
-|------|----------------|
-| Advanced email templates / i18n themes | Multipart HTML wrapper ships; no per-tenant themes |
-| Per-assignee break windows | Project-level breaks ship; capacity is daily minutes, not separate break sets |
-| Dropbox Business / team admin | Personal app-folder OAuth ships; Business/team scopes stay out of scope |
+MVP tech-debt items from the finish plan are **closed** (S41–S48). Remaining product
+stretch goals (per-tenant email i18n copy, Dropbox Business admin UI) stay out of scope.
 
 ## Comments and project labels
 
