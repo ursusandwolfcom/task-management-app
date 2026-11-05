@@ -4,7 +4,10 @@ import com.example.taskmanagement.attachment.api.MegaClient;
 import com.example.taskmanagement.attachment.api.MegaException;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,6 +21,7 @@ import java.util.concurrent.TimeoutException;
 
 /** One SDK instance per operation; binary length framing, private pipes, no shell or shared cache. */
 public class NativeMegaClient implements MegaClient {
+    private static final int MAX_FIELD_BYTES = 16384;
     private final boolean enabled;
     private final Path executable;
     private final String appKey;
@@ -42,9 +46,6 @@ public class NativeMegaClient implements MegaClient {
     @Override
     public Session login(String email, String password, String mfaCode, String folderName) {
         var result = invoke("login", email, password, mfaCode, folderName);
-        if (result.size() != 4) {
-            throw new MegaException(MegaException.Reason.MEGA_PROTOCOL_ERROR);
-        }
         return new Session(result.get(1), result.get(2), result.get(3));
     }
 
@@ -52,9 +53,6 @@ public class NativeMegaClient implements MegaClient {
     public String upload(Session session, Path source, String key) {
         var result = invoke("upload", session.session(), session.accountId(), session.folderHandle(),
                 source.toAbsolutePath().toString(), key);
-        if (result.size() != 2) {
-            throw new MegaException(MegaException.Reason.MEGA_PROTOCOL_ERROR);
-        }
         return result.get(1);
     }
 
@@ -162,22 +160,32 @@ public class NativeMegaClient implements MegaClient {
 
     static List<String> readResponse(DataInputStream input, int expectedFields) throws IOException {
         List<String> fields = new ArrayList<>();
-        int count = input.readInt();
-        if (count < 1 || count > 4) {
-            throw new MegaException(MegaException.Reason.MEGA_PROTOCOL_ERROR);
-        }
-        for (int index = 0; index < count; index++) {
-            int length = input.readInt();
-            if (length < 0 || length > 16384) {
+        try {
+            int count = input.readInt();
+            if (count < 1 || count > 4) {
                 throw new MegaException(MegaException.Reason.MEGA_PROTOCOL_ERROR);
             }
-            byte[] bytes = input.readNBytes(length);
-            if (bytes.length != length) {
+            for (int index = 0; index < count; index++) {
+                int length = input.readInt();
+                if (length < 0 || length > MAX_FIELD_BYTES) {
+                    throw new MegaException(MegaException.Reason.MEGA_PROTOCOL_ERROR);
+                }
+                byte[] bytes = input.readNBytes(length);
+                if (bytes.length != length) {
+                    throw new MegaException(MegaException.Reason.MEGA_PROTOCOL_ERROR);
+                }
+                String field = StandardCharsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString();
+                if (field.indexOf('\0') >= 0) {
+                    throw new MegaException(MegaException.Reason.MEGA_PROTOCOL_ERROR);
+                }
+                fields.add(field);
+            }
+            int requiredFields = "OK".equals(fields.getFirst()) ? expectedFields : 1;
+            if (count != requiredFields || input.read() != -1) {
                 throw new MegaException(MegaException.Reason.MEGA_PROTOCOL_ERROR);
             }
-            fields.add(new String(bytes, StandardCharsets.UTF_8));
-        }
-        if (input.read() != -1) {
+        } catch (EOFException | CharacterCodingException exception) {
+            // Native response bytes can contain credentials; expose only the stable code.
             throw new MegaException(MegaException.Reason.MEGA_PROTOCOL_ERROR);
         }
         return List.copyOf(fields);
@@ -188,7 +196,7 @@ public class NativeMegaClient implements MegaClient {
             throw new MegaException(MegaException.Reason.MEGA_PROTOCOL_ERROR);
         }
         byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
-        if (bytes.length > 16384) {
+        if (bytes.length > MAX_FIELD_BYTES) {
             throw new MegaException(MegaException.Reason.MEGA_PROTOCOL_ERROR);
         }
         output.writeInt(bytes.length);
