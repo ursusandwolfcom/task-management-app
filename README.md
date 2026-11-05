@@ -208,6 +208,7 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
+| S55 | Bounded local uploads, partial-file cleanup after failure and protection against overwriting an existing object |
 | S54 | Strict native MEGA response framing, operation field counts and UTF-8 validation; portable protocol regression tests |
 | S53 | Compact MEGA warning checkbox, separate disconnect action and English project documentation |
 | S52 | Personal MEGA accounts through official SDK 10.22.0; encrypted sessions, MFA, file routing, unlink/reconnect UI; Liquibase 022 |
@@ -237,7 +238,7 @@ Workspace: `#/notifications`.
 Release batches → `main`: S32–S34 (#65), S35 (#67), S37–S40, S41–S42 (`s41-s42`), S43–S45 (`s43-s45`), S46–S48 (#88, `s46-s48`).
 
 S49–S50 released in #91. S51–S53 released in #94: official API documentation,
-personal MEGA and connection UI. S54 starts the next release batch.
+personal MEGA and connection UI. S54–S55 improve MEGA response validation and local upload reliability.
 
 ## Personal MEGA attachments
 
@@ -277,6 +278,11 @@ default `attachment.storage=local` (`attachment.storage-dir`); optional
 Business-capable token; no team-admin UI. Upload writes Dropbox first; `external_id`
 stores the file id. Dual store falls back to local disk for legacy rows.
 ADMIN `POST /api/attachments/backfill?limit=` migrates local-only rows to Dropbox.
+
+Local uploads read at most the declared length plus one validation byte and reject
+short or oversized input. Failed writes close the output before removing partial files;
+if immediate cleanup fails, deletion is scheduled for JVM exit. Existing object keys
+are never overwritten by a new upload.
 
 `GET /api/attachments?taskId=` lists newest first; `GET /api/attachments/{id}/content` downloads;
 `DELETE /api/attachments/{id}` requires the uploader, current project owner or ADMIN with live
