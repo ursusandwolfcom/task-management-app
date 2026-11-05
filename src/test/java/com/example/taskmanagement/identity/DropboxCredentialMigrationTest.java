@@ -18,8 +18,9 @@ import org.junit.jupiter.api.Test;
 class DropboxCredentialMigrationTest {
     @Test
     void requiresRelinkWithoutChangingAnyAttachmentMetadataAndDoesNotRepeatTheReset() throws Exception {
-        try (var connection = DriverManager.getConnection("jdbc:h2:mem:dropbox_upgrade_" + UUID.randomUUID()
-                + ";MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE", "sa", "")) {
+        // Liquibase's standalone H2 adapter folds metadata identifiers to uppercase.
+        String url = "jdbc:h2:mem:dropbox_upgrade_" + UUID.randomUUID() + ";MODE=PostgreSQL";
+        try (var connection = DriverManager.getConnection(url, "sa", "")) {
             try (var setup = connection.createStatement()) {
                 setup.execute("create schema task_management");
                 setup.execute("create table task_management.users (id bigint primary key, version bigint not null, "
@@ -35,38 +36,42 @@ class DropboxCredentialMigrationTest {
                         + "(11,7,'local-key',NULL,'local.txt',4)");
             }
             var filesBefore = rows(connection, "select * from task_management.attachments order by id");
+            migrate(url);
+            assertThat(rows(connection, "select id,version,dropbox_encrypted_refresh_token,dropbox_account_id,"
+                    + "dropbox_linked_at from task_management.users order by id"))
+                    .isEqualTo(java.util.Arrays.asList(java.util.Arrays.asList("7", "5", null, null, null),
+                            java.util.Arrays.asList("8", "2", null, null, null)));
+            assertThat(rows(connection, "select * from task_management.attachments order by id"))
+                    .isEqualTo(filesBefore);
+            assertThat(rows(connection, "select count(*) from information_schema.columns "
+                    + "where lower(table_schema)='task_management' and lower(table_name)='users' "
+                    + "and lower(column_name)='dropbox_refresh_token'"))
+                    .containsExactly(List.of("0"));
+            try (var update = connection.createStatement()) {
+                update.execute("update task_management.users set dropbox_encrypted_refresh_token='v1:fixture', "
+                        + "dropbox_account_id='dbid:original',dropbox_linked_at=CURRENT_TIMESTAMP where id=7");
+            }
+            var relinked = rows(connection, "select * from task_management.users order by id");
+            migrate(url);
+            assertThat(rows(connection, "select * from task_management.users order by id")).isEqualTo(relinked);
+            assertThat(rows(connection, "select * from task_management.attachments order by id"))
+                    .isEqualTo(filesBefore);
+            assertThat(rows(connection, "select count(*) from public.databasechangelog "
+                    + "where id='023-protect-dropbox-credentials' and exectype='EXECUTED'"))
+                    .containsExactly(List.of("1"));
+        }
+    }
+
+    private static void migrate(String url) throws Exception {
+        // A restart owns a fresh JDBC/Liquibase lifecycle, independent of fixture queries.
+        try (var connection = DriverManager.getConnection(url, "sa", "")) {
             var database = DatabaseFactory.getInstance()
                     .findCorrectDatabaseImplementation(new JdbcConnection(connection));
             database.setDefaultSchemaName("public");
             database.setLiquibaseSchemaName("public");
-            // Match H2's DATABASE_TO_LOWER metadata when discovering an existing tracking table.
-            database.setDatabaseChangeLogTableName("databasechangelog");
-            database.setDatabaseChangeLogLockTableName("databasechangeloglock");
             try (var liquibase = new Liquibase("db/changelog/changes/023-protect-dropbox-credentials.yaml",
                     new ClassLoaderResourceAccessor(), database)) {
                 liquibase.update(new Contexts(), new LabelExpression());
-                assertThat(rows(connection, "select id,version,dropbox_encrypted_refresh_token,dropbox_account_id,"
-                        + "dropbox_linked_at from task_management.users order by id"))
-                        .isEqualTo(java.util.Arrays.asList(java.util.Arrays.asList("7", "5", null, null, null),
-                                java.util.Arrays.asList("8", "2", null, null, null)));
-                assertThat(rows(connection, "select * from task_management.attachments order by id"))
-                        .isEqualTo(filesBefore);
-                assertThat(rows(connection, "select count(*) from information_schema.columns "
-                        + "where table_schema='task_management' and table_name='users' "
-                        + "and column_name='dropbox_refresh_token'"))
-                        .containsExactly(List.of("0"));
-                try (var update = connection.createStatement()) {
-                    update.execute("update task_management.users set dropbox_encrypted_refresh_token='v1:fixture', "
-                            + "dropbox_account_id='dbid:original',dropbox_linked_at=CURRENT_TIMESTAMP where id=7");
-                }
-                var relinked = rows(connection, "select * from task_management.users order by id");
-                liquibase.update(new Contexts(), new LabelExpression());
-                assertThat(rows(connection, "select * from task_management.users order by id")).isEqualTo(relinked);
-                assertThat(rows(connection, "select * from task_management.attachments order by id"))
-                        .isEqualTo(filesBefore);
-                assertThat(rows(connection, "select count(*) from public.databasechangelog "
-                        + "where id='023-protect-dropbox-credentials' and exectype='EXECUTED'"))
-                        .containsExactly(List.of("1"));
             }
         }
     }
