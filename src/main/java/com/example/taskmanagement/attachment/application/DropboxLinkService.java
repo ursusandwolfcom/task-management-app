@@ -41,7 +41,7 @@ public class DropboxLinkService implements DropboxLinkOperations {
     @Transactional(readOnly = true)
     public DropboxChannelStatus status(long userId) {
         var linked = accounts.status(userId);
-        return new DropboxChannelStatus(oauth.configured() && !redirectUri.isEmpty(), linked.linked(),
+        return new DropboxChannelStatus(oauthConfigured(), linked.linked(),
                 linked.accountId(), linked.linkedAt());
     }
 
@@ -69,9 +69,14 @@ public class DropboxLinkService implements DropboxLinkOperations {
     }
 
     private void requireOAuth() {
-        if (!oauth.configured() || redirectUri.isEmpty() || stateSecret.isEmpty()) {
+        if (!oauthConfigured()) {
             throw new AttachmentException(AttachmentException.Reason.OAUTH_NOT_CONFIGURED);
         }
+    }
+
+    private boolean oauthConfigured() {
+        return oauth.configured() && !redirectUri.isEmpty() && !stateSecret.isEmpty()
+                && accounts.credentialStorageConfigured();
     }
 
     private String signState(long userId, long expiresAtEpochSeconds) {

@@ -17,6 +17,8 @@ public interface DropboxAccountOperations {
 
     DropboxStatus status(long userId);
 
+    boolean credentialStorageConfigured();
+
     Optional<DropboxCredential> credential(long userId);
 
     void link(long userId, String refreshToken, String accountId);

@@ -17,10 +17,12 @@ import org.springframework.validation.annotation.Validated;
 public class DropboxAccountService implements DropboxAccountOperations {
     private final UserRepository users;
     private final Clock clock;
+    private final DropboxCredentialCipher cipher;
 
-    public DropboxAccountService(UserRepository users, Clock clock) {
+    public DropboxAccountService(UserRepository users, Clock clock, DropboxCredentialCipher cipher) {
         this.users = users;
         this.clock = clock;
+        this.cipher = cipher;
     }
 
     @Override
@@ -28,26 +30,34 @@ public class DropboxAccountService implements DropboxAccountOperations {
     public DropboxStatus status(long userId) {
         var user = users.findById(userId)
                 .orElseThrow(() -> new IdentityException(IdentityException.Reason.USER_NOT_FOUND));
-        return new DropboxStatus(user.dropboxRefreshToken() != null, user.dropboxAccountId(), user.dropboxLinkedAt());
+        return new DropboxStatus(user.encryptedDropboxRefreshToken() != null,
+                user.dropboxAccountId(), user.dropboxLinkedAt());
+    }
+
+    @Override
+    public boolean credentialStorageConfigured() {
+        return cipher.configured();
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<DropboxCredential> credential(long userId) {
         return users.findById(userId)
-                .filter(user -> user.dropboxRefreshToken() != null && !user.dropboxRefreshToken().isBlank())
-                .map(user -> new DropboxCredential(user.dropboxRefreshToken(), user.dropboxAccountId()));
+                .filter(user -> user.encryptedDropboxRefreshToken() != null)
+                .map(user -> new DropboxCredential(cipher.decrypt(userId, user.encryptedDropboxRefreshToken()),
+                        user.dropboxAccountId()));
     }
 
     @Override
     public void link(long userId, String refreshToken, String accountId) {
-        if (refreshToken == null || refreshToken.isBlank() || accountId == null || accountId.isBlank()) {
+        if (refreshToken == null || refreshToken.isBlank() || refreshToken.strip().length() > 512
+                || accountId == null || accountId.isBlank() || accountId.strip().length() > 64) {
             throw new IdentityException(IdentityException.Reason.VALIDATION_ERROR);
         }
         var user = users.findById(userId)
                 .orElseThrow(() -> new IdentityException(IdentityException.Reason.USER_NOT_FOUND));
         try {
-            user.linkDropbox(refreshToken.strip(), accountId.strip(),
+            user.linkDropbox(cipher.encrypt(userId, refreshToken.strip()), accountId.strip(),
                     clock.instant().truncatedTo(ChronoUnit.MICROS));
             users.saveAndFlush(user);
         } catch (DataIntegrityViolationException exception) {

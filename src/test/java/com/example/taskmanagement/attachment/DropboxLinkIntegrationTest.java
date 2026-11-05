@@ -13,6 +13,8 @@ import com.example.taskmanagement.attachment.api.DropboxLinkOperations;
 import com.example.taskmanagement.attachment.api.DropboxOAuthClient;
 import com.example.taskmanagement.identity.api.DropboxAccountOperations;
 import com.example.taskmanagement.identity.api.IdentityOperations;
+import com.example.taskmanagement.identity.api.IdentityException;
+import com.example.taskmanagement.identity.application.DropboxCredentialCipher;
 import com.example.taskmanagement.identity.api.RegisterUser;
 import com.example.taskmanagement.identity.api.UserView;
 import com.example.taskmanagement.security.application.TokenService;
@@ -31,7 +33,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest
+@SpringBootTest(properties = "dropbox.credential-key-base64=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Tag("integration")
@@ -71,6 +73,7 @@ class DropboxLinkIntegrationTest {
     @Autowired private TokenService tokens;
     @Autowired private MockMvc mvc;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private DropboxCredentialCipher cipher;
     private UserView user;
 
     @BeforeEach
@@ -94,6 +97,35 @@ class DropboxLinkIntegrationTest {
                 .extracting("reason").isEqualTo(AttachmentException.Reason.OAUTH_STATE_INVALID);
         assertThat(dropbox.unlink(user.id()).linked()).isFalse();
         assertThat(accounts.credential(user.id())).isEmpty();
+    }
+
+    @Test
+    void storesOnlyCiphertextAndDoesNotExposeRefreshCredentialsInStatus() throws Exception {
+        var authorize = dropbox.beginAuthorize(user.id());
+        dropbox.completeAuthorize(user.id(), "good-code", authorize.state());
+        String stored = jdbc.queryForObject(
+                "select dropbox_encrypted_refresh_token from task_management.users where id=?",
+                String.class, user.id());
+        assertThat(stored).startsWith("v1:").doesNotContain("refresh-token-1");
+        assertThat(cipher.decrypt(user.id(), stored)).isEqualTo("refresh-token-1");
+        assertThat(accounts.credential(user.id()).orElseThrow().refreshToken()).isEqualTo("refresh-token-1");
+        String auth = "Bearer " + tokens.issue(identity.login(user.username(), PASSWORD)).accessToken();
+        String response = mvc.perform(get("/api/dropbox").header("Authorization", auth))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(response).doesNotContain("refresh-token-1", stored);
+        assertThat(accounts.credential(user.id()).orElseThrow().toString()).doesNotContain("refresh-token-1");
+    }
+
+    @Test
+    void corruptCredentialsFailClosedAndRelinkingRestoresTheOriginalAccount() {
+        accounts.link(user.id(), "refresh-token-1", "dbid:test-account");
+        jdbc.update("update task_management.users set dropbox_encrypted_refresh_token=? where id=?",
+                "unprotected-or-corrupt-value", user.id());
+        assertThatThrownBy(() -> accounts.credential(user.id())).isInstanceOf(IdentityException.class)
+                .hasMessage("DROPBOX_CREDENTIALS_UNAVAILABLE").hasNoCause();
+        assertThat(accounts.status(user.id()).linked()).isTrue();
+        accounts.link(user.id(), "replacement-refresh-token", "dbid:test-account");
+        assertThat(accounts.credential(user.id()).orElseThrow().refreshToken()).isEqualTo("replacement-refresh-token");
     }
 
     @Test
