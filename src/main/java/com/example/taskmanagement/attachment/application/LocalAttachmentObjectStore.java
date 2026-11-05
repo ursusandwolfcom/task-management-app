@@ -6,8 +6,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
 public class LocalAttachmentObjectStore implements AttachmentObjectStore {
+    private static final long MAX_BYTES = 5_242_880L;
     private final Path root;
 
     public LocalAttachmentObjectStore(String storageDir) throws IOException {
@@ -17,19 +19,51 @@ public class LocalAttachmentObjectStore implements AttachmentObjectStore {
 
     @Override
     public String put(String key, InputStream body, long sizeBytes) {
+        if (sizeBytes < 1 || sizeBytes > MAX_BYTES) {
+            throw new AttachmentException(AttachmentException.Reason.VALIDATION_ERROR);
+        }
         Path target = resolve(key);
+        boolean created = false;
+        boolean completed = false;
         try {
             Files.createDirectories(target.getParent());
-            try (OutputStream out = Files.newOutputStream(target)) {
-                long copied = body.transferTo(out);
-                if (copied != sizeBytes) {
-                    Files.deleteIfExists(target);
-                    throw new AttachmentException(AttachmentException.Reason.VALIDATION_ERROR);
-                }
+            try (OutputStream out = Files.newOutputStream(target,
+                    StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+                created = true;
+                copy(body, out, sizeBytes);
             }
+            completed = true;
             return null;
         } catch (IOException exception) {
             throw new AttachmentException(AttachmentException.Reason.STORAGE_ERROR);
+        } finally {
+            if (created && !completed) {
+                cleanup(target);
+            }
+        }
+    }
+
+    private static void copy(InputStream body, OutputStream output, long sizeBytes) throws IOException {
+        byte[] buffer = new byte[8192];
+        long copied = 0;
+        int count;
+        while ((count = body.read(buffer, 0, (int) Math.min(buffer.length, sizeBytes - copied + 1))) != -1) {
+            copied += count;
+            if (copied > sizeBytes) {
+                throw new AttachmentException(AttachmentException.Reason.VALIDATION_ERROR);
+            }
+            output.write(buffer, 0, count);
+        }
+        if (copied != sizeBytes) {
+            throw new AttachmentException(AttachmentException.Reason.VALIDATION_ERROR);
+        }
+    }
+
+    private static void cleanup(Path target) {
+        try {
+            Files.deleteIfExists(target);
+        } catch (IOException exception) {
+            target.toFile().deleteOnExit();
         }
     }
 
