@@ -24,6 +24,7 @@ import com.example.taskmanagement.support.DatabaseFixtures;
 import com.example.taskmanagement.task.api.TaskBucket;
 import com.example.taskmanagement.task.api.TaskData;
 import com.example.taskmanagement.task.api.TaskException;
+import com.example.taskmanagement.task.api.TaskFilter;
 import com.example.taskmanagement.task.api.TaskOperations;
 import com.example.taskmanagement.task.api.TaskPriority;
 import com.example.taskmanagement.task.api.TaskView;
@@ -104,6 +105,36 @@ class TaskIntegrationTest {
             }
             mvc.perform(get(path).header("Authorization", auth).param("page", "1000000").param("size", "100"))
                     .andExpect(status().isOk()).andExpect(jsonPath("$.content").isEmpty());
+        }
+    }
+
+    @Test
+    void taskListsPreserveTheSameProlepticDueDateAsIndividualReads() {
+        for (LocalDate due : List.of(LocalDate.of(0, 1, 1), LocalDate.of(-4713, 11, 24),
+                LocalDate.of(1582, 10, 10), LocalDate.of(2026, 10, 20), LocalDate.of(5874897, 12, 31))) {
+            var created = tasks.create(owner.id(), project.id(),
+                    new TaskData("Date " + due, "", TaskPriority.HIGH, 15, due, member.id(), TaskBucket.WORK));
+            assertThat(tasks.read(owner.id(), created.id()).dueDate()).isEqualTo(due);
+            assertThat(tasks.list(owner.id(), project.id(), TaskFilter.empty(), 0, 20).content())
+                    .filteredOn(task -> task.id() == created.id()).containsExactly(created);
+            assertThat(tasks.listAssignedTo(owner.id(), member.id(), TaskFilter.empty(), 0, 20).content())
+                    .filteredOn(task -> task.id() == created.id()).containsExactly(created);
+        }
+    }
+
+    @Test
+    void exactDueDateFiltersFindSupportedDatesWithoutLegacyCalendarConversion() {
+        for (LocalDate due : List.of(LocalDate.of(0, 1, 1), LocalDate.of(-4713, 11, 24),
+                LocalDate.of(1582, 10, 10), LocalDate.of(2026, 10, 20), LocalDate.of(5874897, 12, 31))) {
+            var created = tasks.create(owner.id(), project.id(),
+                    new TaskData("Filter " + due, "", TaskPriority.HIGH, 15, due, member.id(), TaskBucket.WORK));
+            var filter = new TaskFilter(null, null, due, due, null, null);
+            var projectPage = tasks.list(owner.id(), project.id(), filter, 0, 20);
+            assertThat(projectPage.totalElements()).isEqualTo(1);
+            assertThat(projectPage.content()).containsExactly(created);
+            var assignedPage = tasks.listAssignedTo(owner.id(), member.id(), filter, 0, 20);
+            assertThat(assignedPage.totalElements()).isEqualTo(1);
+            assertThat(assignedPage.content()).containsExactly(created);
         }
     }
 
