@@ -22,10 +22,17 @@ import com.example.taskmanagement.project.api.ProjectException;
 import com.example.taskmanagement.project.api.ProjectOperations;
 import com.example.taskmanagement.project.api.ProjectView;
 import com.example.taskmanagement.security.application.TokenService;
+import com.example.taskmanagement.project.api.ProjectStatus;
+import com.example.taskmanagement.task.api.TaskOperations;
+import com.example.taskmanagement.task.api.TaskData;
+import com.example.taskmanagement.task.api.TaskBucket;
+import com.example.taskmanagement.task.api.TaskPriority;
+import com.example.taskmanagement.task.domain.TaskLifecyclePolicy.Command;
 import com.example.taskmanagement.support.ConcurrentCalls;
 import com.example.taskmanagement.support.DatabaseFixtures;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -70,6 +77,8 @@ class ProjectIntegrationTest {
     private JdbcTemplate jdbc;
     @Autowired
     private PlatformTransactionManager transactionManager;
+    @Autowired
+    private TaskOperations tasks;
 
     private UserView owner;
     private UserView member;
@@ -168,6 +177,88 @@ class ProjectIntegrationTest {
     }
 
     @Test
+    void manualStatusesCanMoveBothWaysAndNullPatchRetainsTheCurrentValue() throws Exception {
+        var project = create();
+        String auth = bearer(owner);
+        for (String next : List.of("IN_PROGRESS", "COMPLETED", "INITIATED", "COMPLETED")) {
+            long version = projects.read(owner.id(), project.id()).version();
+            mvc.perform(patch("/api/projects/" + project.id()).header("Authorization", auth)
+                    .contentType(MediaType.APPLICATION_JSON).content(statusRequest(version, next)))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.status").value(next))
+                    .andExpect(jsonPath("$.ownerId").value(owner.id()))
+                    .andExpect(jsonPath("$.calendarRevision").value(0));
+        }
+        long version = projects.read(owner.id(), project.id()).version();
+        mvc.perform(patch("/api/projects/" + project.id()).header("Authorization", auth)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":null,\"version\":" + version + "}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"));
+    }
+
+    @Test
+    void manualStatusCanBeReplacedAndIsRetainedByLegacyPut() throws Exception {
+        var project = create();
+        String auth = bearer(owner);
+        var fields = new LinkedHashMap<String, Object>(Map.of("name", "Replacement", "description", "Text",
+                "startDate", project.startDate().toString(), "endDate", project.endDate().toString(),
+                "timezone", "UTC", "version", project.version(), "status", "COMPLETED"));
+        mvc.perform(put("/api/projects/" + project.id()).header("Authorization", auth)
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(fields)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"));
+        fields.remove("status");
+        fields.put("version", projects.read(owner.id(), project.id()).version());
+        fields.put("name", "Legacy client");
+        mvc.perform(put("/api/projects/" + project.id()).header("Authorization", auth)
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(fields)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.name").value("Legacy client"));
+    }
+
+    @Test
+    void manualStatusUsesCurrentManagementRightsAndExpectedVersions() throws Exception {
+        var project = create();
+        var withMember = projects.addMember(owner.id(), project.id(), member.id(), project.version());
+        String change = statusRequest(withMember.version(), "COMPLETED");
+        mvc.perform(patch("/api/projects/" + project.id()).header("Authorization", bearer(member))
+                .contentType(MediaType.APPLICATION_JSON).content(change)).andExpect(status().isForbidden());
+        mvc.perform(patch("/api/projects/" + project.id()).header("Authorization", bearer(outsider))
+                .contentType(MediaType.APPLICATION_JSON).content(change)).andExpect(status().isNotFound());
+        mvc.perform(patch("/api/projects/" + project.id()).header("Authorization", bearer(owner))
+                .contentType(MediaType.APPLICATION_JSON).content(change))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"));
+        mvc.perform(patch("/api/projects/" + project.id()).header("Authorization", bearer(owner))
+                .contentType(MediaType.APPLICATION_JSON).content(statusRequest(withMember.version(), "INITIATED")))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("VERSION_CONFLICT"));
+        assertThat(projects.read(owner.id(), project.id()).status()).isEqualTo(ProjectStatus.COMPLETED);
+        var admin = identity.bootstrapAdmin(command("status_admin"));
+        long version = projects.read(owner.id(), project.id()).version();
+        mvc.perform(patch("/api/projects/" + project.id()).header("Authorization", bearer(admin))
+                .contentType(MediaType.APPLICATION_JSON).content(statusRequest(version, "IN_PROGRESS")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("IN_PROGRESS"));
+    }
+
+    @Test
+    void manualStatusRejectsUnknownValuesWithoutChangingProject() throws Exception {
+        var project = create();
+        mvc.perform(patch("/api/projects/" + project.id()).header("Authorization", bearer(owner))
+                .contentType(MediaType.APPLICATION_JSON).content(statusRequest(project.version(), "ARCHIVED")))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        assertThat(projects.read(owner.id(), project.id())).isEqualTo(project);
+    }
+
+    @Test
+    void manualCompletedStatusDoesNotGateTaskExecution() throws Exception {
+        var project = create();
+        mvc.perform(patch("/api/projects/" + project.id()).header("Authorization", bearer(owner))
+                .contentType(MediaType.APPLICATION_JSON).content(statusRequest(project.version(), "COMPLETED")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"));
+        var task = tasks.create(owner.id(), project.id(),
+                new TaskData("Still writable", "", TaskPriority.HIGH, 15, null, owner.id(), TaskBucket.WORK));
+        var started = tasks.execute(owner.id(), task.id(), Command.START, task.version());
+        tasks.execute(owner.id(), task.id(), Command.COMPLETE, started.version());
+        assertThat(projects.read(owner.id(), project.id()).status()).isEqualTo(ProjectStatus.COMPLETED);
+    }
+
+    @Test
     void patchPreservesOmittedFieldsAndVersionGuardsAllMutations() throws Exception {
         var project = create();
         String token = bearer(owner);
@@ -175,7 +266,8 @@ class ProjectIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"Renamed\",\"status\":\"COMPLETED\",\"ownerId\":999,\"version\":0}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Renamed"))
-                .andExpect(jsonPath("$.status").value("INITIATED")).andReturn().getResponse().getContentAsString());
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.ownerId").value(owner.id())).andReturn().getResponse().getContentAsString());
         assertThat(changed.path("description").asText()).isEqualTo(project.description());
         assertThat(changed.path("calendarRevision").asLong()).isZero();
         assertThat(changed.path("inputRevision").asLong()).isEqualTo(1);
@@ -489,6 +581,10 @@ class ProjectIntegrationTest {
                         + ",\"windows\":[{\"start\":\"12:00:00\",\"end\":\"12:30:00\"}]}],\"version\":"
                         + version + "}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    private String statusRequest(long version, String status) throws Exception {
+        return json.writeValueAsString(Map.of("status", status, "version", version));
     }
 
     private UserView register(String name) {
