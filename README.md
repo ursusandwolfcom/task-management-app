@@ -208,7 +208,7 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
-| S56 | Dropbox deletion reports provider failures and preserves metadata for retry; protected original `/users` API aliases |
+| S56 | Strict provider-aware deletion, protected original `/users` aliases and encrypted personal Dropbox credentials; Liquibase 023 requires relinking |
 | S55 | Bounded local uploads, partial-file cleanup after failure and protection against overwriting an existing object |
 | S54 | Strict native MEGA response framing, operation field counts and UTF-8 validation; portable protocol regression tests |
 | S53 | Compact MEGA warning checkbox, separate disconnect action and English project documentation |
@@ -301,7 +301,18 @@ When `DROPBOX_APP_KEY` / `DROPBOX_APP_SECRET` and `DROPBOX_OAUTH_REDIRECT_URI` a
 users can link their own Dropbox: `POST /api/dropbox/authorize` → browser →
 `POST /api/dropbox/callback` with `{code,state}`. Status/unlink:
 `GET /api/dropbox`, `DELETE /api/dropbox/link`. Refresh token is stored on `users`
-(Liquibase 020). With `ATTACHMENT_STORAGE=dropbox`, uploads/downloads for a linked user
+only as authenticated ciphertext. Personal linking additionally requires a separate
+`DROPBOX_CREDENTIAL_KEY_BASE64` containing 32 random bytes encoded as Base64; keep it
+across restarts and do not reuse the JWT or MEGA key. Missing configuration disables
+personal OAuth; shared environment-configured Dropbox credentials remain supported.
+
+Liquibase 023 removes legacy plaintext credentials and requires Dropbox relinking, as
+selected for this upgrade. Existing attachment metadata and remote files are unchanged.
+Reconnect the intended original account; account migration is not automatic. Losing or
+replacing the encryption key requires relinking. Rolling back the schema also requires
+relinking and cannot restore erased credentials; coordinate schema/application rollback.
+
+With `ATTACHMENT_STORAGE=dropbox`, uploads/downloads for a linked user
 go to that account under `{root}/u{userId}` (`root` = app or team folder); otherwise the
 shared app/team credentials are used for unlinked users and backfill.
 
