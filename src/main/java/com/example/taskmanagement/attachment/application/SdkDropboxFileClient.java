@@ -5,6 +5,7 @@ import com.dropbox.core.DbxRequestConfig;
 import com.dropbox.core.oauth.DbxCredential;
 import com.dropbox.core.v2.DbxClientV2;
 import com.dropbox.core.v2.files.FileMetadata;
+import com.dropbox.core.v2.files.DeleteErrorException;
 import com.dropbox.core.v2.files.WriteMode;
 import com.example.taskmanagement.attachment.api.AttachmentException;
 import com.example.taskmanagement.attachment.api.DropboxFileClient;
@@ -70,8 +71,14 @@ public class SdkDropboxFileClient implements DropboxFileClient {
         try {
             String target = fileId != null && !fileId.isBlank() ? fileId : path;
             client.files().deleteV2(target);
+        } catch (DeleteErrorException exception) {
+            if (exception.errorValue != null && exception.errorValue.isPathLookup()
+                    && exception.errorValue.getPathLookupValue().isNotFound()) {
+                return;
+            }
+            throw new AttachmentException(AttachmentException.Reason.STORAGE_ERROR);
         } catch (DbxException exception) {
-            // best-effort delete per DROPBOX_DECISIONS
+            throw new AttachmentException(AttachmentException.Reason.STORAGE_ERROR);
         }
     }
 

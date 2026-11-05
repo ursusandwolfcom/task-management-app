@@ -69,10 +69,10 @@ public class OpenApiConfiguration {
 
     @Bean
     public GroupedOpenApi identityOpenApi() {
-        return GroupedOpenApi.builder().group("identity").pathsToMatch("/api/auth/**", "/api/users/**")
+        return GroupedOpenApi.builder().group("identity").pathsToMatch("/api/auth/**", "/api/users/**", "/users/**")
                 .addOpenApiCustomizer(api -> {
                     api.getPaths().entrySet().removeIf(entry -> !entry.getKey().startsWith("/api/auth/")
-                            && !entry.getKey().startsWith("/api/users/"));
+                            && !entry.getKey().startsWith("/api/users/") && !entry.getKey().startsWith("/users/"));
                     api.info(new Info().title("ProjectFlow identity API").version("0.0.1")
                             .description("Registration, rotating refresh sessions, own profile and ADMIN role updates. "
                                     + "Bearer JWT or browser cookie required except register/login/refresh; "
