@@ -1,5 +1,10 @@
 # ProjectFlow
 
+Reviewing the original Mate Academy assignment? Start with the
+**[six-model mapping, package guide and known differences](review/MATE_ASSIGNMENT_REVIEW.md)**.
+For the current attachment/security PR, see the **[S56 review packet](review/S56_HUMAN_CODE_REVIEW.md)**.
+The customer demo below includes later extensions beyond the assignment.
+
 > Plan and execute team work: what to do next, who owns it, and what puts deadlines at risk.
 
 [![CI](https://github.com/ursusandwolfcom/task-management-app/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ursusandwolfcom/task-management-app/actions/workflows/ci.yml)

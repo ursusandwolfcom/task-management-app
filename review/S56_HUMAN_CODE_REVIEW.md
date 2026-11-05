@@ -1,17 +1,17 @@
 # S56 human code review packet
-Publication note: this tracked copy is published for external human review. Diagrams,
-findings and test results below describe source snapshot 7cad968. The R-01 hotfix is in
-progress and is not included in this documentation-only publication. Subsequent revisions
-will distinguish the original finding from its fix and fresh verification.
+Publication note: start with [the original-assignment guide](MATE_ASSIGNMENT_REVIEW.md) for a whole-project review. This packet covers PR #99 only. Diagrams,
+findings distinguish the initial source snapshot 7cad968 from hotfix fa2c036. The hotfix is
+implemented with new regressions; full exact-head/proposed-merge verification is required. These revisions
+preserve the original finding and its fix separately. The initial packet remains available at commit 8e9e8e4.
 
-Review target: PR #99, head 7cad968c4922bd761a281e8276c54021c449fa66.
+Current code review target: PR #99, hotfix fa2c036c6140ec9945902ee759d671d1d60b6acc. Initial finding snapshot: 7cad968.
 Base: dev 295fd9bdc294e499fb2a73cdfc890c4507c5a76a.
 Scope: deletion reliability, original user-route aliases and personal Dropbox credential
 protection. This is a view of the S56 changes and their wiring, not the complete application.
 Existing context classes are included when they affect changed behavior.
 
-Review recommendation: request changes for R-01 before integration. External approval
-is also still required. Green automated checks do not cover the confirmed wiring defect.
+R-01 is fixed in fa2c036 after a failing regression run. Fresh full checks and external approval
+are required before integration. The original green suite missed this defect; new tests cover it.
 
 ## 1. Attachment classes and actual runtime wiring
 
@@ -43,9 +43,9 @@ diff; `[context]` means an existing class outside the diff.
 | + forUser(...)                  |   | - accounts: DropboxAccountOperations  |
 | + forAttachment(...)            |   | + forUser(...)                        |
 +---------------------------------+   | + forAttachment(...)                  |
-   R-01: non-MEGA branch calls        +---------------------------------------+
-   legacy.forUser(userId), bypassing         | creates/selects
-   the changed reference-aware method.      v
+   Fixed: non-MEGA branch calls       +---------------------------------------+
+   legacy.forAttachment(userId, externalId)  | creates/selects
+   preserving reference-aware selection.    v
                            +------------------------------------------+
                            | <<interface>> AttachmentObjectStore      |
                            | + put(key, body, size): String           |
@@ -81,14 +81,14 @@ factory directly. AttachmentService also depends on AttachmentAccess, Attachment
 IdentityOperations, ActivityOperations and OutboxOperations; these are omitted from the
 class view to keep the changed routing path readable.
 
-### R-01 [P1]: outer factory bypasses persisted-reference routing
+### R-01 [P1]: initial outer-factory defect, fixed in fa2c036
 
 Location: [MegaAwareObjectStoreFactory.java, line 28](https://github.com/ursusandwolfcom/task-management-app/blob/7cad968c4922bd761a281e8276c54021c449fa66/src/main/java/com/example/taskmanagement/attachment/application/MegaAwareObjectStoreFactory.java#L28).
 Wiring: [AttachmentStorageConfiguration.java, line 69](https://github.com/ursusandwolfcom/task-management-app/blob/7cad968c4922bd761a281e8276c54021c449fa66/src/main/java/com/example/taskmanagement/attachment/application/AttachmentStorageConfiguration.java#L69).
 
-The non-MEGA branch of forAttachment delegates to legacy.forUser(userId). It does not
+In the original 7cad968 snapshot, the non-MEGA branch delegated to legacy.forUser(userId). It did not
 pass externalId to DefaultAttachmentObjectStoreFactory.forAttachment. This is an existing
-wrapper defect that makes the new S56 routing acceptance criterion incomplete.
+wrapper defect that made the new S56 routing acceptance criterion incomplete before the hotfix.
 
 Concrete trigger: an attachment has a Dropbox externalId and storage is configured as
 local. The wrapper returns LocalAttachmentObjectStore instead of letting the default
@@ -108,9 +108,9 @@ factory; it therefore passes while missing this outer dispatch. The deletion int
 test uses Dropbox enabled and unlinked users, which does not exercise the disabled-cloud
 or previously-local/personal-link cases.
 
-Proposed correction, not implemented in this documentation iteration: delegate the
-non-MEGA branch to legacy.forAttachment(userId, externalId). Add a wrapper regression
-and a real Spring-wiring case; preserve the MEGA branch and repeat exact-head/merge CI.
+Implemented correction in fa2c036: delegate the
+non-MEGA branch to legacy.forAttachment(userId, externalId). Added wrapper regressions
+and real HTTP/Spring-wiring cases; the MEGA branch is preserved. The pre-fix run had seven tests with four failures and zero errors/skips. The post-fix focused run passed all 15 tests, including Dropbox and MEGA integration. Full exact-head/merge CI must pass for the updated candidate.
 
 ### Deletion transaction to review
 
@@ -120,7 +120,7 @@ AttachmentService.delete [database transaction]
     +--> find project -> lock project -> reload -> authorize uploader/owner/admin
     +--> record deletion activity
     +--> delete attachment metadata -> flush (not commit)
-    +--> factory.forAttachment(uploaderId, externalId) [R-01 applies here]
+    +--> factory.forAttachment(uploaderId, externalId) [reference-aware dispatch fixed]
     +--> selected store.delete(key, externalId)
     |       |
     |       +-- authoritative error --> unchecked exception --> DB rollback
@@ -245,7 +245,7 @@ Alpha defaults remain disabled outside the alpha profile.
 ## 4. Suggested reading order and evidence
 
 1. AttachmentStorageConfiguration and MegaAwareObjectStoreFactory: verify real composition
-   first, and resolve R-01 before trusting an inner-factory unit test.
+   first, and verify the R-01 fix through the outer factory and configured HTTP tests.
 2. AttachmentService.delete, DefaultAttachmentObjectStoreFactory, DualAttachmentObjectStore,
    DropboxAttachmentObjectStore and SdkDropboxFileClient: follow one failure end to end.
 3. DropboxCredentialCipher, DropboxAccountService, UserEntity and migration 023: follow
@@ -258,11 +258,11 @@ Alpha defaults remain disabled outside the alpha profile.
 | Area | Existing automated evidence | Review boundary |
 |---|---|---|
 | Provider errors / retry | SdkDropboxFileClientTest, DualAttachmentObjectStoreTest, DropboxDeletionIntegrationTest | SDK failures and metadata/history rollback; not real-provider acceptance |
-| Persisted-reference selection | DefaultAttachmentObjectStoreFactoryTest | Inner factory only; R-01 bypass remains confirmed |
+| Persisted-reference selection | DefaultAttachmentObjectStoreFactoryTest, MegaAwareObjectStoreFactoryTest, AttachmentIntegrationTest | New outer-wrapper and configured HTTP tests cover R-01, local-copy preservation and disabled-cloud rejection |
 | Cipher / API / migration | DropboxCredentialCipherTest, DropboxLinkIntegrationTest, DropboxLinkConfigurationTest, DropboxCredentialMigrationTest | Actual migration fixture uses H2; Spring integration/schema checks also run on PostgreSQL |
 | Route aliases | IdentityIntegrationTest, BrowserSessionIntegrationTest, OpenApiTest | JWT, live permissions, versions and cookie-CSRF behavior |
 
-Both CI runs on the reviewed code passed: exact head 42069283407 and proposed merge
+Baseline CI before the hotfix passed: exact head 42069283407 and proposed merge
 42069293383. Each runs 361 tests per H2/PostgreSQL pass with no errors/failures/skips,
 coverage gates, packaged/container restart and 28 browser checks. Proposed merge 57cdb737
 and the head share tree ccee9d85 against dev 295fd9b.
@@ -270,17 +270,18 @@ and the head share tree ccee9d85 against dev 295fd9b.
 Local Windows Java 21.0.12.1/UTC clean verify passed: 361 total, 359 executed, two existing
 Unix-process tests skipped by platform assumptions and executed in Linux CI; zero
 failures/errors, Checkstyle and coverage passed. These green runs predate discovery of
-R-01; the newly run routing probe demonstrates a coverage gap, not a source change.
+R-01; the initial routing probe demonstrated that coverage gap. Hotfix fa2c036 and the
+new outer-factory/HTTP regressions address it; fresh full verification is required.
 
 Review acceptance checklist:
 
-- [ ] Fix R-01 and cover the outer wrapper plus real configured factory wiring.
+- [x] Fix R-01 and cover the outer wrapper plus real configured factory wiring (fa2c036, focused tests pass).
 - [ ] Trace provider failures to database rollback and document remote/DB atomicity limits.
 - [ ] Confirm the irreversible relink/key-recovery behavior is acceptable for deployment.
 - [ ] Verify aliases retain identical authentication, live-role, version and CSRF checks.
 - [ ] After any fix, repeat required checks on the new exact head and proposed merge.
 - [ ] Obtain the required external approval; none has been recorded for this head.
 
-No source changes or external provider operations were made while preparing this packet.
+The hotfix changes only the non-MEGA delegation; no live provider operation or deployment occurred. Fresh verification of the updated candidate is available in PR #99 checks; baseline successes above must not substitute for it.
 Main/dev remain 295fd9b. Reminders, unattended delivery, AWS deployment, measured capacity
 and real-account acceptance are separate planned work; they are not delivered by S56.
