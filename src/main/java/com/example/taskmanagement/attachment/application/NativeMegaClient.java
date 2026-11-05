@@ -133,26 +133,14 @@ public class NativeMegaClient implements MegaClient {
                 write(output, argument);
             }
         }
-        List<String> fields = new ArrayList<>();
+        List<String> fields;
         try (var input = new DataInputStream(process.getInputStream())) {
-            int count = input.readInt();
-            if (count < 1 || count > 4) {
-                throw new MegaException(MegaException.Reason.MEGA_PROTOCOL_ERROR);
-            }
-            for (int index = 0; index < count; index++) {
-                int length = input.readInt();
-                if (length < 0 || length > 16384) {
-                    throw new MegaException(MegaException.Reason.MEGA_PROTOCOL_ERROR);
-                }
-                byte[] bytes = input.readNBytes(length);
-                if (bytes.length != length) {
-                    throw new MegaException(MegaException.Reason.MEGA_PROTOCOL_ERROR);
-                }
-                fields.add(new String(bytes, StandardCharsets.UTF_8));
-            }
-            if (input.read() != -1) {
-                throw new MegaException(MegaException.Reason.MEGA_PROTOCOL_ERROR);
-            }
+            int expectedFields = switch (operation) {
+                case "login" -> 4;
+                case "upload" -> 2;
+                default -> 1;
+            };
+            fields = readResponse(input, expectedFields);
         }
         try {
             if (process.waitFor() != 0) {
@@ -168,6 +156,29 @@ public class NativeMegaClient implements MegaClient {
             } catch (IllegalArgumentException exception) {
                 throw new MegaException(MegaException.Reason.MEGA_PROTOCOL_ERROR);
             }
+        }
+        return fields;
+    }
+
+    static List<String> readResponse(DataInputStream input, int expectedFields) throws IOException {
+        List<String> fields = new ArrayList<>();
+        int count = input.readInt();
+        if (count < 1 || count > 4) {
+            throw new MegaException(MegaException.Reason.MEGA_PROTOCOL_ERROR);
+        }
+        for (int index = 0; index < count; index++) {
+            int length = input.readInt();
+            if (length < 0 || length > 16384) {
+                throw new MegaException(MegaException.Reason.MEGA_PROTOCOL_ERROR);
+            }
+            byte[] bytes = input.readNBytes(length);
+            if (bytes.length != length) {
+                throw new MegaException(MegaException.Reason.MEGA_PROTOCOL_ERROR);
+            }
+            fields.add(new String(bytes, StandardCharsets.UTF_8));
+        }
+        if (input.read() != -1) {
+            throw new MegaException(MegaException.Reason.MEGA_PROTOCOL_ERROR);
         }
         return List.copyOf(fields);
     }
