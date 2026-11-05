@@ -38,6 +38,9 @@ TaskEntity * ----- * LabelEntity       (task_labels table)
 
 ## Follow one request, not every class
 
+The [controller and endpoint table](CONTROLLERS.md) links all seven controller areas
+from the assignment directly to their source files, including separate DELETE handlers.
+
 Each functional package uses: web = HTTP controllers, api = DTOs/contracts,
 application = use cases/transactions, persistence = JPA/JDBC and repositories.
 
