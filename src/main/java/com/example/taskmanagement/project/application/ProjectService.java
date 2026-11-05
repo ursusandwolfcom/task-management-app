@@ -184,6 +184,17 @@ public class ProjectService implements ProjectOperations, ProjectCoordination {
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
+    public java.util.Optional<ProjectView> lockForBackground(long projectId) {
+        if (projects.lockId(projectId).isEmpty()) {
+            return java.util.Optional.empty();
+        }
+        var project = found(projectId);
+        entityManager.refresh(project);
+        return java.util.Optional.of(project.view());
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
     public ProjectView markInputChanged(long actorId, long projectId) {
         var project = locked(projectId);
         authorize(actorId, project, Permission.WRITE_TASKS);
@@ -195,6 +206,12 @@ public class ProjectService implements ProjectOperations, ProjectCoordination {
     @Transactional(propagation = Propagation.MANDATORY)
     public boolean isMember(long projectId, long userId) {
         return members.existsByProjectIdAndUserId(projectId, userId);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean isCurrentOwner(long projectId, long userId) {
+        return projects.existsByIdAndOwnerId(projectId, userId);
     }
 
     @Override

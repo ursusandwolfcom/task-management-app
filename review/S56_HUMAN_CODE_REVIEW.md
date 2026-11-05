@@ -4,11 +4,14 @@ findings distinguish the initial source snapshot 7cad968 from hotfix fa2c036. Th
 implemented with new regressions; full exact-head/proposed-merge verification is required. These revisions
 preserve the original finding and its fix separately. The initial packet remains available at commit 8e9e8e4.
 
-Current code review target: PR #99 through cea08fb81812b810ccc81c730d40516b9d4cbad3.
+Current code review target: the latest head of PR #99, including deadline reminder production.
+The earlier eb9ee6c candidate passed full verification before this scope expansion;
+its green results do not validate the new reminder changes.
 Initial finding snapshot: 7cad968; routing hotfix: fa2c036.
 Base: dev 295fd9bdc294e499fb2a73cdfc890c4507c5a76a.
-Scope: deletion reliability, original user-route aliases and personal Dropbox credential
-protection. This is a view of the S56 changes and their wiring, not the complete application.
+Scope: deletion reliability, original user-route aliases, personal Dropbox credential
+protection, assignment-contract fixes and deadline reminders. This is a view of the S56
+changes and their wiring, not the complete application.
 Existing context classes are included when they affect changed behavior.
 
 R-01 is fixed in fa2c036 after a failing regression run. Fresh full checks and external approval
@@ -313,5 +316,52 @@ The routing hotfix changes only the non-MEGA delegation; other candidate changes
 listed above. No live provider operation or deployment occurred. Final verification of
 the publication revision is recorded in PR #99 checks; older successes above must not
 substitute for the exact latest head and proposed-merge results.
-Main/dev remain 295fd9b. Reminders, unattended delivery, AWS deployment, measured capacity
-and real-account acceptance are separate planned work; they are not delivered by S56.
+Main/dev remain 295fd9b. Reminder production is now part of the expanded S56 candidate,
+as described below. Unattended general push delivery/retries, AWS deployment, measured
+capacity and real-account acceptance remain separate work.
+
+## 7. Deadline reminder production
+
+The user approved pulling #101 into S56 while retaining protected integration. The
+producer uses the confirmed project-local 09:00 previous/due-day rule, current-day
+catch-up only, distinct current owner/assignee, and skips missing dates/assignees and
+COMPLETED/CANCELLED tasks. FAILED remains eligible. No new HTTP endpoint is introduced.
+
+```text
+DeadlineReminderScheduler [30-second bounded rolling scan]
+    | scanAfter(cursor, batch)
+    v
+TaskDeadlineOperations <.. TaskDeadlineService
+    ^                         | project mutation lock, fresh task snapshot
+    | lockCandidate(task)      v
+DeadlineReminderProducer --> ProjectCoordination / ProjectService
+    | @Transactional
+    +--> DeadlineReminderPolicy [pure JDK calendar/recipient rules]
+    +--> DeadlineReminderRepository [unique task/date/recipient/kind]
+    +--> OutboxOperations.append [same transaction as the key]
+
+NotificationService / EmailService / TelegramService
+    | reminder recipient + current due date/status/assignment/access check
+    v
+OutboxRecipientGuard <.. DeadlineRecipientGuard --> TaskDeadlineOperations
+    ^
+    | rechecked on delayed send as well
+EmailDigestEntryEntity.outboxMessageId --> original immutable outbox event
+```
+
+Start with [the pure policy](../src/main/java/com/example/taskmanagement/notification/domain/DeadlineReminderPolicy.java),
+[the transactional producer](../src/main/java/com/example/taskmanagement/notification/application/DeadlineReminderProducer.java),
+[the scheduler](../src/main/java/com/example/taskmanagement/notification/application/DeadlineReminderScheduler.java)
+and [the configured integration scenarios](../src/test/java/com/example/taskmanagement/notification/DeadlineReminderIntegrationTest.java).
+
+Liquibase 024 adds the deduplication ledger and optional digest event reference. The
+task foreign key cascades ledger deletion; rollback removes the ledger/reference and
+does not retract already delivered notifications. Existing digest entries without an
+event reference retain their prior behavior. A candidate scan does not itself reserve
+or authorize a task: the producer re-reads under the project mutation lock.
+
+Review boundaries: the scan is bounded and a large backlog takes multiple intervals;
+this is event production, not an exactly-once transport guarantee. General delivery
+still uses existing channel consumption and daily digests until the next stage.
+Transport tests use recording fakes. Current eligibility is checked before projection
+or send; already delivered messages are not recalled after a later role/task change.

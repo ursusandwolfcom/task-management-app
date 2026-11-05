@@ -3,6 +3,8 @@ package com.example.taskmanagement.notification.application;
 import com.example.taskmanagement.integration.outbox.api.OutboxConsumerOperations;
 import com.example.taskmanagement.integration.outbox.api.OutboxEvents;
 import com.example.taskmanagement.integration.outbox.api.OutboxMessage;
+import com.example.taskmanagement.integration.outbox.api.OutboxRecipientGuard;
+import com.example.taskmanagement.integration.outbox.api.OutboxPushProjection;
 import com.example.taskmanagement.notification.api.NotificationException;
 import com.example.taskmanagement.notification.api.NotificationOperations;
 import com.example.taskmanagement.notification.persistence.NotificationEntity;
@@ -24,13 +26,15 @@ public class NotificationService implements NotificationOperations {
     private final OutboxConsumerOperations outbox;
     private final ObjectMapper json;
     private final Clock clock;
+    private final OutboxRecipientGuard recipientGuard;
 
     public NotificationService(NotificationRepository notifications, OutboxConsumerOperations outbox,
-            ObjectMapper json, Clock clock) {
+            ObjectMapper json, Clock clock, OutboxRecipientGuard recipientGuard) {
         this.notifications = notifications;
         this.outbox = outbox;
         this.json = json;
         this.clock = clock;
+        this.recipientGuard = recipientGuard;
     }
 
     @Override
@@ -77,6 +81,16 @@ public class NotificationService implements NotificationOperations {
     private void project(OutboxMessage message) {
         JsonNode payload = parse(message.payload());
         var now = clock.instant().truncatedTo(ChronoUnit.MICROS);
+        if (OutboxEvents.DEADLINE_REMINDER.equals(message.eventType())) {
+            long recipient = payload.path("recipientId").asLong(0);
+            if (recipient > 0 && recipientGuard.permits(message, recipient)) {
+                var rendered = OutboxPushProjection.render(message.eventType(), payload, "");
+                notifications.saveAndFlush(new NotificationEntity(recipient, message.eventType(),
+                        payload.path("projectId").asLong(), payload.path("taskId").asLong(),
+                        rendered.title(), rendered.body(), now));
+            }
+            return;
+        }
         if (OutboxEvents.TASK_ASSIGNED.equals(message.eventType())) {
             long recipient = payload.path("assigneeId").asLong(0);
             long actor = payload.path("actorId").asLong(0);

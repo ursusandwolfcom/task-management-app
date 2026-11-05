@@ -4,6 +4,7 @@ import com.example.taskmanagement.identity.api.TelegramAccountOperations;
 import com.example.taskmanagement.integration.outbox.api.OutboxConsumerOperations;
 import com.example.taskmanagement.integration.outbox.api.OutboxMessage;
 import com.example.taskmanagement.integration.outbox.api.OutboxPushProjection;
+import com.example.taskmanagement.integration.outbox.api.OutboxRecipientGuard;
 import com.example.taskmanagement.integration.telegram.api.TelegramBotClient;
 import com.example.taskmanagement.integration.telegram.api.TelegramException;
 import com.example.taskmanagement.integration.telegram.api.TelegramOperations;
@@ -29,12 +30,13 @@ public class TelegramService implements TelegramOperations {
     private final String botUsername;
     private final String webhookSecret;
     private final String appPublicBase;
+    private final OutboxRecipientGuard recipientGuard;
 
     public TelegramService(TelegramAccountOperations accounts, OutboxConsumerOperations outbox, TelegramBotClient bot,
             ObjectMapper json, @Value("${telegram.bot-token:}") String botToken,
             @Value("${telegram.bot-username:}") String botUsername,
             @Value("${telegram.webhook-secret:}") String webhookSecret,
-            @Value("${telegram.app-public-base:}") String appPublicBase) {
+            @Value("${telegram.app-public-base:}") String appPublicBase, OutboxRecipientGuard recipientGuard) {
         this.accounts = accounts;
         this.outbox = outbox;
         this.bot = bot;
@@ -43,6 +45,7 @@ public class TelegramService implements TelegramOperations {
         this.botUsername = blankToEmpty(botUsername);
         this.webhookSecret = blankToEmpty(webhookSecret);
         this.appPublicBase = blankToEmpty(appPublicBase);
+        this.recipientGuard = recipientGuard;
     }
 
     @Override
@@ -116,6 +119,7 @@ public class TelegramService implements TelegramOperations {
         JsonNode payload = parse(message.payload());
         Set<Long> recipients = OutboxPushProjection.recipientIds(message.eventType(), payload);
         recipients.remove(OutboxPushProjection.actorId(message.eventType(), payload));
+        recipients.removeIf(recipient -> !recipientGuard.permits(message, recipient));
         if (recipients.isEmpty()) {
             return;
         }

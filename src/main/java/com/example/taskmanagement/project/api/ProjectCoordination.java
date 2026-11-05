@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Optional;
 
 /** Transactional contract for future task/scheduling writers; calls require an existing transaction. */
 public interface ProjectCoordination {
@@ -14,9 +15,14 @@ public interface ProjectCoordination {
 
     ProjectView lockAndAuthorize(long actorId, long projectId, @NotNull Permission permission);
 
+    /** Internal background work only; coordinates with all project/task mutations. */
+    Optional<ProjectView> lockForBackground(long projectId);
+
     ProjectView markInputChanged(long actorId, long projectId);
 
     boolean isMember(long projectId, long userId);
+
+    boolean isCurrentOwner(long projectId, long userId);
 
     /** Holiday dates for a project already locked in the current transaction. */
     Set<LocalDate> holidays(long projectId);

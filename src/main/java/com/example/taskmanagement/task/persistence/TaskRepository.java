@@ -11,6 +11,20 @@ import org.springframework.data.repository.query.Param;
 
 public interface TaskRepository extends JpaRepository<TaskEntity, Long> {
     @Query("""
+            select t.id from TaskEntity t where t.id > :afterId and t.dueDate is not null
+            and t.assigneeId is not null and t.status not in ('COMPLETED', 'CANCELLED') order by t.id
+            """)
+    List<Long> deadlineCandidates(@Param("afterId") long afterId, Pageable limit);
+
+    @Query("""
+            select new com.example.taskmanagement.task.api.TaskView(t.id, t.projectId, t.name, t.description,
+                t.priority, t.estimatedMinutes, t.dueDate, t.assigneeId, t.bucket, t.status,
+                t.actualStart, t.actualEnd, t.attemptCount, t.version)
+            from TaskEntity t where t.id = :id
+            """)
+    Optional<TaskView> deadlineView(@Param("id") long id);
+
+    @Query("""
             select new com.example.taskmanagement.task.api.TaskView(t.id, t.projectId, t.name, t.description,
                 t.priority, t.estimatedMinutes, t.dueDate, t.assigneeId, t.bucket, t.status,
                 t.actualStart, t.actualEnd, t.attemptCount, t.version)

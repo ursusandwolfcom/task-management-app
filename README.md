@@ -193,6 +193,27 @@ for bounded, ordered project-edge reads; previous migrations remain unchanged.
 
 ## In-app notifications
 
+Deadline reminders are produced automatically at or after 09:00 in the project's stored
+timezone, on the calendar day before the due date and on the due date. The current
+assignee and project owner receive one event each, deduplicated when they are the same
+person. Tasks without an assignee/deadline and COMPLETED/CANCELLED tasks are skipped;
+FAILED remains eligible. Restart catches up only for the current project-local day.
+
+Liquibase 024 records the unique task/due-date/recipient/kind key atomically with its
+outbox event. Changes to due date or recipients get new keys; restoring an old key does
+not repeat it. The producer re-reads metadata under the project mutation lock, and each
+channel checks current recipient eligibility before projecting/sending a reminder.
+Deferred email digests recheck eligibility again before dispatch. Preferences remain
+authoritative; stored reminders are never redirected to a different recipient.
+
+The producer scans up to 100 candidates every 30 seconds using a rolling ID cursor;
+large backlogs therefore take multiple scans. Configure `notifications.deadlines.enabled`
+(default true), `notifications.deadlines.batch-size` (1..100),
+`notifications.deadlines.delay-ms` and `notifications.deadlines.initial-delay-ms`
+(both default 30000). This timer produces events without a browser request. General
+unattended push delivery/retry coordination remains the next stage; the existing
+channel polling and daily email-digest scheduler still consume these events.
+
 Task assignment, comments, lifecycle (start/complete/fail/cancel) and attachment uploads
 enqueue durable `outbox_messages` rows (`task.assigned`, `comment.created`, `task.started`,
 `task.completed`, `task.failed`, `task.cancelled`, `attachment.uploaded`) in the same write
@@ -214,7 +235,7 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
-| S56 | Strict provider-aware deletion, protected original `/users` aliases and encrypted personal Dropbox credentials; Liquibase 023 requires relinking |
+| S56 | Provider-aware deletion, original `/users` aliases, encrypted Dropbox credentials/relinking, assignment fixes and deadline reminder production (Liquibase 024) |
 | S55 | Bounded local uploads, partial-file cleanup after failure and protection against overwriting an existing object |
 | S54 | Strict native MEGA response framing, operation field counts and UTF-8 validation; portable protocol regression tests |
 | S53 | Compact MEGA warning checkbox, separate disconnect action and English project documentation |

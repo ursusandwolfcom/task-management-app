@@ -8,6 +8,7 @@ import com.example.taskmanagement.integration.outbox.persistence.OutboxMessageRe
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +24,12 @@ public class OutboxService implements OutboxOperations, OutboxConsumerOperations
     public OutboxService(OutboxMessageRepository messages, Clock clock) {
         this.messages = messages;
         this.clock = clock;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<OutboxMessage> findMessage(long id) {
+        return messages.findById(id).map(row -> new OutboxMessage(row.id(), row.eventType(), row.payload()));
     }
 
     @Override

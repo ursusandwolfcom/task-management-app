@@ -68,3 +68,6 @@ databaseChangeLog:
   - include:
       file: changes/023-protect-dropbox-credentials.yaml
       relativeToChangelogFile: true
+  - include:
+      file: changes/024-deadline-reminders.yaml
+      relativeToChangelogFile: true

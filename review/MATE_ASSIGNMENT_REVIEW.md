@@ -78,8 +78,10 @@ but are not baseline requirements and must not substitute for checking the basel
   be reviewed with ATTACHMENT_STORAGE=dropbox; a successful local demo does not verify it.
 - Source /users routes are added as aliases in S56 alongside /api/users. Until PR #99 is
   integrated, do not assume those aliases or encrypted Dropbox credentials are in main.
-- Deadline reminders and general unattended push delivery remain planned (#101/#102).
-  Existing assignment/comment/lifecycle notifications do not fulfill the deadline case.
+- Deadline reminder production (#101) is included in the expanded S56 candidate:
+  project-local 09:00, previous/due day, distinct owner/assignee, current-day catch-up,
+  transactional keys and current-recipient checks. General unattended push delivery
+  and retry coordination remain the next stage (#102). Neither change is in main yet.
 - CI exists; target deployment automation is still planned (#103). Measured scalability,
   live Dropbox acceptance and accessible task-board evidence remain #104–#106.
 - Green tests and the 60% line-coverage gate do not establish complete source compliance.
