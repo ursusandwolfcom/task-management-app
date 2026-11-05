@@ -5,10 +5,12 @@ import com.example.taskmanagement.task.api.TaskFilter;
 import com.example.taskmanagement.task.api.TaskPriority;
 import com.example.taskmanagement.task.api.TaskView;
 import com.example.taskmanagement.task.domain.TaskStatus;
-import java.sql.Date;
+import com.example.taskmanagement.shared.persistence.FiniteDateJdbcType;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.data.domain.Page;
@@ -101,13 +103,13 @@ public class TaskQueryRepository {
     }
 
     private Page<TaskView> page(String where, List<Object> args, Pageable paging) {
-        Long total = jdbc.queryForObject("select count(*) from task_management.tasks t" + where, Long.class,
-                args.toArray());
+        Long total = jdbc.query("select count(*) from task_management.tasks t" + where,
+                statement -> bind(statement, args), rows -> rows.next() ? rows.getLong(1) : 0L);
         var pageArgs = new ArrayList<>(args);
         pageArgs.add(paging.getPageSize());
         pageArgs.add(paging.getOffset());
         List<TaskView> content = jdbc.query(SELECT + where + " order by t.id desc limit ? offset ?",
-                (row, index) -> map(row), pageArgs.toArray());
+                statement -> bind(statement, pageArgs), (row, index) -> map(row));
         return new PageImpl<>(content, paging, total == null ? 0L : total);
     }
 
@@ -122,11 +124,11 @@ public class TaskQueryRepository {
         }
         if (filter.dueFrom() != null) {
             where.append(" and t.due_date is not null and t.due_date >= ?");
-            args.add(Date.valueOf(filter.dueFrom()));
+            args.add(filter.dueFrom());
         }
         if (filter.dueTo() != null) {
             where.append(" and t.due_date is not null and t.due_date <= ?");
-            args.add(Date.valueOf(filter.dueTo()));
+            args.add(filter.dueTo());
         }
         if (filter.labelId() != null) {
             where.append("""
@@ -141,15 +143,26 @@ public class TaskQueryRepository {
         }
     }
 
+    private static void bind(PreparedStatement statement, List<Object> arguments) throws SQLException {
+        for (int index = 0; index < arguments.size(); index++) {
+            Object value = arguments.get(index);
+            if (value instanceof LocalDate date) {
+                FiniteDateJdbcType.bindDate(statement, index + 1, date);
+            } else {
+                statement.setObject(index + 1, value);
+            }
+        }
+    }
+
     private static TaskView map(ResultSet row) throws SQLException {
-        Date due = row.getDate("due_date");
+        LocalDate due = row.getObject("due_date", LocalDate.class);
         Timestamp start = row.getTimestamp("actual_start");
         Timestamp end = row.getTimestamp("actual_end");
         Integer estimate = row.getObject("estimated_minutes") == null ? null : row.getInt("estimated_minutes");
         Long assignee = row.getObject("assignee_id") == null ? null : row.getLong("assignee_id");
         return new TaskView(row.getLong("id"), row.getLong("project_id"), row.getString("name"),
                 row.getString("description"), TaskPriority.valueOf(row.getString("priority")), estimate,
-                due == null ? null : due.toLocalDate(), assignee, TaskBucket.valueOf(row.getString("bucket")),
+                due, assignee, TaskBucket.valueOf(row.getString("bucket")),
                 TaskStatus.valueOf(row.getString("status")),
                 start == null ? null : start.toInstant(),
                 end == null ? null : end.toInstant(),
