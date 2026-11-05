@@ -208,6 +208,8 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
+| S55 | Bounded local uploads, partial-file cleanup after failure and protection against overwriting an existing object |
+| S54 | Strict native MEGA response framing, operation field counts and UTF-8 validation; portable protocol regression tests |
 | S53 | Compact MEGA warning checkbox, separate disconnect action and English project documentation |
 | S52 | Personal MEGA accounts through official SDK 10.22.0; encrypted sessions, MFA, file routing, unlink/reconnect UI; Liquibase 022 |
 | S51 | Official external API reference and setup guide; explicit Dropbox Team Space and MEGA boundaries |
@@ -235,7 +237,8 @@ Workspace: `#/notifications`.
 
 Release batches → `main`: S32–S34 (#65), S35 (#67), S37–S40, S41–S42 (`s41-s42`), S43–S45 (`s43-s45`), S46–S48 (#88, `s46-s48`).
 
-S49–S50 released in #91. S51–S53: official API documentation, personal MEGA and connection UI.
+S49–S50 released in #91. S51–S53 released in #94: official API documentation,
+personal MEGA and connection UI. S54–S55 improve MEGA response validation and local upload reliability.
 
 ## Personal MEGA attachments
 
@@ -275,6 +278,11 @@ default `attachment.storage=local` (`attachment.storage-dir`); optional
 Business-capable token; no team-admin UI. Upload writes Dropbox first; `external_id`
 stores the file id. Dual store falls back to local disk for legacy rows.
 ADMIN `POST /api/attachments/backfill?limit=` migrates local-only rows to Dropbox.
+
+Local uploads read at most the declared length plus one validation byte and reject
+short or oversized input. Failed writes close the output before removing partial files;
+if immediate cleanup fails, deletion is scheduled for JVM exit. Existing object keys
+are never overwritten by a new upload.
 
 `GET /api/attachments?taskId=` lists newest first; `GET /api/attachments/{id}/content` downloads;
 `DELETE /api/attachments/{id}` requires the uploader, current project owner or ADMIN with live
@@ -671,9 +679,11 @@ Install browser dependencies with `npm ci --ignore-scripts`, then run `./mvnw cl
 For the development loop, use `./mvnw -Pfast-tests test` (Windows: `./mvnw.cmd -Pfast-tests test`).
 It runs the JDK/domain/value/token/architecture and asset-adapter tests without starting Spring or databases.
 Use `-Dtest=ClassName` for a focused regression. The fast profile is optional and is not a
-release verification: default `clean verify` still runs all 126 tests, including HTTP,
+release verification: default `clean verify` still runs the full test suite, including HTTP,
 authorization, migrations and concurrency, with the unchanged Checkstyle/JaCoCo gates.
 CI runs the full suite with both H2 and PostgreSQL.
+Native MEGA frame tests run on Windows and POSIX without an SDK or network account;
+process timeout and executable-fixture tests additionally run on POSIX.
 The planning tests include an independent exhaustive oracle: 80 seeded six-task DAGs
 are compared against every valid permutation, and readiness is checked on 250 seeded
 execution-fact sets. Lifecycle tests cover every state/command pair and repeated retries.

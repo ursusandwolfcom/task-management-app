@@ -238,6 +238,10 @@ uncertain external failure are not implemented.
 At most two SDK processes run concurrently. Excess requests return `MEGA_BUSY`
 (503); deadlines return `MEGA_TIMEOUT` (504). SDK output and secrets are excluded
 from errors; native libraries are not loaded into the JVM.
+The bridge response must contain exactly one complete, bounded frame with valid UTF-8
+and no NUL bytes. Success responses require four fields for login, two for upload and
+one for download/delete; error responses require a single code. Truncated frames,
+extra fields and trailing bytes return `MEGA_PROTOCOL_ERROR` without native diagnostics.
 
 ## Live connection acceptance
 
