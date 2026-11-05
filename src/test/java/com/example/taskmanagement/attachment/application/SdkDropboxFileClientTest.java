@@ -3,6 +3,7 @@ package com.example.taskmanagement.attachment.application;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -47,7 +48,7 @@ class SdkDropboxFileClientTest {
     void doesNotConfuseRestrictedContentOrRateLimitsWithNotFound() throws Exception {
         for (DeleteError error : List.of(DeleteError.pathLookup(LookupError.RESTRICTED_CONTENT),
                 DeleteError.TOO_MANY_WRITE_OPERATIONS, DeleteError.OTHER)) {
-            when(files.deleteV2("id:stored")).thenThrow(failure(error));
+            doThrow(failure(error)).when(files).deleteV2("id:stored");
             assertThatThrownBy(() -> adapter.delete("/unused", "id:stored"))
                     .isInstanceOf(AttachmentException.class).hasMessage("STORAGE_ERROR").hasNoCause();
         }

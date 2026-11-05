@@ -25,6 +25,15 @@ class OpenApiTest {
     private MockMvc mvc;
 
     @Test
+    void documentsOriginalUserAliasesInsideTheProtectedIdentityGroup() throws Exception {
+        mvc.perform(get("/v3/api-docs/identity")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/users/me'].get").exists())
+                .andExpect(jsonPath("$.paths['/users/me'].put").exists())
+                .andExpect(jsonPath("$.paths['/users/me'].patch").exists())
+                .andExpect(jsonPath("$.paths['/users/{id}/role'].put").exists());
+    }
+
+    @Test
     void documentsPersonalMegaConnectionAndNoSessionResponseField() throws Exception {
         mvc.perform(get("/v3/api-docs/mega")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/mega/link'].post").exists())

@@ -1,6 +1,7 @@
 package com.example.taskmanagement.attachment;
 
 import com.example.taskmanagement.attachment.api.DropboxFileClient;
+import com.example.taskmanagement.attachment.api.AttachmentException;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.Map;
@@ -11,6 +12,8 @@ final class RecordingDropboxFileClient implements DropboxFileClient {
     private final Map<String, byte[]> byPath = new ConcurrentHashMap<>();
     private final Map<String, String> idByPath = new ConcurrentHashMap<>();
     private final AtomicInteger seq = new AtomicInteger();
+    boolean failDelete;
+    final AtomicInteger deleteCalls = new AtomicInteger();
 
     @Override
     public String upload(String path, InputStream body, long sizeBytes) {
@@ -46,11 +49,22 @@ final class RecordingDropboxFileClient implements DropboxFileClient {
 
     @Override
     public void delete(String path, String fileId) {
+        deleteCalls.incrementAndGet();
+        if (failDelete) {
+            throw new AttachmentException(AttachmentException.Reason.STORAGE_ERROR);
+        }
         byPath.remove(path);
         idByPath.remove(path);
     }
 
     int size() {
         return byPath.size();
+    }
+
+    void clear() {
+        byPath.clear();
+        idByPath.clear();
+        failDelete = false;
+        deleteCalls.set(0);
     }
 }
