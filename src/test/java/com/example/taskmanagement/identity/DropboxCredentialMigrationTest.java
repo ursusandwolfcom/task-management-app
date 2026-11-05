@@ -39,6 +39,9 @@ class DropboxCredentialMigrationTest {
                     .findCorrectDatabaseImplementation(new JdbcConnection(connection));
             database.setDefaultSchemaName("public");
             database.setLiquibaseSchemaName("public");
+            // Match H2's DATABASE_TO_LOWER metadata when discovering an existing tracking table.
+            database.setDatabaseChangeLogTableName("databasechangelog");
+            database.setDatabaseChangeLogLockTableName("databasechangeloglock");
             try (var liquibase = new Liquibase("db/changelog/changes/023-protect-dropbox-credentials.yaml",
                     new ClassLoaderResourceAccessor(), database)) {
                 liquibase.update(new Contexts(), new LabelExpression());
