@@ -208,6 +208,7 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
+| S56 | Dropbox deletion reports provider failures and preserves metadata for retry; protected original `/users` API aliases |
 | S55 | Bounded local uploads, partial-file cleanup after failure and protection against overwriting an existing object |
 | S54 | Strict native MEGA response framing, operation field counts and UTF-8 validation; portable protocol regression tests |
 | S53 | Compact MEGA warning checkbox, separate disconnect action and English project documentation |
@@ -287,7 +288,9 @@ are never overwritten by a new upload.
 `GET /api/attachments?taskId=` lists newest first; `GET /api/attachments/{id}/content` downloads;
 `DELETE /api/attachments/{id}` requires the uploader, current project owner or ADMIN with live
 access. Uploads/deletes use the project write lock and do not change task or planning revisions.
-Task deletion cascades attachment rows; Dropbox delete is best-effort. Workspace task detail
+Task deletion cascades attachment rows. Explicit Dropbox attachment deletion reports
+provider failures as `500 STORAGE_ERROR` and retains metadata/history for retry;
+an already missing remote file counts as deleted. Workspace task detail
 shows the attachment panel. Browser-cookie writes require CSRF.
 
 ## Per-user Dropbox OAuth
@@ -489,6 +492,10 @@ Health and the explicitly enabled local alpha remain public. No permissive CORS 
 | `PATCH /api/users/me` | Partial update with expected version; omitted/null fields retain their values |
 | `POST /api/users/me/password` | currentPassword/newPassword; revoke every session; 204 |
 | `PUT /api/users/{id}/role` | Current ADMIN changes USER/ADMIN with expected version |
+
+The original assignment routes `/users/me` (GET/PUT/PATCH) and `/users/{id}/role`
+(PUT) are protected aliases of `/api/users` routes. They use the same live authorization,
+expected versions and cookie CSRF checks and appear in the identity OpenAPI group.
 
 Username is 3–50 ASCII letters/digits/underscore/dot/hyphen; `@` is reserved for email
 login. Username/email are trimmed and stored in lowercase (`Locale.ROOT`) with unique

@@ -79,6 +79,13 @@ separate acceptance checks; this document does not promise automatic migration.
 Backfill `POST /api/attachments/backfill` is an existing ADMIN operation from local
 storage to the shared Dropbox store, not to a personal account or MEGA.
 
+Explicit attachment deletion treats Dropbox `path_lookup/not_found` as already deleted.
+Other API/transport failures return `500 STORAGE_ERROR` without provider diagnostics;
+the metadata and deletion activity transaction rolls back, so the same attachment can
+be retried. An uncertain network failure may already have removed remote bytes; the
+idempotent not-found handling lets a retry finish metadata cleanup. Database commit
+failure after a successful remote delete is not a distributed atomic transaction.
+
 ### Team Space support boundary
 
 The official Team Files Guide describes namespaces and `Dropbox-API-Path-Root`;
