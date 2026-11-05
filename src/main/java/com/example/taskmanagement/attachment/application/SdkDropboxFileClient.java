@@ -15,6 +15,10 @@ import java.io.InputStream;
 public class SdkDropboxFileClient implements DropboxFileClient {
     private final DbxClientV2 client;
 
+    SdkDropboxFileClient(DbxClientV2 client) {
+        this.client = java.util.Objects.requireNonNull(client);
+    }
+
     public SdkDropboxFileClient(String accessToken) {
         this(accessToken, null, null, null);
     }
