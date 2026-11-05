@@ -66,6 +66,14 @@ class OpenApiTest {
     }
 
     @Test
+    void attachmentSpecKeepsBatchBackfillAsOkAndUploadAsCreated() throws Exception {
+        mvc.perform(get("/v3/api-docs/attachments")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/attachments'].post.responses['201']").exists())
+                .andExpect(jsonPath("$.paths['/api/attachments/backfill'].post.responses['200']").exists())
+                .andExpect(jsonPath("$.paths['/api/attachments/backfill'].post.responses['201']").doesNotExist());
+    }
+
+    @Test
     void documentsOriginalUserAliasesInsideTheProtectedIdentityGroup() throws Exception {
         mvc.perform(get("/v3/api-docs/identity")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/users/me'].get").exists())
