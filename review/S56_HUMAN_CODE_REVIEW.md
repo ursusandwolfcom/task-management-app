@@ -4,7 +4,8 @@ findings distinguish the initial source snapshot 7cad968 from hotfix fa2c036. Th
 implemented with new regressions; full exact-head/proposed-merge verification is required. These revisions
 preserve the original finding and its fix separately. The initial packet remains available at commit 8e9e8e4.
 
-Current code review target: PR #99, hotfix fa2c036c6140ec9945902ee759d671d1d60b6acc. Initial finding snapshot: 7cad968.
+Current code review target: PR #99 through cea08fb81812b810ccc81c730d40516b9d4cbad3.
+Initial finding snapshot: 7cad968; routing hotfix: fa2c036.
 Base: dev 295fd9bdc294e499fb2a73cdfc890c4507c5a76a.
 Scope: deletion reliability, original user-route aliases and personal Dropbox credential
 protection. This is a view of the S56 changes and their wiring, not the complete application.
@@ -12,6 +13,11 @@ Existing context classes are included when they affect changed behavior.
 
 R-01 is fixed in fa2c036 after a failing regression run. Fresh full checks and external approval
 are required before integration. The original green suite missed this defect; new tests cover it.
+
+For the mentor's direct package/class question, start with the
+[controller and endpoint table](CONTROLLERS.md), then the linked six-model guide. The
+root repository is the correct project; its frontend/planning extensions broaden the
+scope beyond the source assignment. This packet is for the current PR only.
 
 ## 1. Attachment classes and actual runtime wiring
 
@@ -253,7 +259,25 @@ Alpha defaults remain disabled outside the alpha profile.
 4. DropboxLinkService, IdentityConfiguration, ApiExceptionHandler and Compose/env sample:
    inspect key configuration and public error boundaries without opening .env.
 5. UserController, SecurityConfiguration and OpenAPI: compare the two route families.
-6. Read regressions alongside each path, then add the missing outer-wiring cases.
+6. Read regressions alongside each path, including the added outer-wiring cases.
+
+## 5. Additional fixes and agreed contract in the review candidate
+
+| Item | Change | Evidence / limit |
+|---|---|---|
+| R-02: due dates | 2a7bd67 reads LocalDate directly and binds finite dates consistently in task project/assigned lists and filters | Two red integration cases; all 46 task/project tests passed on H2, including year zero, finite endpoints and Gregorian cutover. PostgreSQL/full final checks remain required. |
+| R-03: long comments | d80d1b5 preserves the accepted 10000-character comment while bounding the outbox preview to the existing 200-character push budget without splitting a surrogate pair | Two red HTTP 400 cases; 19 comment/in-app/email/Telegram tests passed with fakes and escaped/Unicode input. The outbox stays within 4000 characters; no schema expansion. |
+| Backfill docs | 4b4af07 retains HTTP 200 for batch backfill and HTTP 201 for actual upload | A failing specification assertion exposed the mismatch; all 15 OpenAPI tests passed after correction. |
+| Focused Swagger | 4b4af07 adds the assignment group using the same request schemas and protected schemes | Keeps normal startup disabled, existing alpha-only default spec and loopback binding. No separate backend implementation. |
+| Informational project status | cea08fb supports versioned owner/ADMIN PUT/PATCH, any of the three declared statuses; null/omitted retained | User explicitly selected this policy. Creation stays INITIATED; task operations are not gated. Five new integration tests plus existing compatibility/permission tests and an optional-enum schema assertion. |
+
+The selected status run exercised 66 tests: 65 passed; one test initially expected a
+module validation code for an invalid JSON enum. The unchanged shared error handler
+correctly returns 400 MALFORMED_REQUEST. Its corrected immutable-state assertion and
+the new optional-enum schema check then both passed. Full candidate verification must
+still pass before integration; this records the actual validation history accurately.
+
+## 6. Verification and human acceptance
 
 | Area | Existing automated evidence | Review boundary |
 |---|---|---|
@@ -276,12 +300,18 @@ new outer-factory/HTTP regressions address it; fresh full verification is requir
 Review acceptance checklist:
 
 - [x] Fix R-01 and cover the outer wrapper plus real configured factory wiring (fa2c036, focused tests pass).
+- [x] Preserve accepted task dates across individual reads, lists and filters (2a7bd67, focused tests pass).
+- [x] Accept maximum-length comments without overflowing notification payloads (d80d1b5, focused tests pass).
+- [x] Record and test the explicitly selected manual informational project-status policy (cea08fb).
 - [ ] Trace provider failures to database rollback and document remote/DB atomicity limits.
 - [ ] Confirm the irreversible relink/key-recovery behavior is acceptable for deployment.
 - [ ] Verify aliases retain identical authentication, live-role, version and CSRF checks.
 - [ ] After any fix, repeat required checks on the new exact head and proposed merge.
 - [ ] Obtain the required external approval; none has been recorded for this head.
 
-The hotfix changes only the non-MEGA delegation; no live provider operation or deployment occurred. Fresh verification of the updated candidate is available in PR #99 checks; baseline successes above must not substitute for it.
+The routing hotfix changes only the non-MEGA delegation; other candidate changes are
+listed above. No live provider operation or deployment occurred. Final verification of
+the publication revision is recorded in PR #99 checks; older successes above must not
+substitute for the exact latest head and proposed-merge results.
 Main/dev remain 295fd9b. Reminders, unattended delivery, AWS deployment, measured capacity
 and real-account acceptance are separate planned work; they are not delivered by S56.

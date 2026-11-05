@@ -90,3 +90,19 @@ Reviewer questions: which contract differences are acceptable for assignment eva
 which must be adapted, and whether the later extension scope obscures the six core use
 cases enough to justify a separate simplification task. This guide improves navigation;
 it does not declare every difference accepted or every original requirement complete.
+
+## Optional interactive API pass
+
+After the [normal build/database setup](../README.md#local-development), launch the tested
+jar with the existing local documentation profile and select the focused definition:
+
+```text
+java -jar target/task-management-app-0.0.1-SNAPSHOT.jar --spring.profiles.active=alpha --springdoc.swagger-ui.urls-primary-name=assignment
+```
+
+Open `/swagger-ui/index.html` and select `assignment`, or read `/v3/api-docs/assignment`.
+The alpha profile binds loopback and also enables the separate browser prototype; this
+Swagger selection changes only the documentation view. The default specification stays
+alpha-only and normal startup keeps docs/prototype disabled. The assignment definition
+shows the real versioned/authorized backend contracts, including manual project status;
+it does not introduce simplified alternate endpoints or conceal the differences above.
