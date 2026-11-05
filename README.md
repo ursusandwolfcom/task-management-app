@@ -292,6 +292,8 @@ Task deletion cascades attachment rows. Explicit Dropbox attachment deletion rep
 provider failures as `500 STORAGE_ERROR` and retains metadata/history for retry;
 an already missing remote file counts as deleted. Workspace task detail
 shows the attachment panel. Browser-cookie writes require CSRF.
+The stored external reference determines the existing file's provider: local records
+stay local after personal linking, and cloud operations fail if Dropbox is disabled.
 
 ## Per-user Dropbox OAuth
 

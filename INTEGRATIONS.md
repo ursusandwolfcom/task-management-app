@@ -85,6 +85,10 @@ the metadata and deletion activity transaction rolls back, so the same attachmen
 be retried. An uncertain network failure may already have removed remote bytes; the
 idempotent not-found handling lets a retry finish metadata cleanup. Database commit
 failure after a successful remote delete is not a distributed atomic transaction.
+Records without an external reference remain local even after a user links Dropbox.
+Cloud references fail closed when Dropbox storage is disabled; they are not deleted
+through the local fallback. Only optional cleanup of a secondary legacy local copy
+remains best-effort after confirmed remote deletion.
 
 ### Team Space support boundary
 

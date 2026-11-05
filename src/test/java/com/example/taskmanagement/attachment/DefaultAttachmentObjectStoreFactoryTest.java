@@ -33,7 +33,7 @@ class DefaultAttachmentObjectStoreFactoryTest {
             local.put(key, new ByteArrayInputStream(new byte[] {1, 2}), 2);
             var selected = factory.forAttachment(7, externalId);
             try (var body = selected.open(key, externalId)) {
-                assertThat(body.readAllBytes()).containsExactly(1, 2);
+                assertThat(body.readAllBytes()).isEqualTo(new byte[] {1, 2});
             }
             selected.delete(key, externalId);
             assertThat(directory.resolve(key)).doesNotExist();
