@@ -664,8 +664,12 @@ and `totalPages`. Members are sorted by user ID descending.
 
 Ownership transfer retains the previous owner as an ordinary member. Only the current
 owner or ADMIN may perform later management operations. A current-version transfer to
-the same owner is a no-op. Client-supplied owner, status and revision fields cannot
-bypass these rules. Status changes are reserved for later execution commands.
+the same owner is a no-op. Client-supplied owner and revision fields cannot bypass these rules.
+Projects are created in `INITIATED`. Owner or ADMIN may set informational `status` to
+`INITIATED`, `IN_PROGRESS` or `COMPLETED` through versioned PUT/PATCH; omitted/null status
+retains its current value, including legacy PUT clients. This status does not block task
+creation or lifecycle commands and is not automatically derived from task progress.
+Unknown status strings return HTTP 400 `MALFORMED_REQUEST` without changing the project.
 
 All project writers acquire the same row lock before checking access and version;
 current ADMIN rights are read from the database even within an existing transaction.

@@ -66,8 +66,10 @@ but are not baseline requirements and must not substitute for checking the basel
 ## Actual differences and incomplete requirements
 
 - Task status adds FAILED/CANCELLED to the three source values. Project declares the
-  source enum values, but currently remains INITIATED through the exposed metadata API;
-  status transitions are not implemented. The source does not specify their policy.
+  source enum values. The user selected manual informational project status: creation
+  is INITIATED; owner/ADMIN may set any value through versioned PUT/PATCH; omitted/null
+  status is retained and task operations remain available. The source does not prescribe
+  this transition policy. Task priority also adds CRITICAL to LOW/MEDIUM/HIGH.
 - Comment/attachment timestamps use UTC Instant rather than the source's LocalDateTime.
   Labels are project-scoped and their list requires projectId. Updates/deletes can require
   an expected version; task/project deletion has later history/dependency/emptiness guards.

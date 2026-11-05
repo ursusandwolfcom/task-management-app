@@ -123,7 +123,8 @@ public class OpenApiConfiguration {
                     api.info(new Info().title("ProjectFlow projects API").version("0.0.1")
                             .description("Persisted projects, membership and ownership transfer "
                                     + "with live access checks. "
-                                    + "Project statuses remain INITIATED until execution commands are implemented. "
+                                    + "Projects start INITIATED; owner/ADMIN may set informational status through "
+                                    + "versioned PUT/PATCH. Omitted/null status is retained; tasks remain writable. "
                                     + "Alpha browser storage is separate."));
                     addProtectedErrors(api);
                 }).build();

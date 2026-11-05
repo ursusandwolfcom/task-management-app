@@ -241,7 +241,7 @@ class ProjectIntegrationTest {
         var project = create();
         mvc.perform(patch("/api/projects/" + project.id()).header("Authorization", bearer(owner))
                 .contentType(MediaType.APPLICATION_JSON).content(statusRequest(project.version(), "ARCHIVED")))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
         assertThat(projects.read(owner.id(), project.id())).isEqualTo(project);
     }
 

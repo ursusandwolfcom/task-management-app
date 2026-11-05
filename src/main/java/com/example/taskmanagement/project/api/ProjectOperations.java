@@ -32,6 +32,10 @@ public interface ProjectOperations {
     ProjectView replace(long actorId, long projectId, @NotNull @Valid ProjectData data,
             @PositiveOrZero long version);
 
+    /** Replaces metadata; null status retains the current informational status. */
+    ProjectView replace(long actorId, long projectId, @NotNull @Valid ProjectData data, ProjectStatus status,
+            @PositiveOrZero long version);
+
     ProjectView patch(long actorId, long projectId, @NotNull ProjectPatch patch, @PositiveOrZero long version);
 
     MemberPage members(long actorId, long projectId, int page, int size);

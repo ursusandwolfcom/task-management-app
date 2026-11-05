@@ -78,6 +78,13 @@ public class ProjectEntity {
         inputChanged();
     }
 
+    public void update(ProjectData data, ProjectStatus nextStatus) {
+        update(data);
+        if (nextStatus != null) {
+            status = nextStatus;
+        }
+    }
+
     public void transferOwner(long userId) {
         if (ownerId != userId) {
             ownerId = userId;

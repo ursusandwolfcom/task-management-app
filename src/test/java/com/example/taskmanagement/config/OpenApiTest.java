@@ -74,6 +74,17 @@ class OpenApiTest {
     }
 
     @Test
+    void projectStatusIsOptionalInVersionedMetadataRequests() throws Exception {
+        mvc.perform(get("/v3/api-docs/assignment")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.schemas.ChangeRequest.properties.status.enum[0]").value("INITIATED"))
+                .andExpect(jsonPath("$.components.schemas.ChangeRequest.properties.status.enum[1]")
+                        .value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.components.schemas.ChangeRequest.properties.status.enum[2]").value("COMPLETED"))
+                .andExpect(jsonPath("$.components.schemas.ChangeRequest.required.length()").value(1))
+                .andExpect(jsonPath("$.components.schemas.ChangeRequest.required[0]").value("version"));
+    }
+
+    @Test
     void documentsOriginalUserAliasesInsideTheProtectedIdentityGroup() throws Exception {
         mvc.perform(get("/v3/api-docs/identity")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/users/me'].get").exists())
