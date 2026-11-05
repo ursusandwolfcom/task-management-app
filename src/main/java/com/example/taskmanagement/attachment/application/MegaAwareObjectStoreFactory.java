@@ -25,7 +25,8 @@ public class MegaAwareObjectStoreFactory implements AttachmentObjectStoreFactory
 
     @Override
     public AttachmentObjectStore forAttachment(long userId, String externalId) {
-        return externalId != null && externalId.startsWith("mega:") ? mega(userId) : legacy.forUser(userId);
+        return externalId != null && externalId.startsWith("mega:")
+                ? mega(userId) : legacy.forAttachment(userId, externalId);
     }
 
     private AttachmentObjectStore mega(long userId) {
