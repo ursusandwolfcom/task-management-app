@@ -23,6 +23,8 @@ import com.example.taskmanagement.task.api.TaskOperations;
 import com.example.taskmanagement.task.api.TaskPriority;
 import com.example.taskmanagement.task.api.TaskView;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -33,6 +35,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -47,6 +50,7 @@ class CommentIntegrationTest {
     @Autowired private TokenService tokens;
     @Autowired private MockMvc mvc;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private ObjectMapper json;
     private UserView owner;
     private UserView member;
     private UserView outsider;
@@ -106,6 +110,39 @@ class CommentIntegrationTest {
                 .isInstanceOf(CollaborationException.class);
         tasks.delete(owner.id(), task.id(), task.version());
         assertThat(jdbc.queryForObject("select count(*) from task_management.comments", Long.class)).isZero();
+    }
+
+    @Test
+    void acceptsMaximumCommentWithoutOverflowingTheNotificationOutbox() throws Exception {
+        assertMaximumCommentAccepted("x".repeat(10000));
+    }
+
+    @Test
+    void maximumEscapedAndUnicodeCommentsKeepAValidBoundedPreview() throws Exception {
+        for (String text : List.of("\"\\\n".repeat(3333) + "x",
+                "x".repeat(199) + "\uD83D\uDE00" + "y".repeat(9799), "\uD83D\uDE00".repeat(5000))) {
+            assertMaximumCommentAccepted(text);
+        }
+    }
+
+    private void assertMaximumCommentAccepted(String text) throws Exception {
+        String auth = "Bearer " + tokens.issue(identity.login(member.username(), PASSWORD)).accessToken();
+        String response = mvc.perform(post("/api/comments").header("Authorization", auth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("taskId", task.id(), "text", text))))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long commentId = json.readTree(response).path("id").asLong();
+        assertThat(comments.list(owner.id(), task.id(), 0, 20).content())
+                .filteredOn(comment -> comment.id() == commentId).extracting(comment -> comment.text())
+                .containsExactly(text);
+        String payload = jdbc.queryForObject("select payload from task_management.outbox_messages "
+                + "where event_type='comment.created' order by id desc limit 1", String.class);
+        assertThat(payload).hasSizeLessThanOrEqualTo(4000);
+        String preview = json.readTree(payload).path("preview").asString();
+        assertThat(preview).isNotEmpty();
+        assertThat(text).startsWith(preview);
+        assertThat(preview.codePoints().anyMatch(point -> point >= Character.MIN_SURROGATE
+                && point <= Character.MAX_SURROGATE)).isFalse();
     }
 
     @Test
