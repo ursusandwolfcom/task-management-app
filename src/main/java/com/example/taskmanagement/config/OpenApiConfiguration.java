@@ -20,6 +20,37 @@ import org.springdoc.core.customizers.OpenApiCustomizer;
 @Configuration(proxyBeanMethods = false)
 @Profile("alpha")
 public class OpenApiConfiguration {
+    private static final List<String> ASSIGNMENT_PATHS = List.of(
+            "/api/auth/register", "/api/auth/login", "/users/me", "/users/{id}/role",
+            "/api/users/me", "/api/users/{id}/role", "/api/projects", "/api/projects/{id}",
+            "/api/tasks", "/api/tasks/{id}", "/api/tasks/{id}/start", "/api/tasks/{id}/complete",
+            "/api/comments", "/api/comments/{id}", "/api/attachments", "/api/attachments/{id}",
+            "/api/attachments/{id}/content", "/api/labels", "/api/labels/{id}",
+            "/api/tasks/{taskId}/labels", "/api/tasks/{taskId}/labels/{labelId}");
+
+    @Bean
+    public GroupedOpenApi assignmentOpenApi() {
+        return GroupedOpenApi.builder().group("assignment")
+                .pathsToMatch(ASSIGNMENT_PATHS.toArray(String[]::new))
+                .addOpenApiCustomizer(api -> {
+                    api.getPaths().entrySet().removeIf(entry -> !ASSIGNMENT_PATHS.contains(entry.getKey()));
+                    api.info(new Info().title("Task Management assignment API").version("0.0.1")
+                            .description("Core registration, users, projects, tasks, comments, attachments and labels. "
+                                    + "This is a focused view of the existing backend, not a separate implementation. "
+                                    + "Task start/complete commands are included for progress tracking. "
+                                    + "Contract differences and remaining requirements are recorded in the public "
+                                    + "review/MATE_ASSIGNMENT_REVIEW.md guide."));
+                    addTaskBodies(api);
+                    addCollaborationBodies(api);
+                    api.getPaths().forEach((route, path) -> {
+                        if (List.of("/api/auth/register", "/api/projects", "/api/tasks", "/api/comments",
+                                "/api/attachments", "/api/labels").contains(route)) {
+                            createdResponse(path.getPost());
+                        }
+                    });
+                    addProtectedErrors(api);
+                }).build();
+    }
 
     @Bean
     public OpenApiCustomizer alphaOnlyDefaultSpec() {
@@ -108,28 +139,7 @@ public class OpenApiConfiguration {
                     api.info(new Info().title("ProjectFlow collaboration API").version("0.0.1")
                             .description("Project-scoped plain-text comments and labels with live access checks. "
                                     + "Collaboration metadata does not change task or planning revisions."));
-                    api.getPaths().forEach((route, path) -> {
-                        if (route.equals("/api/comments") && path.getPost() != null) {
-                            setTaskBody(path.getPost(), new ObjectSchema()
-                                    .addProperty("taskId", new IntegerSchema().format("int64")
-                                            .minimum(java.math.BigDecimal.ONE))
-                                    .addProperty("text", new StringSchema().minLength(1).maxLength(10000)
-                                            .pattern(NoNul.PATTERN))
-                                    .required(List.of("taskId", "text")).additionalProperties(false));
-                        }
-                        if (route.equals("/api/labels") && path.getPost() != null) {
-                            setTaskBody(path.getPost(), labelMetadata(true));
-                        }
-                        if (route.equals("/api/labels/{id}") && path.getPut() != null) {
-                            setTaskBody(path.getPut(), labelMetadata(false));
-                        }
-                        if (path.getPost() != null) {
-                            var response = path.getPost().getResponses().remove("200");
-                            if (response != null) {
-                                path.getPost().getResponses().addApiResponse("201", response);
-                            }
-                        }
-                    });
+                    addCollaborationBodies(api);
                     addProtectedErrors(api);
                 }).build();
     }
@@ -145,11 +155,8 @@ public class OpenApiConfiguration {
                                     + "Local, Dropbox and personal MEGA. "
                                     + "MEGA references retain their original account across reconnects."));
                     api.getPaths().forEach((route, path) -> {
-                        if (path.getPost() != null) {
-                            var response = path.getPost().getResponses().remove("200");
-                            if (response != null) {
-                                path.getPost().getResponses().addApiResponse("201", response);
-                            }
+                        if (route.equals("/api/attachments")) {
+                            createdResponse(path.getPost());
                         }
                     });
                     addProtectedErrors(api);
@@ -183,36 +190,7 @@ public class OpenApiConfiguration {
                                     + "Estimate is optional, 15..525600 physical minutes. "
                                     + "Commands use actual predecessor completion, not resource reservations. "
                                     + "Graph queries return coherent inputRevision snapshots and never change facts."));
-                    api.getPaths().forEach((route, path) -> {
-                        boolean collection = route.equals("/api/tasks") || route.endsWith("/tasks");
-                        if (path.getPost() != null) {
-                            if (route.endsWith("/dependencies")) {
-                                setTaskBody(path.getPost(), new ObjectSchema()
-                                        .addProperty("dependsOnTaskId", new IntegerSchema().format("int64")
-                                                .minimum(java.math.BigDecimal.ONE))
-                                        .addProperty("inputRevision", versionSchema())
-                                        .required(List.of("dependsOnTaskId", "inputRevision"))
-                                        .additionalProperties(false));
-                            } else {
-                                setTaskBody(path.getPost(), collection
-                                        ? taskMetadata(true, false, route.equals("/api/tasks"))
-                                        : new ObjectSchema().addProperty("version", versionSchema())
-                                                .required(List.of("version")).additionalProperties(false));
-                            }
-                            if (collection || route.endsWith("/dependencies")) {
-                                var response = path.getPost().getResponses().remove("200");
-                                if (response != null) {
-                                    path.getPost().getResponses().addApiResponse("201", response);
-                                }
-                            }
-                        }
-                        if (path.getPut() != null) {
-                            setTaskBody(path.getPut(), taskMetadata(false, false, false));
-                        }
-                        if (path.getPatch() != null) {
-                            setTaskBody(path.getPatch(), taskMetadata(false, true, false));
-                        }
-                    });
+                    addTaskBodies(api);
                     addProtectedErrors(api);
                 }).build();
     }
@@ -227,6 +205,80 @@ public class OpenApiConfiguration {
                                     + "Old files require their original account."));
                     addProtectedErrors(api);
                 }).build();
+    }
+
+    private static void addCollaborationBodies(OpenAPI api) {
+        api.getPaths().forEach((route, path) -> {
+            if (!route.startsWith("/api/comments") && !route.startsWith("/api/labels")
+                    && !route.contains("/labels")) {
+                return;
+            }
+            if (route.equals("/api/comments") && path.getPost() != null) {
+                setTaskBody(path.getPost(), new ObjectSchema()
+                        .addProperty("taskId", new IntegerSchema().format("int64")
+                                .minimum(java.math.BigDecimal.ONE))
+                        .addProperty("text", new StringSchema().minLength(1).maxLength(10000)
+                                .pattern(NoNul.PATTERN))
+                        .required(List.of("taskId", "text")).additionalProperties(false));
+            }
+            if (route.equals("/api/labels") && path.getPost() != null) {
+                setTaskBody(path.getPost(), labelMetadata(true));
+            }
+            if (route.equals("/api/labels/{id}") && path.getPut() != null) {
+                setTaskBody(path.getPut(), labelMetadata(false));
+            }
+            if (path.getPost() != null) {
+                var response = path.getPost().getResponses().remove("200");
+                if (response != null) {
+                    path.getPost().getResponses().addApiResponse("201", response);
+                }
+            }
+        });
+    }
+
+    private static void addTaskBodies(OpenAPI api) {
+        api.getPaths().forEach((route, path) -> {
+            if ((!route.startsWith("/api/tasks") && !route.endsWith("/tasks")) || route.contains("/labels")) {
+                return;
+            }
+            boolean collection = route.equals("/api/tasks") || route.endsWith("/tasks");
+            if (path.getPost() != null) {
+                if (route.endsWith("/dependencies")) {
+                    setTaskBody(path.getPost(), new ObjectSchema()
+                            .addProperty("dependsOnTaskId", new IntegerSchema().format("int64")
+                                    .minimum(java.math.BigDecimal.ONE))
+                            .addProperty("inputRevision", versionSchema())
+                            .required(List.of("dependsOnTaskId", "inputRevision"))
+                            .additionalProperties(false));
+                } else {
+                    setTaskBody(path.getPost(), collection
+                            ? taskMetadata(true, false, route.equals("/api/tasks"))
+                            : new ObjectSchema().addProperty("version", versionSchema())
+                                    .required(List.of("version")).additionalProperties(false));
+                }
+                if (collection || route.endsWith("/dependencies")) {
+                    var response = path.getPost().getResponses().remove("200");
+                    if (response != null) {
+                        path.getPost().getResponses().addApiResponse("201", response);
+                    }
+                }
+            }
+            if (path.getPut() != null) {
+                setTaskBody(path.getPut(), taskMetadata(false, false, false));
+            }
+            if (path.getPatch() != null) {
+                setTaskBody(path.getPatch(), taskMetadata(false, true, false));
+            }
+        });
+    }
+
+    private static void createdResponse(io.swagger.v3.oas.models.Operation operation) {
+        if (operation != null) {
+            var response = operation.getResponses().remove("200");
+            if (response != null) {
+                operation.getResponses().addApiResponse("201", response);
+            }
+        }
     }
 
     private static boolean planningRoute(String route) {
