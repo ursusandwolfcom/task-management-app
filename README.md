@@ -3,7 +3,8 @@
 Reviewing the original Mate Academy assignment? Start with the
 **[controller and endpoint table](review/CONTROLLERS.md)** and the
 **[six-model mapping, package guide and known differences](review/MATE_ASSIGNMENT_REVIEW.md)**.
-For the current attachment/security PR, see the **[S56 review packet](review/S56_HUMAN_CODE_REVIEW.md)**.
+For the current S56 PR, see the **[review packet](review/S56_HUMAN_CODE_REVIEW.md)**.
+New since the previous review: **[background notification delivery and retry walkthrough](review/DELIVERY_REVIEW.md)**.
 The customer demo below includes later extensions beyond the assignment.
 
 > Plan and execute team work: what to do next, who owns it, and what puts deadlines at risk.
