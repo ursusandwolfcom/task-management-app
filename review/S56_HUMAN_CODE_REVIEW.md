@@ -379,8 +379,11 @@ the channel delay; later eligible events continue within the bounded attempt bud
 Liquibase 025 persists channel counts/deadlines, applying the approved 1/5/15/60-minute
 delays, then 60 minutes. Already acknowledged channels cannot be reopened by late failure.
 Digest cleanup retains rows inserted after its selected batch. External provider
-acceptance before rollback, partial multi-recipient sends and simultaneous digest
-senders can still produce duplicates; no exactly-once delivery is claimed.
+acceptance before rollback and partial multi-recipient sends can still produce
+duplicates; no exactly-once delivery is claimed. Digest selection now holds write
+locks through send and cleanup, so concurrent flushes wait rather than sending the
+same entries together. Failed sends retain entries after rollback; independent inserts
+after selection remain queued. EmailIntegrationTest covers all three interleavings.
 
 [Retry integration scenarios](../src/test/java/com/example/taskmanagement/integration/outbox/OutboxRetryIntegrationTest.java)
 cover channel independence, exact deadlines, rollback and later-event progress.

@@ -1,6 +1,7 @@
 package com.example.taskmanagement.integration.email;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -25,6 +26,10 @@ import com.example.taskmanagement.task.api.TaskPriority;
 import com.example.taskmanagement.task.api.TaskView;
 import com.example.taskmanagement.task.domain.TaskLifecyclePolicy.Command;
 import java.time.LocalDate;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -138,6 +143,57 @@ class EmailIntegrationTest {
                         .content("{\"enabled\":true}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.enabled").value(true));
+    }
+
+    @Test
+    void failedDigestSendRetainsItsEntriesForTheNextTransaction() {
+        preferences.setDigestMode(member.id(), EmailDigestMode.DAILY);
+        email.deliverPending(100);
+        ((InterleavingSender) mail).duringSend = () -> {
+            throw new IllegalStateException("Synthetic digest failure");
+        };
+        assertThatThrownBy(email::flushDigests).isInstanceOf(IllegalStateException.class);
+        assertThat(email.status(member.id()).pendingDigestLines()).isEqualTo(1);
+        assertThat(email.flushDigests()).isEqualTo(1);
+        assertThat(email.status(member.id()).pendingDigestLines()).isZero();
+    }
+
+    @Test
+    void concurrentDigestFlushesDoNotSendTheSameSelectedEntriesTwice() throws Exception {
+        preferences.setDigestMode(member.id(), EmailDigestMode.DAILY);
+        email.deliverPending(100);
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var started = new CountDownLatch(1);
+        ((InterleavingSender) mail).duringSend = () -> {
+            entered.countDown();
+            try {
+                if (!release.await(10, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Digest sender was not released");
+                }
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(exception);
+            }
+        };
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(email::flushDigests);
+            assertThat(entered.await(10, TimeUnit.SECONDS)).isTrue();
+            var second = executor.submit(() -> {
+                started.countDown();
+                return email.flushDigests();
+            });
+            try {
+                assertThat(started.await(10, TimeUnit.SECONDS)).isTrue();
+                assertThatThrownBy(() -> second.get(300, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+            } finally {
+                release.countDown();
+            }
+            assertThat(first.get(10, TimeUnit.SECONDS)).isEqualTo(1);
+            assertThat(second.get(10, TimeUnit.SECONDS)).isZero();
+        }
+        assertThat(mail.sent()).hasSize(1);
+        assertThat(email.status(member.id()).pendingDigestLines()).isZero();
     }
 
     @Test

@@ -237,6 +237,10 @@ per channel; use `notifications.delivery.enabled=false` to disable it, or config
 `notifications.delivery.batch-size`. Browser polling uses the same retry-aware path.
 Logs contain event IDs and channel names, without exception text or message payloads.
 External delivery remains at-least-once, including partial multi-recipient sends.
+Digest flushing locks its selected entries until send and cleanup finish. Concurrent
+flushes cannot send the same selected rows together; a failed send rolls back and
+retains the entries for another transaction. Entries inserted after selection remain
+queued for the next digest. Provider acceptance before rollback can still cause retries.
 `POST /api/notifications/{id}/read` and `POST /api/notifications/read-all` mark items read.
 In-app channel uses Liquibase 010. Optional Telegram (013) and Email (014) are add-on channels
 on the same outbox (`task.assigned`, `comment.created`, `task.completed`, `task.failed`).

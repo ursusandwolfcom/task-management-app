@@ -58,10 +58,12 @@ Configuration is documented in [README](../README.md#in-app-notifications).
 | Retry timing had no durable storage | Persisted in `3e55a9d`; deadline-aware claims and channel independence scenarios |
 | One failed event blocked later work | Isolated in `39f7b0b`; rollback/deferral/progress tests for all three channels |
 | Scheduler was placed across forbidden module boundaries | Corrected in `321a2b7` by moving orchestration to `config`; architecture rules unchanged |
+| Two digest flushes could send the same selected rows concurrently | Selected-entry write locks now span send and cleanup; concurrent flush and failed-send rollback scenarios in EmailIntegrationTest |
 
 External delivery is at-least-once. A provider may accept a message before database
-rollback; partial multi-recipient sends and simultaneous digest senders may duplicate
-delivery. This work does not claim exactly-once transport or measured scalability.
+rollback; partial multi-recipient sends may duplicate delivery. Concurrent digest
+flushes now wait on their selected rows; rows added during a send remain for the next
+digest. This work does not claim exactly-once transport or measured scalability.
 Tests use recording/failing fakes, not real messages or live-account acceptance.
 AWS deployment and live/measured acceptance remain separate work.
 
