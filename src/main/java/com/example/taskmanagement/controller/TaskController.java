@@ -8,6 +8,8 @@ import jakarta.validation.Valid;
 import java.net.URI;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -33,7 +35,8 @@ public class TaskController {
 
     @GetMapping
     public Page<TaskResponse> list(@AuthenticationPrincipal Jwt jwt, @RequestParam Long projectId,
-            @Valid @ModelAttribute TaskFilter filter, Pageable pageable) {
+            @Valid @ModelAttribute TaskFilter filter,
+            @PageableDefault(sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.list(Long.valueOf(jwt.getSubject()), projectId, filter, pageable);
     }
 
