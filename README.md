@@ -129,6 +129,8 @@ are substituted in automated tests; live integration acceptance is a separate st
 
 - [API reference](documentation/API.md): routes, example bodies, filters and access rules.
 - [Architecture](documentation/ARCHITECTURE.md): package map, data relationships, MapStruct and transactions.
+- [Spring lifecycle](documentation/SPRING_LIFECYCLE.md): singleton choices, initialization dependencies and AOP.
+- [Code review](documentation/CODE_REVIEW.md): fixed findings, Hibernate ownership and measured fetch plans.
 - [Operations](documentation/OPERATIONS.md): configuration, local execution, testing and troubleshooting.
 - [Course checklist](documentation/COURSE_CHECKLIST.md): implemented requirements, contract differences and remaining evidence.
 

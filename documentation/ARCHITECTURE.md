@@ -127,6 +127,10 @@ excluding completed or unassigned tasks. This assumes one running application.
 
 ## Verification boundaries
 
+The [persistence audit](CODE_REVIEW.md#relationship-ownership) records every owning
+side, cascade choice and measured fetch plan. The [Spring lifecycle guide](SPRING_LIFECYCLE.md)
+explains singleton scopes, constructor/factory dependencies and container initialization.
+
 HTTP integration tests exercise authentication, authorization, JPA, Liquibase,
 mapped responses and rollback behavior. Adapter tests substitute the Dropbox SDK
 client; mail tests substitute SMTP. CI adds real PostgreSQL and jar/container
