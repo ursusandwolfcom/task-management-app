@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import com.example.taskmanagement.integration.outbox.api.OutboxConsumerOperations;
+import com.example.taskmanagement.integration.outbox.api.OutboxDispatchOperations;
 import com.example.taskmanagement.integration.outbox.api.OutboxOperations;
 import com.example.taskmanagement.integration.outbox.api.OutboxRetryOperations;
 import com.example.taskmanagement.integration.outbox.api.OutboxRetryOperations.Channel;
@@ -30,6 +31,7 @@ class OutboxRetryIntegrationTest {
     @Autowired private OutboxOperations events;
     @Autowired private OutboxConsumerOperations consumers;
     @Autowired private OutboxRetryOperations retries;
+    @Autowired private OutboxDispatchOperations dispatcher;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private PlatformTransactionManager transactions;
     @MockitoBean private Clock clock;
@@ -44,6 +46,24 @@ class OutboxRetryIntegrationTest {
         transaction = new TransactionTemplate(transactions);
         events.append("fixture.retry", "{}");
         id = transaction.execute(status -> consumers.claimUnprocessed(100).getFirst().id());
+    }
+
+    @ParameterizedTest
+    @EnumSource(Channel.class)
+    void failedAttemptRollsBackAndDefersWhileTheNextEventCommits(Channel channel) {
+        events.append("fixture.later", "{}");
+        assertThat(dispatcher.dispatch(channel, 2, message -> {
+            if (message.id() == id) {
+                jdbc.update("update task_management.outbox_messages set payload = ? where id = ?", "changed", id);
+                throw new IllegalStateException("Synthetic private provider failure");
+            }
+        })).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select payload from task_management.outbox_messages where id = ?",
+                String.class, id)).isEqualTo("{}");
+        assertThat(claim(channel)).isEmpty();
+        when(clock.instant()).thenReturn(now.plusSeconds(60));
+        assertThat(dispatcher.dispatch(channel, 100, message -> { })).isEqualTo(1);
+        assertThat(claim(channel)).isEmpty();
     }
 
     @ParameterizedTest

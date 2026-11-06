@@ -89,7 +89,7 @@ class NotificationIntegrationTest {
     }
 
     @Test
-    void concurrentConsumersHoldClaimsUntilProjectionCommits() throws Exception {
+    void concurrentConsumersHoldClaimsUntilAcknowledgementCommits() throws Exception {
         var claimed = new CountDownLatch(1);
         var release = new CountDownLatch(1);
         var started = new CountDownLatch(1);
@@ -105,7 +105,9 @@ class NotificationIntegrationTest {
                     Thread.currentThread().interrupt();
                     throw new IllegalStateException(exception);
                 }
-                return notifications.projectPending(100);
+                var pending = outbox.claimUnprocessed(100);
+                pending.forEach(message -> outbox.markProcessed(message.id()));
+                return pending.size();
             }));
             assertThat(claimed.await(10, TimeUnit.SECONDS)).isTrue();
             var second = executor.submit(() -> {
@@ -122,7 +124,7 @@ class NotificationIntegrationTest {
             assertThat(first.get(10, TimeUnit.SECONDS)).isPositive();
             assertThat(second.get(10, TimeUnit.SECONDS)).isZero();
         }
-        assertThat(notifications.list(member.id(), false, 0, 100).content()).hasSize(1);
+        assertThat(notifications.list(member.id(), false, 0, 100).content()).isEmpty();
     }
 
     @Test

@@ -169,8 +169,10 @@ public class OpenApiConfiguration {
         return GroupedOpenApi.builder().group("notifications").pathsToMatch("/api/notifications/**")
                 .addOpenApiCustomizer(api -> {
                     api.info(new Info().title("ProjectFlow notifications API").version("0.0.1")
-                            .description("In-app notifications projected from the transactional outbox "
-                                    + "(task.assigned, comment.created). Email/Telegram deferred."));
+                            .description("In-app notifications projected from the transactional outbox. "
+                                    + "Background and browser-triggered dispatch share per-event transactions "
+                                    + "and durable retry deadlines; failed events do not block later events. "
+                                    + "Email and Telegram use their existing preference-aware channels."));
                     addProtectedErrors(api);
                 }).build();
     }

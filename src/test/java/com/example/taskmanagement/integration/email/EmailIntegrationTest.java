@@ -141,6 +141,22 @@ class EmailIntegrationTest {
     }
 
     @Test
+    void providerFailureIsDeferredAndDoesNotBlockANewerEvent() {
+        ((InterleavingSender) mail).duringSend = () -> {
+            throw new IllegalStateException("Synthetic provider failure");
+        };
+        assertThat(email.deliverPending(100)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from task_management.outbox_messages "
+                + "where email_failures = 1 and email_processed_at is null "
+                + "and email_next_attempt_at is not null", Long.class)).isEqualTo(1);
+        assertThat(email.deliverPending(100)).isZero();
+        tasks.create(owner.id(), project.id(),
+                new TaskData("Later event", "", TaskPriority.HIGH, 15, null, member.id(), TaskBucket.WORK));
+        assertThat(email.deliverPending(100)).isEqualTo(1);
+        assertThat(mail.sent()).anyMatch(item -> item.body().contains("Later event"));
+    }
+
+    @Test
     void digestRetainsEntriesCommittedWhileTheSelectedBatchIsBeingSent() {
         preferences.setDigestMode(member.id(), EmailDigestMode.DAILY);
         email.deliverPending(100);

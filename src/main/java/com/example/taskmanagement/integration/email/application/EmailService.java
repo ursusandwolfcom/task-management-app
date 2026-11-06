@@ -10,6 +10,9 @@ import com.example.taskmanagement.integration.email.persistence.EmailDigestEntry
 import com.example.taskmanagement.integration.email.persistence.EmailDigestEntryRepository;
 import com.example.taskmanagement.integration.outbox.api.OutboxConsumerOperations;
 import com.example.taskmanagement.integration.outbox.api.OutboxMessage;
+import com.example.taskmanagement.integration.outbox.api.OutboxDispatchOperations;
+import com.example.taskmanagement.integration.outbox.api.OutboxRetryOperations.Channel;
+import org.springframework.transaction.annotation.Propagation;
 import com.example.taskmanagement.integration.outbox.api.OutboxPushProjection;
 import com.example.taskmanagement.integration.outbox.api.OutboxRecipientGuard;
 import java.time.Clock;
@@ -39,13 +42,15 @@ public class EmailService implements EmailOperations {
     private final String brand;
     private final EmailHtmlFormatter.Theme theme;
     private final OutboxRecipientGuard recipientGuard;
+    private final OutboxDispatchOperations dispatcher;
 
     public EmailService(EmailPreferenceOperations preferences, OutboxConsumerOperations outbox, EmailSender sender,
             EmailDigestEntryRepository digests, ObjectMapper json, Clock clock,
             @Value("${spring.mail.host:}") String mailHost,
             @Value("${mail.app-public-base:}") String appPublicBase,
             @Value("${mail.brand-name:ProjectFlow}") String brand,
-            @Value("${mail.theme:default}") String theme, OutboxRecipientGuard recipientGuard) {
+            @Value("${mail.theme:default}") String theme, OutboxRecipientGuard recipientGuard,
+            OutboxDispatchOperations dispatcher) {
         this.preferences = preferences;
         this.outbox = outbox;
         this.sender = sender;
@@ -53,6 +58,7 @@ public class EmailService implements EmailOperations {
         this.json = json;
         this.clock = clock;
         this.recipientGuard = recipientGuard;
+        this.dispatcher = dispatcher;
         this.mailHost = blankToEmpty(mailHost);
         this.appPublicBase = blankToEmpty(appPublicBase);
         this.brand = blankToEmpty(brand).isEmpty() ? "ProjectFlow" : blankToEmpty(brand);
@@ -86,17 +92,12 @@ public class EmailService implements EmailOperations {
     }
 
     @Override
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public int deliverPending(int limit) {
         if (!configured()) {
             return 0;
         }
-        int delivered = 0;
-        for (OutboxMessage message : outbox.claimEmailUnprocessed(limit)) {
-            deliver(message);
-            outbox.markEmailProcessed(message.id());
-            delivered++;
-        }
-        return delivered;
+        return dispatcher.dispatch(Channel.EMAIL, limit, this::deliver);
     }
 
     @Override

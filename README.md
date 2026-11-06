@@ -211,8 +211,8 @@ large backlogs therefore take multiple scans. Configure `notifications.deadlines
 (default true), `notifications.deadlines.batch-size` (1..100),
 `notifications.deadlines.delay-ms` and `notifications.deadlines.initial-delay-ms`
 (both default 30000). This timer produces events without a browser request. General
-unattended push delivery/retry coordination remains the next stage; the existing
-channel polling and daily email-digest scheduler still consume these events.
+background delivery polls the existing channels every 30 seconds, independently of
+browser polling. The daily email-digest schedule remains unchanged.
 
 Task assignment, comments, lifecycle (start/complete/fail/cancel) and attachment uploads
 enqueue durable `outbox_messages` rows (`task.assigned`, `comment.created`, `task.started`,
@@ -226,8 +226,16 @@ if a provider accepts a message before the database transaction rolls back.
 Liquibase 025 stores per-channel failure counts and next-attempt times. The internal
 retry API applies the approved 1/5/15/60-minute delays (then 60 minutes), and all claim
 queries respect these persisted deadlines. A failure recorded after acknowledgement
-does not reopen a completed channel. Automatic failure recording and unattended
-dispatch are still pending; the retry API alone does not schedule or send messages.
+does not reopen a completed channel. Each event runs in its own transaction; a failed
+attempt rolls back before its retry deadline is recorded in a separate transaction.
+Later eligible events continue within the bounded batch. Counts returned by dispatch
+include acknowledged events, including unsupported or muted events that need no send.
+The background dispatcher runs every 30 seconds with a batch of up to 100 attempts
+per channel; use `notifications.delivery.enabled=false` to disable it, or configure
+`notifications.delivery.delay-ms`, `notifications.delivery.initial-delay-ms` and
+`notifications.delivery.batch-size`. Browser polling uses the same retry-aware path.
+Logs contain event IDs and channel names, without exception text or message payloads.
+External delivery remains at-least-once, including partial multi-recipient sends.
 `POST /api/notifications/{id}/read` and `POST /api/notifications/read-all` mark items read.
 In-app channel uses Liquibase 010. Optional Telegram (013) and Email (014) are add-on channels
 on the same outbox (`task.assigned`, `comment.created`, `task.completed`, `task.failed`).
