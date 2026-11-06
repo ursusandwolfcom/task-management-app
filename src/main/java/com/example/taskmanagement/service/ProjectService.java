@@ -43,11 +43,13 @@ public class ProjectService {
         Project project = projects.findById(id).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
         boolean owner = project.getOwner().getId().equals(actorId);
-        boolean member = project.getMembers().stream().anyMatch(user -> user.getId().equals(actorId));
-        if (actor.getRole() != Role.ADMIN && !owner && !member) {
+        if (owner || actor.getRole() == Role.ADMIN) {
+            return project;
+        }
+        if (project.getMembers().stream().noneMatch(user -> user.getId().equals(actorId))) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found");
         }
-        if (ownerOnly && !owner && actor.getRole() != Role.ADMIN) {
+        if (ownerOnly) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Project owner required");
         }
         return project;

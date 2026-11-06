@@ -45,16 +45,16 @@ public class Task {
     private LocalDate dueDate;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "project_id")
+    @JoinColumn(name = "project_id", nullable = false)
     private Project project;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assignee_id")
     private User assignee;
 
-    @ManyToMany
-    @JoinTable(name = "task_labels", joinColumns = @JoinColumn(name = "task_id"),
-            inverseJoinColumns = @JoinColumn(name = "label_id"))
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "task_labels", joinColumns = @JoinColumn(name = "task_id", nullable = false),
+            inverseJoinColumns = @JoinColumn(name = "label_id", nullable = false))
     private Set<Label> labels = new HashSet<>();
 
     public Task() {

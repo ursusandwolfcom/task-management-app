@@ -23,7 +23,7 @@ public class Attachment {
     private long version;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "task_id")
+    @JoinColumn(name = "task_id", nullable = false)
     private Task task;
 
     @Column(nullable = false, unique = true)

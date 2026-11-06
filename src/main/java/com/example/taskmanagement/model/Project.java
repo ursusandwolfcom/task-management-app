@@ -43,12 +43,12 @@ public class Project {
     private ProjectStatus status = ProjectStatus.INITIATED;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "owner_id")
+    @JoinColumn(name = "owner_id", nullable = false)
     private User owner;
 
-    @ManyToMany
-    @JoinTable(name = "project_members", joinColumns = @JoinColumn(name = "project_id"),
-            inverseJoinColumns = @JoinColumn(name = "user_id"))
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "project_members", joinColumns = @JoinColumn(name = "project_id", nullable = false),
+            inverseJoinColumns = @JoinColumn(name = "user_id", nullable = false))
     private Set<User> members = new HashSet<>();
 
     public Project() {

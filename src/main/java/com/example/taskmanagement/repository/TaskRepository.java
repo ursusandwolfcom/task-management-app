@@ -15,7 +15,7 @@ public interface TaskRepository extends JpaRepository<Task, Long>, JpaSpecificat
 
     boolean existsByProjectIdAndAssigneeId(Long projectId, Long assigneeId);
 
-    @Query("select t from Task t where t.assignee is not null and t.status <> "
+    @Query("select t from Task t join fetch t.assignee where t.status <> "
             + "com.example.taskmanagement.model.TaskStatus.COMPLETED and "
             + "(t.dueDate = :today or t.dueDate = :tomorrow) order by t.id")
     Slice<Task> findReminders(@Param("today") LocalDate today,
