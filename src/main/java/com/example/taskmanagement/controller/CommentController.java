@@ -32,7 +32,7 @@ public class CommentController {
 
     @GetMapping
     public Page<CommentResponse> list(@AuthenticationPrincipal Jwt jwt, @RequestParam Long taskId,
-            @PageableDefault(sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
+            @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
         return comments.list(Long.valueOf(jwt.getSubject()), taskId, pageable);
     }
 

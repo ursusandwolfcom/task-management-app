@@ -30,7 +30,7 @@ public class LabelController {
 
     @GetMapping
     public Page<LabelResponse> list(
-            @PageableDefault(sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
+            @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
         return labels.list(pageable);
     }
 

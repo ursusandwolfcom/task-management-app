@@ -35,7 +35,7 @@ public class ProjectController {
     @GetMapping
     public Page<ProjectResponse> list(@AuthenticationPrincipal Jwt jwt,
             @Valid @ModelAttribute ProjectFilter filter,
-            @PageableDefault(sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
+            @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.list(Long.valueOf(jwt.getSubject()), filter, pageable);
     }
 

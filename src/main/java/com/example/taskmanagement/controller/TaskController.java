@@ -36,7 +36,7 @@ public class TaskController {
     @GetMapping
     public Page<TaskResponse> list(@AuthenticationPrincipal Jwt jwt, @RequestParam Long projectId,
             @Valid @ModelAttribute TaskFilter filter,
-            @PageableDefault(sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
+            @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.list(Long.valueOf(jwt.getSubject()), projectId, filter, pageable);
     }
 

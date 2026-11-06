@@ -35,7 +35,7 @@ public class AttachmentController {
 
     @GetMapping
     public Page<AttachmentResponse> list(@AuthenticationPrincipal Jwt jwt, @RequestParam Long taskId,
-            @PageableDefault(sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
+            @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
         return attachments.list(Long.valueOf(jwt.getSubject()), taskId, pageable);
     }
 

@@ -28,6 +28,9 @@ class SearchTest extends ApiTestSupport {
                 .getStatus()).isEqualTo(400);
         assertThat(call("GET", "/api/projects?status=INVALID", owner.token(), null).getStatus()).isEqualTo(400);
         assertThat(call("GET", "/api/projects?sort=unknownField", owner.token(), null).getStatus()).isEqualTo(400);
+        assertThat(json(200, "GET", "/api/projects", owner.token(), null).get("size").asInt()).isEqualTo(20);
+        assertThat(json(200, "GET", "/api/projects?size=1000", owner.token(), null).get("size").asInt())
+                .isEqualTo(100);
     }
 
     @Test
