@@ -1,6 +1,7 @@
 package com.example.taskmanagement.service;
 
 import com.example.taskmanagement.dto.TaskRequest;
+import com.example.taskmanagement.dto.TaskFilter;
 import com.example.taskmanagement.dto.TaskResponse;
 import com.example.taskmanagement.mapper.ResponseMapper;
 import com.example.taskmanagement.model.Project;
@@ -12,6 +13,9 @@ import com.example.taskmanagement.repository.LabelRepository;
 import com.example.taskmanagement.repository.TaskRepository;
 import java.util.HashSet;
 import java.util.Objects;
+import java.util.ArrayList;
+import java.util.Locale;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -64,9 +68,39 @@ public class TaskService {
     }
 
     @Transactional(readOnly = true)
-    public Page<TaskResponse> list(Long actorId, Long projectId, Pageable pageable) {
+    public Page<TaskResponse> list(Long actorId, Long projectId, TaskFilter filter, Pageable pageable) {
         projects.accessible(actorId, projectId, false);
-        return tasks.findByProjectIdOrderByIdDesc(projectId, pageable).map(mapper::toResponse);
+        if (filter.dueFrom() != null && filter.dueTo() != null && filter.dueFrom().isAfter(filter.dueTo())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid due date range");
+        }
+        return tasks.findAll((root, query, builder) -> {
+            var predicates = new ArrayList<Predicate>();
+            predicates.add(builder.equal(root.get("project").get("id"), projectId));
+            if (filter.name() != null) {
+                String name = filter.name().toLowerCase(Locale.ROOT).replace("\\", "\\\\")
+                        .replace("%", "\\%").replace("_", "\\_");
+                predicates.add(builder.like(builder.lower(root.get("name")), "%" + name + "%", '\\'));
+            }
+            if (filter.status() != null) {
+                predicates.add(builder.equal(root.get("status"), filter.status()));
+            }
+            if (filter.priority() != null) {
+                predicates.add(builder.equal(root.get("priority"), filter.priority()));
+            }
+            if (filter.assigneeId() != null) {
+                predicates.add(builder.equal(root.get("assignee").get("id"), filter.assigneeId()));
+            }
+            if (filter.labelId() != null) {
+                predicates.add(builder.equal(root.join("labels").get("id"), filter.labelId()));
+            }
+            if (filter.dueFrom() != null) {
+                predicates.add(builder.greaterThanOrEqualTo(root.get("dueDate"), filter.dueFrom()));
+            }
+            if (filter.dueTo() != null) {
+                predicates.add(builder.lessThanOrEqualTo(root.get("dueDate"), filter.dueTo()));
+            }
+            return builder.and(predicates.toArray(Predicate[]::new));
+        }, pageable).map(mapper::toResponse);
     }
 
     public TaskResponse create(Long actorId, TaskRequest request) {

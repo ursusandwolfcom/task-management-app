@@ -1,6 +1,7 @@
 package com.example.taskmanagement.controller;
 
 import com.example.taskmanagement.dto.ProjectRequest;
+import com.example.taskmanagement.dto.ProjectFilter;
 import com.example.taskmanagement.dto.ProjectResponse;
 import com.example.taskmanagement.service.ProjectService;
 import jakarta.validation.Valid;
@@ -12,6 +13,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -29,8 +31,9 @@ public class ProjectController {
     }
 
     @GetMapping
-    public Page<ProjectResponse> list(@AuthenticationPrincipal Jwt jwt, Pageable pageable) {
-        return service.list(Long.valueOf(jwt.getSubject()), pageable);
+    public Page<ProjectResponse> list(@AuthenticationPrincipal Jwt jwt,
+            @Valid @ModelAttribute ProjectFilter filter, Pageable pageable) {
+        return service.list(Long.valueOf(jwt.getSubject()), filter, pageable);
     }
 
     @GetMapping("/{id}")

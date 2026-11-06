@@ -1,6 +1,7 @@
 package com.example.taskmanagement.service;
 
 import com.example.taskmanagement.dto.ProjectRequest;
+import com.example.taskmanagement.dto.ProjectFilter;
 import com.example.taskmanagement.dto.ProjectResponse;
 import com.example.taskmanagement.mapper.ResponseMapper;
 import com.example.taskmanagement.model.Project;
@@ -9,6 +10,10 @@ import com.example.taskmanagement.model.User;
 import com.example.taskmanagement.repository.ProjectRepository;
 import com.example.taskmanagement.repository.TaskRepository;
 import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.Locale;
+import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -49,9 +54,34 @@ public class ProjectService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ProjectResponse> list(Long actorId, Pageable pageable) {
-        return (users.getUser(actorId).getRole() == Role.ADMIN
-                ? projects.findAll(pageable) : projects.findAccessible(actorId, pageable)).map(mapper::toResponse);
+    public Page<ProjectResponse> list(Long actorId, ProjectFilter filter, Pageable pageable) {
+        if (filter.startFrom() != null && filter.endTo() != null && filter.startFrom().isAfter(filter.endTo())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid project date range");
+        }
+        boolean admin = users.getUser(actorId).getRole() == Role.ADMIN;
+        return projects.findAll((root, query, builder) -> {
+            var predicates = new ArrayList<Predicate>();
+            if (!admin) {
+                query.distinct(true);
+                predicates.add(builder.or(builder.equal(root.get("owner").get("id"), actorId),
+                        builder.equal(root.join("members", JoinType.LEFT).get("id"), actorId)));
+            }
+            if (filter.name() != null) {
+                String name = filter.name().toLowerCase(Locale.ROOT).replace("\\", "\\\\")
+                        .replace("%", "\\%").replace("_", "\\_");
+                predicates.add(builder.like(builder.lower(root.get("name")), "%" + name + "%", '\\'));
+            }
+            if (filter.status() != null) {
+                predicates.add(builder.equal(root.get("status"), filter.status()));
+            }
+            if (filter.startFrom() != null) {
+                predicates.add(builder.greaterThanOrEqualTo(root.get("startDate"), filter.startFrom()));
+            }
+            if (filter.endTo() != null) {
+                predicates.add(builder.lessThanOrEqualTo(root.get("endDate"), filter.endTo()));
+            }
+            return builder.and(predicates.toArray(Predicate[]::new));
+        }, pageable).map(mapper::toResponse);
     }
 
     public Project lock(Long actorId, Long id, boolean ownerOnly) {

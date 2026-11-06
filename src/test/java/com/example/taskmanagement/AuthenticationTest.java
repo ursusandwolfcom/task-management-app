@@ -47,6 +47,11 @@ class AuthenticationTest extends ApiTestSupport {
         assertThat(call("POST", "/api/auth/register", null,
                 Map.of("username", "x", "password", "short", "email", "bad",
                         "firstName", " ", "lastName", " ")).getStatus()).isEqualTo(400);
+        var unicode = new java.util.HashMap<String, Object>(duplicate);
+        unicode.put("password", "я".repeat(50));
+        assertThat(call("POST", "/api/auth/register", null, unicode).getStatus()).isEqualTo(400);
+        assertThat(call("POST", "/api/auth/login", null,
+                Map.of("identifier", account.name(), "password", "я".repeat(50))).getStatus()).isEqualTo(401);
     }
 
     @Test
