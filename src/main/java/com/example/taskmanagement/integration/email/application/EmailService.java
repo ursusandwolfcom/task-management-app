@@ -118,16 +118,18 @@ public class EmailService implements EmailOperations {
         if (entries.isEmpty()) {
             return false;
         }
+        // Keep the original selection: new rows committed during dispatch belong to the next digest.
+        var selected = List.copyOf(entries);
         var preference = preferences.status(userId);
         if (!preference.enabled() || preference.address() == null || preference.address().isBlank()) {
-            digests.deleteByUserId(userId);
+            digests.deleteAll(selected);
             return false;
         }
         entries = entries.stream().filter(entry -> entry.outboxMessageId() == null
                 || outbox.findMessage(entry.outboxMessageId())
                         .filter(message -> recipientGuard.permits(message, userId)).isPresent()).toList();
         if (entries.isEmpty()) {
-            digests.deleteByUserId(userId);
+            digests.deleteAll(selected);
             return false;
         }
         StringBuilder body = new StringBuilder("ProjectFlow — дайджест уведомлений\n\n");
@@ -141,7 +143,7 @@ public class EmailService implements EmailOperations {
         String text = body.toString().strip();
         String subject = brand + ": дайджест (" + entries.size() + ")";
         dispatch(preference.address(), subject, text);
-        digests.deleteByUserId(userId);
+        digests.deleteAll(selected);
         return true;
     }
 

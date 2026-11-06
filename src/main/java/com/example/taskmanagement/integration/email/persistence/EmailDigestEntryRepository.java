@@ -3,7 +3,6 @@ package com.example.taskmanagement.integration.email.persistence;
 import java.util.Collection;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -12,10 +11,6 @@ public interface EmailDigestEntryRepository extends JpaRepository<EmailDigestEnt
     List<Long> findDistinctUserIds();
 
     List<EmailDigestEntryEntity> findByUserIdOrderByIdAsc(long userId);
-
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("delete from EmailDigestEntryEntity e where e.userId = :userId")
-    int deleteByUserId(@Param("userId") long userId);
 
     @Query("select count(e) from EmailDigestEntryEntity e where e.userId in :userIds")
     long countByUserIdIn(@Param("userIds") Collection<Long> userIds);
