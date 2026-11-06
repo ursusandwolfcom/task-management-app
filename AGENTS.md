@@ -22,6 +22,10 @@ controller/service/repository/model/dto/mapper structure. No frontend, DAG/CPM,
 calendars, capacity, time tracking, MEGA, Telegram, outbox or generic module ports.
 Optional advanced features must not be added without a new request.
 
+MapStruct is a mandatory course technology, explicitly confirmed by the user. Keep
+annotation processing enabled and use generated Spring mapper implementations with
+unmapped target errors; do not replace them with handwritten response constructors.
+
 The user explicitly selected a new empty database, email only, and reminders at
 09:00 UTC on the previous/due day to the assignee. Keep the old application's data
 and secrets untouched. This branch imports only ignored `.env.course`; never print

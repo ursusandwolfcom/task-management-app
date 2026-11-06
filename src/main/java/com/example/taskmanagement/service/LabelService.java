@@ -32,16 +32,13 @@ public class LabelService {
     }
 
     public LabelResponse create(LabelRequest request) {
-        var label = new Label();
-        label.setName(request.name().trim());
-        label.setColor(request.color());
+        var label = mapper.toEntity(request);
         return mapper.toResponse(labels.saveAndFlush(label));
     }
 
     public LabelResponse update(Long id, LabelRequest request) {
         Label label = found(id);
-        label.setName(request.name().trim());
-        label.setColor(request.color());
+        mapper.update(request, label);
         return mapper.toResponse(labels.saveAndFlush(label));
     }
 

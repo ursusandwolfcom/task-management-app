@@ -14,7 +14,11 @@ class CollaborationTest extends ApiTestSupport {
         long label = json(201, "POST", "/api/labels", owner.token(), Map.of("name", name, "color", "#12Ab34"))
                 .get("id").asLong();
         assertThat(json(200, "GET", "/api/labels", owner.token(), null).get("content").size()).isPositive();
-        json(200, "PUT", "/api/labels/" + label, owner.token(), Map.of("name", name + "-new", "color", "#FFFFFF"));
+        var updated = json(200, "PUT", "/api/labels/" + label, owner.token(),
+                Map.of("name", "  " + name + "-new  ", "color", "#FFFFFF"));
+        assertThat(updated.get("id").asLong()).isEqualTo(label);
+        assertThat(updated.get("name").asText()).isEqualTo(name + "-new");
+        assertThat(updated.get("color").asText()).isEqualTo("#FFFFFF");
         long project = project(owner);
         long task = json(201, "POST", "/api/tasks", owner.token(), taskBody(project, null, List.of(label)))
                 .get("id").asLong();

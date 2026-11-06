@@ -3,6 +3,7 @@ package com.example.taskmanagement.mapper;
 import com.example.taskmanagement.dto.AttachmentResponse;
 import com.example.taskmanagement.dto.CommentResponse;
 import com.example.taskmanagement.dto.LabelResponse;
+import com.example.taskmanagement.dto.LabelRequest;
 import com.example.taskmanagement.dto.ProjectResponse;
 import com.example.taskmanagement.dto.TaskResponse;
 import com.example.taskmanagement.dto.UserResponse;
@@ -12,40 +13,56 @@ import com.example.taskmanagement.model.Label;
 import com.example.taskmanagement.model.Project;
 import com.example.taskmanagement.model.Task;
 import com.example.taskmanagement.model.User;
-import java.util.stream.Collectors;
-import org.springframework.stereotype.Component;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.MappingConstants;
+import org.mapstruct.MappingTarget;
+import org.mapstruct.Named;
+import org.mapstruct.ReportingPolicy;
 
-@Component
-public class ResponseMapper {
-    public UserResponse toResponse(User user) {
-        return new UserResponse(user.getId(), user.getUsername(), user.getEmail(),
-                user.getFirstName(), user.getLastName(), user.getRole());
+/** Compile-time DTO mappings; services retain authorization and persistence decisions. */
+@Mapper(componentModel = MappingConstants.ComponentModel.SPRING, unmappedTargetPolicy = ReportingPolicy.ERROR)
+public interface ResponseMapper {
+    UserResponse toResponse(User user);
+
+    @Mapping(target = "ownerId", source = "owner.id")
+    @Mapping(target = "memberIds", source = "members")
+    ProjectResponse toResponse(Project project);
+
+    @Mapping(target = "projectId", source = "project.id")
+    @Mapping(target = "assigneeId", source = "assignee.id")
+    @Mapping(target = "labelIds", source = "labels")
+    TaskResponse toResponse(Task task);
+
+    @Mapping(target = "taskId", source = "task.id")
+    @Mapping(target = "userId", source = "user.id")
+    CommentResponse toResponse(Comment comment);
+
+    @Mapping(target = "taskId", source = "task.id")
+    AttachmentResponse toResponse(Attachment attachment);
+
+    LabelResponse toResponse(Label label);
+
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "version", ignore = true)
+    @Mapping(target = "name", source = "name", qualifiedByName = "trim")
+    Label toEntity(LabelRequest request);
+
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "version", ignore = true)
+    @Mapping(target = "name", source = "name", qualifiedByName = "trim")
+    void update(LabelRequest request, @MappingTarget Label label);
+
+    default Long userId(User user) {
+        return user == null ? null : user.getId();
     }
 
-    public ProjectResponse toResponse(Project project) {
-        return new ProjectResponse(project.getId(), project.getName(), project.getDescription(),
-                project.getStartDate(), project.getEndDate(), project.getStatus(), project.getOwner().getId(),
-                project.getMembers().stream().map(User::getId).collect(Collectors.toSet()));
+    default Long labelId(Label label) {
+        return label == null ? null : label.getId();
     }
 
-    public TaskResponse toResponse(Task task) {
-        return new TaskResponse(task.getId(), task.getName(), task.getDescription(), task.getPriority(),
-                task.getStatus(), task.getDueDate(), task.getProject().getId(),
-                task.getAssignee() == null ? null : task.getAssignee().getId(),
-                task.getLabels().stream().map(Label::getId).collect(Collectors.toSet()));
-    }
-
-    public CommentResponse toResponse(Comment comment) {
-        return new CommentResponse(comment.getId(), comment.getTask().getId(), comment.getUser().getId(),
-                comment.getText(), comment.getTimestamp());
-    }
-
-    public AttachmentResponse toResponse(Attachment attachment) {
-        return new AttachmentResponse(attachment.getId(), attachment.getTask().getId(),
-                attachment.getDropboxFileId(), attachment.getFilename(), attachment.getUploadDate());
-    }
-
-    public LabelResponse toResponse(Label label) {
-        return new LabelResponse(label.getId(), label.getName(), label.getColor());
+    @Named("trim")
+    default String trim(String value) {
+        return value == null ? null : value.trim();
     }
 }
