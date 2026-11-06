@@ -7,7 +7,7 @@ import static org.mockito.Mockito.verify;
 import com.example.taskmanagement.integration.email.api.EmailOperations;
 import com.example.taskmanagement.integration.telegram.api.TelegramOperations;
 import com.example.taskmanagement.notification.api.NotificationOperations;
-import com.example.taskmanagement.notification.application.NotificationDeliveryScheduler;
+import com.example.taskmanagement.config.NotificationDeliveryScheduler;
 import org.junit.jupiter.api.Test;
 
 class NotificationDeliverySchedulerTest {

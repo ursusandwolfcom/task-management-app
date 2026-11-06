@@ -1,4 +1,4 @@
-package com.example.taskmanagement.notification.application;
+package com.example.taskmanagement.config;
 
 import com.example.taskmanagement.integration.email.api.EmailOperations;
 import com.example.taskmanagement.integration.telegram.api.TelegramOperations;
