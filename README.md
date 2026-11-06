@@ -223,6 +223,11 @@ Outbox consumers hold database row locks from claim through channel acknowledgem
 in one transaction. Concurrent consumers wait rather than processing the same row
 together; channels sharing a row also serialize. External delivery can still repeat
 if a provider accepts a message before the database transaction rolls back.
+Liquibase 025 stores per-channel failure counts and next-attempt times. The internal
+retry API applies the approved 1/5/15/60-minute delays (then 60 minutes), and all claim
+queries respect these persisted deadlines. A failure recorded after acknowledgement
+does not reopen a completed channel. Automatic failure recording and unattended
+dispatch are still pending; the retry API alone does not schedule or send messages.
 `POST /api/notifications/{id}/read` and `POST /api/notifications/read-all` mark items read.
 In-app channel uses Liquibase 010. Optional Telegram (013) and Email (014) are add-on channels
 on the same outbox (`task.assigned`, `comment.created`, `task.completed`, `task.failed`).
