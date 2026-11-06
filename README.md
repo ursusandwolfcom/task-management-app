@@ -219,6 +219,10 @@ enqueue durable `outbox_messages` rows (`task.assigned`, `comment.created`, `tas
 `task.completed`, `task.failed`, `task.cancelled`, `attachment.uploaded`) in the same write
 transaction. `GET /api/notifications` drains a small outbox batch into per-user in-app
 notifications, then returns a page with `unreadCount`.
+Outbox consumers hold database row locks from claim through channel acknowledgement
+in one transaction. Concurrent consumers wait rather than processing the same row
+together; channels sharing a row also serialize. External delivery can still repeat
+if a provider accepts a message before the database transaction rolls back.
 `POST /api/notifications/{id}/read` and `POST /api/notifications/read-all` mark items read.
 In-app channel uses Liquibase 010. Optional Telegram (013) and Email (014) are add-on channels
 on the same outbox (`task.assigned`, `comment.created`, `task.completed`, `task.failed`).

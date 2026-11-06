@@ -1,6 +1,7 @@
 package com.example.taskmanagement.notification;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -27,6 +28,12 @@ import com.example.taskmanagement.task.domain.TaskLifecyclePolicy.Command;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import com.example.taskmanagement.integration.outbox.api.OutboxConsumerOperations;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -52,6 +59,8 @@ class NotificationIntegrationTest {
     @Autowired private TokenService tokens;
     @Autowired private MockMvc mvc;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private OutboxConsumerOperations outbox;
+    @Autowired private PlatformTransactionManager transactionManager;
     private UserView owner;
     private UserView member;
     private ProjectView project;
@@ -67,6 +76,53 @@ class NotificationIntegrationTest {
         project = projects.addMember(owner.id(), project.id(), member.id(), project.version());
         task = tasks.create(owner.id(), project.id(),
                 new TaskData("Assigned", "", TaskPriority.HIGH, 15, null, member.id(), TaskBucket.WORK));
+    }
+
+    @Test
+    void claimsRequireTheConsumersTransactionForEveryChannel() {
+        assertThatThrownBy(() -> outbox.claimUnprocessed(100))
+                .isInstanceOf(org.springframework.transaction.IllegalTransactionStateException.class);
+        assertThatThrownBy(() -> outbox.claimTelegramUnprocessed(100))
+                .isInstanceOf(org.springframework.transaction.IllegalTransactionStateException.class);
+        assertThatThrownBy(() -> outbox.claimEmailUnprocessed(100))
+                .isInstanceOf(org.springframework.transaction.IllegalTransactionStateException.class);
+    }
+
+    @Test
+    void concurrentConsumersHoldClaimsUntilProjectionCommits() throws Exception {
+        var claimed = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var started = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
+                outbox.claimUnprocessed(100);
+                claimed.countDown();
+                try {
+                    if (!release.await(10, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("Consumer was not released");
+                    }
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(exception);
+                }
+                return notifications.projectPending(100);
+            }));
+            assertThat(claimed.await(10, TimeUnit.SECONDS)).isTrue();
+            var second = executor.submit(() -> {
+                started.countDown();
+                return notifications.projectPending(100);
+            });
+            try {
+                assertThat(started.await(10, TimeUnit.SECONDS)).isTrue();
+                assertThatThrownBy(() -> second.get(300, TimeUnit.MILLISECONDS))
+                        .isInstanceOf(java.util.concurrent.TimeoutException.class);
+            } finally {
+                release.countDown();
+            }
+            assertThat(first.get(10, TimeUnit.SECONDS)).isPositive();
+            assertThat(second.get(10, TimeUnit.SECONDS)).isZero();
+        }
+        assertThat(notifications.list(member.id(), false, 0, 100).content()).hasSize(1);
     }
 
     @Test

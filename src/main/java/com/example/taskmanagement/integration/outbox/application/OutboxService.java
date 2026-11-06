@@ -12,6 +12,7 @@ import java.util.Optional;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.validation.annotation.Validated;
 
 @Service
@@ -39,7 +40,7 @@ public class OutboxService implements OutboxOperations, OutboxConsumerOperations
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(propagation = Propagation.MANDATORY)
     public List<OutboxMessage> claimUnprocessed(int limit) {
         return map(messages.findUnprocessed(PageRequest.of(0, size(limit))));
     }
@@ -53,7 +54,7 @@ public class OutboxService implements OutboxOperations, OutboxConsumerOperations
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(propagation = Propagation.MANDATORY)
     public List<OutboxMessage> claimTelegramUnprocessed(int limit) {
         return map(messages.findTelegramUnprocessed(PageRequest.of(0, size(limit))));
     }
@@ -67,7 +68,7 @@ public class OutboxService implements OutboxOperations, OutboxConsumerOperations
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(propagation = Propagation.MANDATORY)
     public List<OutboxMessage> claimEmailUnprocessed(int limit) {
         return map(messages.findEmailUnprocessed(PageRequest.of(0, size(limit))));
     }
