@@ -1,4 +1,4 @@
-name: CI
+name: Course API checks
 
 on:
   push:
@@ -8,117 +8,110 @@ on:
 permissions:
   contents: read
 
-# A newer SHA replaces only the same event/ref; push and proposed-merge checks stay independent.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  group: course-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   verify:
-    name: Build, tests and Checkstyle
     runs-on: ubuntu-latest
-    # The optional MEGA adapter is compiled against its pinned official C++ SDK in the image.
-    timeout-minutes: 45
+    timeout-minutes: 20
     env:
-      # Public disposable test fixture; never used as a runtime fallback.
+      TZ: UTC
       JWT_SIGNING_KEY_BASE64: dGVzdC1vbmx5LWtleS1mb3ItczA0LW5vdC1mb3ItcHJvZHVjdGlvbg==
+      DROPBOX_ACCESS_TOKEN: disposable-ci-token
     services:
       postgres:
         image: postgres:17
         env:
-          POSTGRES_DB: task_management_ci
-          POSTGRES_USER: task_management
-          POSTGRES_PASSWORD: ci_test_password
+          POSTGRES_DB: course_ci
+          POSTGRES_USER: course
+          POSTGRES_PASSWORD: disposable-ci-password
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U task_management -d task_management_ci"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
+          --health-cmd "pg_isready -U course -d course_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
-      - name: Check out source
-        uses: actions/checkout@v5
-
-      - name: Set up Java 21
-        uses: actions/setup-java@v6
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
-          cache-dependency-path: pom.xml
-
-      - name: Set up Node for alpha verification
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-
-      - name: Check alpha types and browser storage behavior
-        run: |
-          npm ci --ignore-scripts
-          npm run check:alpha
-          npm run test:alpha
-          npm run check:workspace
-          npm run test:workspace
-
-      - name: Verify with H2
+      - name: H2 tests, Checkstyle and coverage
         run: bash ./mvnw --batch-mode --no-transfer-progress clean verify
-
-      - name: Verify with PostgreSQL
+      - name: PostgreSQL tests, Checkstyle and coverage
         env:
-          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/task_management_ci
-          SPRING_DATASOURCE_USERNAME: task_management
-          SPRING_DATASOURCE_PASSWORD: ci_test_password
+          TEST_DATABASE_URL: jdbc:postgresql://localhost:5432/course_ci
+          TEST_DATABASE_USERNAME: course
+          TEST_DATABASE_PASSWORD: disposable-ci-password
         run: bash ./mvnw --batch-mode --no-transfer-progress clean verify
-
-      - name: Check packaged startup and restart
+      - name: Packaged startup and restart
         env:
-          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/task_management_ci
-          SPRING_DATASOURCE_USERNAME: task_management
-          SPRING_DATASOURCE_PASSWORD: ci_test_password
-        shell: bash
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/course_ci
+          SPRING_DATASOURCE_USERNAME: course
+          SPRING_DATASOURCE_PASSWORD: disposable-ci-password
         run: |
           set -euo pipefail
           for attempt in 1 2; do
-            java -jar target/task-management-app-0.0.1-SNAPSHOT.jar --server.port=18080 > "target/startup-${attempt}.log" 2>&1 &
+            java -Duser.timezone=UTC -jar target/task-management-app-0.0.1-SNAPSHOT.jar --server.port=18080 > "target/startup-$attempt.log" 2>&1 &
             app_pid=$!
             trap 'kill "$app_pid" 2>/dev/null || true' EXIT
             healthy=false
             for check in $(seq 1 60); do
-              if curl --fail --silent http://localhost:18080/actuator/health | grep -q '"status":"UP"'; then
+              if curl -fs http://127.0.0.1:18080/actuator/health | jq -e '.status == "UP"'; then
                 healthy=true
                 break
               fi
-              if ! kill -0 "$app_pid" 2>/dev/null; then
-                echo "Application exited before becoming healthy"
-                exit 1
-              fi
+              kill -0 "$app_pid" || { cat "target/startup-$attempt.log"; exit 1; }
               sleep 1
             done
-            if [ "$healthy" != true ]; then
-              echo "Application did not become healthy"
-              exit 1
-            fi
+            test "$healthy" = true
+            test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/users/me)" = 401
+            curl -fs http://127.0.0.1:18080/v3/api-docs | jq -e '.paths["/api/tasks"] != null'
             kill "$app_pid"
             wait "$app_pid" || true
             trap - EXIT
           done
-
-      - name: Verify application container and Compose restart
-        shell: pwsh
+      - name: Build and smoke the Docker application
         run: |
-          # The preceding full H2/PostgreSQL clean verify steps must both succeed first.
-          $testedRevision = (git rev-parse HEAD).Trim()
-          $testedJarHash = (Get-FileHash target/task-management-app-0.0.1-SNAPSHOT.jar -Algorithm SHA256).Hash
-          ./scripts/verify-container.ps1 -VerifiedRevision $testedRevision -VerifiedJarSha256 $testedJarHash
-
-      - name: Install Chromium for browser regressions
-        run: npx playwright install --with-deps chromium
-
-      - name: Verify alpha UI regressions and accessibility
-        env:
-          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/task_management_ci
-          SPRING_DATASOURCE_USERNAME: task_management
-          SPRING_DATASOURCE_PASSWORD: ci_test_password
-        run: npm run test:browser
+          set -euo pipefail
+          course_env="$RUNNER_TEMP/course.env"
+          cat > "$course_env" <<EOF
+          POSTGRES_DB=course_container
+          POSTGRES_USER=course
+          POSTGRES_PASSWORD=disposable-container-password
+          POSTGRES_PORT=15433
+          APP_PORT=18081
+          JWT_SIGNING_KEY_BASE64=$JWT_SIGNING_KEY_BASE64
+          DROPBOX_ACCESS_TOKEN=disposable-ci-token
+          EOF
+          docker compose --env-file "$course_env" up --build -d
+          trap 'docker compose --env-file "$course_env" logs; docker compose --env-file "$course_env" down -v' EXIT
+          for attempt in 1 2; do
+            healthy=false
+            for check in $(seq 1 90); do
+              if curl -fs http://127.0.0.1:18081/actuator/health | jq -e '.status == "UP"'; then
+                healthy=true
+                break
+              fi
+              sleep 1
+            done
+            test "$healthy" = true
+            curl -fs http://127.0.0.1:18081/v3/api-docs | jq -e '.paths["/api/tasks"] != null'
+            migration_count=$(docker compose --env-file "$course_env" exec -T postgres psql -U course -d course_container -tAc 'select count(*) from public.databasechangelog')
+            test "$migration_count" = 1
+            if [ "$attempt" = 1 ]; then
+              docker compose --env-file "$course_env" restart app
+            fi
+          done
+      - name: Upload verification reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: course-verification
+          path: |
+            target/surefire-reports/
+            target/site/jacoco/
+            target/startup-*.log

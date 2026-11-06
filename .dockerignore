@@ -1,5 +1,3 @@
-# Only application build inputs are sent to Docker. Local secrets, Git, docs,
-# session backups, Node dependencies and host build outputs are excluded except the exact application JAR.
 **
 !Dockerfile
 !pom.xml
@@ -10,20 +8,5 @@
 !config/**
 !src/
 !src/**
-!target/
-target/**
-!target/task-management-app-0.0.1-SNAPSHOT.jar
-!package.json
-!package-lock.json
-!workspace-vite.config.mjs
-!frontend/
-!frontend/**
-frontend/dist/**
-**/node_modules/**
 **/.env
 **/.env.*
-!scripts/
-!scripts/build-workspace.mjs
-!native/
-!native/mega/
-!native/mega/**

@@ -1,53 +1,49 @@
+name: task-management-course
 services:
   app:
-    profiles: [app]
-    build:
-      context: .
-      args:
-        ARTIFACT_STAGE: ${ARTIFACT_STAGE:-build}
-    image: task-management-app:local
+    build: .
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-task_management}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-task_management_course}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-task_management}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
-      JWT_SIGNING_KEY_BASE64: ${JWT_SIGNING_KEY_BASE64:-}
-      ATTACHMENT_STORAGE: ${ATTACHMENT_STORAGE:-local}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      JWT_SIGNING_KEY_BASE64: ${JWT_SIGNING_KEY_BASE64:?Set JWT_SIGNING_KEY_BASE64}
+      DROPBOX_ACCESS_TOKEN: ${DROPBOX_ACCESS_TOKEN:?Set DROPBOX_ACCESS_TOKEN}
+      DROPBOX_REFRESH_TOKEN: ${DROPBOX_REFRESH_TOKEN:-}
       DROPBOX_APP_KEY: ${DROPBOX_APP_KEY:-}
       DROPBOX_APP_SECRET: ${DROPBOX_APP_SECRET:-}
-      DROPBOX_ACCESS_TOKEN: ${DROPBOX_ACCESS_TOKEN:-}
-      DROPBOX_REFRESH_TOKEN: ${DROPBOX_REFRESH_TOKEN:-}
-      DROPBOX_OAUTH_REDIRECT_URI: ${DROPBOX_OAUTH_REDIRECT_URI:-}
-      DROPBOX_CREDENTIAL_KEY_BASE64: ${DROPBOX_CREDENTIAL_KEY_BASE64:-}
-      DROPBOX_APP_FOLDER: ${DROPBOX_APP_FOLDER:-/projectflow}
-      DROPBOX_MODE: ${DROPBOX_MODE:-app}
-      DROPBOX_TEAM_FOLDER: ${DROPBOX_TEAM_FOLDER:-}
       SERVER_ADDRESS: 0.0.0.0
-      SERVER_PORT: 8080
-      MEGA_ENABLED: ${MEGA_ENABLED:-false}
-      MEGA_APP_KEY: ${MEGA_APP_KEY:-}
-      MEGA_SESSION_KEY_BASE64: ${MEGA_SESSION_KEY_BASE64:-}
+      SPRING_MAIL_HOST: ${COMPOSE_SMTP_HOST:-mailpit}
+      SPRING_MAIL_PORT: ${SMTP_PORT:-1025}
+      SPRING_MAIL_USERNAME: ${SMTP_USERNAME:-}
+      SPRING_MAIL_PASSWORD: ${SMTP_PASSWORD:-}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: ${SMTP_AUTH:-false}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: ${SMTP_STARTTLS:-false}
+      MAIL_FROM: ${MAIL_FROM:-tasks@example.test}
     ports:
-      - "127.0.0.1:${APP_PORT:-8080}:8080"
+      - "127.0.0.1:${APP_PORT:-8081}:8080"
     depends_on:
       postgres:
         condition: service_healthy
-    stop_grace_period: 30s
+      mailpit:
+        condition: service_started
   postgres:
     image: postgres:17
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-task_management}
+      POSTGRES_DB: ${POSTGRES_DB:-task_management_course}
       POSTGRES_USER: ${POSTGRES_USER:-task_management}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
     ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - course_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 10
-      start_period: 10s
-
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "127.0.0.1:8026:8025"
 volumes:
-  postgres_data:
+  course_postgres_data:
