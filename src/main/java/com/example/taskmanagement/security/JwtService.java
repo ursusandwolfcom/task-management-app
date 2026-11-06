@@ -3,13 +3,11 @@ package com.example.taskmanagement.security;
 import com.example.taskmanagement.dto.LoginRequest;
 import com.example.taskmanagement.dto.TokenResponse;
 import com.example.taskmanagement.repository.UserRepository;
-import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.Locale;
 import javax.crypto.spec.SecretKeySpec;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
@@ -17,7 +15,6 @@ import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
-import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -34,10 +31,10 @@ public class JwtService {
     private final String dummyHash;
 
     public JwtService(UserRepository users, PasswordEncoder passwords,
-            @Value("${jwt.key-base64}") String key, Clock clock) {
+            JwtEncoder encoder, Clock clock) {
         this.users = users;
         this.passwords = passwords;
-        this.encoder = new NimbusJwtEncoder(new ImmutableSecret<>(signingKey(key)));
+        this.encoder = encoder;
         this.clock = clock;
         this.dummyHash = passwords.encode("invalid-login-timing-placeholder");
     }

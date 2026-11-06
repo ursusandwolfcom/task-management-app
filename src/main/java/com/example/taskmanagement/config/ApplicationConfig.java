@@ -16,7 +16,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 @EnableAsync
-@Configuration
+@Configuration(proxyBeanMethods = false)
 public class ApplicationConfig {
     @Bean
     public Clock clock() {

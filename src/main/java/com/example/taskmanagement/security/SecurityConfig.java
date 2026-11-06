@@ -1,7 +1,9 @@
 package com.example.taskmanagement.security;
 
 import com.example.taskmanagement.repository.UserRepository;
+import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import java.util.List;
+import javax.crypto.spec.SecretKeySpec;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,16 +12,29 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.web.SecurityFilterChain;
 
-@Configuration
+/** Factory arguments define initialization dependencies; no bean factory is called directly. */
+@Configuration(proxyBeanMethods = false)
 public class SecurityConfig {
     @Bean
-    public NimbusJwtDecoder jwtDecoder(@Value("${jwt.key-base64}") String key) {
-        var decoder = NimbusJwtDecoder.withSecretKey(JwtService.signingKey(key)).macAlgorithm(MacAlgorithm.HS256)
+    public SecretKeySpec jwtSigningKey(@Value("${jwt.key-base64}") String key) {
+        return JwtService.signingKey(key);
+    }
+
+    @Bean
+    public JwtEncoder jwtEncoder(SecretKeySpec jwtSigningKey) {
+        return new NimbusJwtEncoder(new ImmutableSecret<>(jwtSigningKey));
+    }
+
+    @Bean
+    public NimbusJwtDecoder jwtDecoder(SecretKeySpec jwtSigningKey) {
+        var decoder = NimbusJwtDecoder.withSecretKey(jwtSigningKey).macAlgorithm(MacAlgorithm.HS256)
                 .build();
         decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(JwtService.ISSUER));
         return decoder;
