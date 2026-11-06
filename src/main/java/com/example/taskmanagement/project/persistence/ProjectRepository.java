@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
+    boolean existsByIdAndOwnerId(long id, long ownerId);
+
     @Query(value = "select id from task_management.projects where id = :id for update", nativeQuery = true)
     Optional<Long> lockId(@Param("id") long id);
 

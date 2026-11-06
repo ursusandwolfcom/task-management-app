@@ -22,15 +22,27 @@ public class EmailDigestEntryEntity {
     private String bodyLine;
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+    @Column(name = "outbox_message_id", updatable = false)
+    private Long outboxMessageId;
 
     protected EmailDigestEntryEntity() {
     }
 
     public EmailDigestEntryEntity(long userId, String subjectLine, String bodyLine, Instant createdAt) {
+        this(userId, subjectLine, bodyLine, createdAt, null);
+    }
+
+    public EmailDigestEntryEntity(long userId, String subjectLine, String bodyLine, Instant createdAt,
+            Long outboxMessageId) {
         this.userId = userId;
         this.subjectLine = subjectLine;
         this.bodyLine = bodyLine;
         this.createdAt = createdAt;
+        this.outboxMessageId = outboxMessageId;
+    }
+
+    public Long outboxMessageId() {
+        return outboxMessageId;
     }
 
     public long userId() {

@@ -46,8 +46,8 @@ public class UserEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "email_digest_mode", nullable = false, length = 16)
     private EmailDigestMode emailDigestMode = EmailDigestMode.IMMEDIATE;
-    @Column(name = "dropbox_refresh_token", length = 512)
-    private String dropboxRefreshToken;
+    @Column(name = "dropbox_encrypted_refresh_token", length = 4096)
+    private String encryptedDropboxRefreshToken;
     @Column(name = "dropbox_account_id", length = 64)
     private String dropboxAccountId;
     @Column(name = "dropbox_linked_at")
@@ -118,8 +118,8 @@ public class UserEntity {
         this.emailDigestMode = mode == null ? EmailDigestMode.IMMEDIATE : mode;
     }
 
-    public String dropboxRefreshToken() {
-        return dropboxRefreshToken;
+    public String encryptedDropboxRefreshToken() {
+        return encryptedDropboxRefreshToken;
     }
 
     public String dropboxAccountId() {
@@ -130,14 +130,14 @@ public class UserEntity {
         return dropboxLinkedAt;
     }
 
-    public void linkDropbox(String refreshToken, String accountId, Instant linkedAt) {
-        this.dropboxRefreshToken = refreshToken;
+    public void linkDropbox(String encryptedRefreshToken, String accountId, Instant linkedAt) {
+        this.encryptedDropboxRefreshToken = encryptedRefreshToken;
         this.dropboxAccountId = accountId;
         this.dropboxLinkedAt = linkedAt;
     }
 
     public void unlinkDropbox() {
-        this.dropboxRefreshToken = null;
+        this.encryptedDropboxRefreshToken = null;
         this.dropboxAccountId = null;
         this.dropboxLinkedAt = null;
     }

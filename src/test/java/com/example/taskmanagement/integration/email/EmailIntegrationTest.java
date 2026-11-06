@@ -1,6 +1,7 @@
 package com.example.taskmanagement.integration.email;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -25,6 +26,13 @@ import com.example.taskmanagement.task.api.TaskPriority;
 import com.example.taskmanagement.task.api.TaskView;
 import com.example.taskmanagement.task.domain.TaskLifecyclePolicy.Command;
 import java.time.LocalDate;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -52,12 +60,26 @@ import org.springframework.test.web.servlet.MockMvc;
 class EmailIntegrationTest {
     private static final String PASSWORD = "email-test-passphrase";
 
+    static class InterleavingSender extends RecordingEmailSender {
+        private Runnable duringSend;
+
+        @Override
+        public void send(String to, String subject, String textBody, String htmlBody) {
+            super.send(to, subject, textBody, htmlBody);
+            if (duringSend != null) {
+                var callback = duringSend;
+                duringSend = null;
+                callback.run();
+            }
+        }
+    }
+
     @TestConfiguration
     static class EmailTestBeans {
         @Bean
         @Primary
         EmailSender recordingEmailSender() {
-            return new RecordingEmailSender();
+            return new InterleavingSender();
         }
     }
 
@@ -70,6 +92,7 @@ class EmailIntegrationTest {
     @Autowired private TokenService tokens;
     @Autowired private MockMvc mvc;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private PlatformTransactionManager transactionManager;
 
     private UserView owner;
     private UserView member;
@@ -82,6 +105,7 @@ class EmailIntegrationTest {
         DatabaseFixtures.clearIdentity(jdbc);
         mail = (RecordingEmailSender) sender;
         mail.clear();
+        ((InterleavingSender) mail).duringSend = null;
         owner = register("mail_owner");
         member = register("mail_member");
         project = projects.create(owner.id(), new ProjectData("Project", "", LocalDate.of(2026, 1, 1),
@@ -119,6 +143,92 @@ class EmailIntegrationTest {
                         .content("{\"enabled\":true}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.enabled").value(true));
+    }
+
+    @Test
+    void failedDigestSendRetainsItsEntriesForTheNextTransaction() {
+        preferences.setDigestMode(member.id(), EmailDigestMode.DAILY);
+        email.deliverPending(100);
+        ((InterleavingSender) mail).duringSend = () -> {
+            throw new IllegalStateException("Synthetic digest failure");
+        };
+        assertThatThrownBy(email::flushDigests).isInstanceOf(IllegalStateException.class);
+        assertThat(email.status(member.id()).pendingDigestLines()).isEqualTo(1);
+        assertThat(email.flushDigests()).isEqualTo(1);
+        assertThat(email.status(member.id()).pendingDigestLines()).isZero();
+    }
+
+    @Test
+    void concurrentDigestFlushesDoNotSendTheSameSelectedEntriesTwice() throws Exception {
+        preferences.setDigestMode(member.id(), EmailDigestMode.DAILY);
+        email.deliverPending(100);
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var started = new CountDownLatch(1);
+        ((InterleavingSender) mail).duringSend = () -> {
+            entered.countDown();
+            try {
+                if (!release.await(10, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Digest sender was not released");
+                }
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(exception);
+            }
+        };
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(email::flushDigests);
+            assertThat(entered.await(10, TimeUnit.SECONDS)).isTrue();
+            var second = executor.submit(() -> {
+                started.countDown();
+                return email.flushDigests();
+            });
+            try {
+                assertThat(started.await(10, TimeUnit.SECONDS)).isTrue();
+                assertThatThrownBy(() -> second.get(300, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+            } finally {
+                release.countDown();
+            }
+            assertThat(first.get(10, TimeUnit.SECONDS)).isEqualTo(1);
+            assertThat(second.get(10, TimeUnit.SECONDS)).isZero();
+        }
+        assertThat(mail.sent()).hasSize(1);
+        assertThat(email.status(member.id()).pendingDigestLines()).isZero();
+    }
+
+    @Test
+    void providerFailureIsDeferredAndDoesNotBlockANewerEvent() {
+        ((InterleavingSender) mail).duringSend = () -> {
+            throw new IllegalStateException("Synthetic provider failure");
+        };
+        assertThat(email.deliverPending(100)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from task_management.outbox_messages "
+                + "where email_failures = 1 and email_processed_at is null "
+                + "and email_next_attempt_at is not null", Long.class)).isEqualTo(1);
+        assertThat(email.deliverPending(100)).isZero();
+        tasks.create(owner.id(), project.id(),
+                new TaskData("Later event", "", TaskPriority.HIGH, 15, null, member.id(), TaskBucket.WORK));
+        assertThat(email.deliverPending(100)).isEqualTo(1);
+        assertThat(mail.sent()).anyMatch(item -> item.body().contains("Later event"));
+    }
+
+    @Test
+    void digestRetainsEntriesCommittedWhileTheSelectedBatchIsBeingSent() {
+        preferences.setDigestMode(member.id(), EmailDigestMode.DAILY);
+        email.deliverPending(100);
+        var independent = new TransactionTemplate(transactionManager);
+        independent.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        ((InterleavingSender) mail).duringSend = () -> independent.executeWithoutResult(status -> jdbc.update(
+                "insert into task_management.email_digest_entries "
+                        + "(user_id, subject_line, body_line, created_at) values (?, ?, ?, current_timestamp)",
+                member.id(), "Later event", "Committed during dispatch"));
+
+        assertThat(email.flushDigests()).isEqualTo(1);
+        assertThat(mail.sent()).hasSize(1).allMatch(item -> !item.body().contains("Committed during dispatch"));
+        assertThat(email.status(member.id()).pendingDigestLines()).isEqualTo(1);
+        assertThat(email.flushDigests()).isEqualTo(1);
+        assertThat(mail.sent()).hasSize(2).anyMatch(item -> item.body().contains("Committed during dispatch"));
+        assertThat(email.status(member.id()).pendingDigestLines()).isZero();
     }
 
     @Test

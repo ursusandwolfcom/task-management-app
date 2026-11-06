@@ -1,8 +1,12 @@
 package com.example.taskmanagement.notification.application;
 
-import com.example.taskmanagement.integration.outbox.api.OutboxConsumerOperations;
 import com.example.taskmanagement.integration.outbox.api.OutboxEvents;
 import com.example.taskmanagement.integration.outbox.api.OutboxMessage;
+import com.example.taskmanagement.integration.outbox.api.OutboxDispatchOperations;
+import com.example.taskmanagement.integration.outbox.api.OutboxRetryOperations.Channel;
+import org.springframework.transaction.annotation.Propagation;
+import com.example.taskmanagement.integration.outbox.api.OutboxRecipientGuard;
+import com.example.taskmanagement.integration.outbox.api.OutboxPushProjection;
 import com.example.taskmanagement.notification.api.NotificationException;
 import com.example.taskmanagement.notification.api.NotificationOperations;
 import com.example.taskmanagement.notification.persistence.NotificationEntity;
@@ -21,16 +25,18 @@ import tools.jackson.databind.ObjectMapper;
 @Transactional
 public class NotificationService implements NotificationOperations {
     private final NotificationRepository notifications;
-    private final OutboxConsumerOperations outbox;
     private final ObjectMapper json;
     private final Clock clock;
+    private final OutboxRecipientGuard recipientGuard;
+    private final OutboxDispatchOperations dispatcher;
 
-    public NotificationService(NotificationRepository notifications, OutboxConsumerOperations outbox,
-            ObjectMapper json, Clock clock) {
+    public NotificationService(NotificationRepository notifications,
+            ObjectMapper json, Clock clock, OutboxRecipientGuard recipientGuard, OutboxDispatchOperations dispatcher) {
         this.notifications = notifications;
-        this.outbox = outbox;
         this.json = json;
         this.clock = clock;
+        this.recipientGuard = recipientGuard;
+        this.dispatcher = dispatcher;
     }
 
     @Override
@@ -63,20 +69,24 @@ public class NotificationService implements NotificationOperations {
     }
 
     @Override
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public int projectPending(int limit) {
-        var batch = outbox.claimUnprocessed(limit);
-        int projected = 0;
-        for (OutboxMessage message : batch) {
-            project(message);
-            outbox.markProcessed(message.id());
-            projected++;
-        }
-        return projected;
+        return dispatcher.dispatch(Channel.IN_APP, limit, this::project);
     }
 
     private void project(OutboxMessage message) {
         JsonNode payload = parse(message.payload());
         var now = clock.instant().truncatedTo(ChronoUnit.MICROS);
+        if (OutboxEvents.DEADLINE_REMINDER.equals(message.eventType())) {
+            long recipient = payload.path("recipientId").asLong(0);
+            if (recipient > 0 && recipientGuard.permits(message, recipient)) {
+                var rendered = OutboxPushProjection.render(message.eventType(), payload, "");
+                notifications.saveAndFlush(new NotificationEntity(recipient, message.eventType(),
+                        payload.path("projectId").asLong(), payload.path("taskId").asLong(),
+                        rendered.title(), rendered.body(), now));
+            }
+            return;
+        }
         if (OutboxEvents.TASK_ASSIGNED.equals(message.eventType())) {
             long recipient = payload.path("assigneeId").asLong(0);
             long actor = payload.path("actorId").asLong(0);

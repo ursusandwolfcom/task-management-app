@@ -128,7 +128,8 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             case FORBIDDEN -> HttpStatus.FORBIDDEN;
             case USER_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case DUPLICATE_IDENTITY, VERSION_CONFLICT, ADMIN_ALREADY_EXISTS, LAST_ADMIN, TELEGRAM_CHAT_TAKEN,
-                    DROPBOX_ACCOUNT_TAKEN -> HttpStatus.CONFLICT;
+                    DROPBOX_ACCOUNT_TAKEN, DROPBOX_CREDENTIALS_UNAVAILABLE -> HttpStatus.CONFLICT;
+            case DROPBOX_CREDENTIALS_NOT_CONFIGURED -> HttpStatus.SERVICE_UNAVAILABLE;
             case TELEGRAM_LINK_INVALID, VALIDATION_ERROR -> HttpStatus.BAD_REQUEST;
         };
         return uncachedProblem(status, exception.reason().name(), "The identity operation could not be completed.");

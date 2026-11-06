@@ -386,6 +386,45 @@ class IdentityIntegrationTest {
                 .isInstanceOf(IdentityException.class).hasMessage("ADMIN_ALREADY_EXISTS");
     }
 
+    @Test
+    void originalUserRoutesUseTheSameAuthenticatedProfileAndVersions() throws Exception {
+        var alice = register("alice");
+        var token = login("alice");
+        mvc.perform(get("/users/me")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/users/me").header("Authorization", bearer(token)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(alice.path("id").asLong()));
+        var changed = json.readTree(mvc.perform(put("/users/me").header("Authorization", bearer(token))
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
+                        "username", "alice", "email", "alice@example.com", "firstName", "Updated",
+                        "lastName", "Last", "version", alice.path("version").asLong()))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.firstName").value("Updated"))
+                .andReturn().getResponse().getContentAsString());
+        mvc.perform(patch("/users/me").header("Authorization", bearer(token))
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
+                        "lastName", "Changed", "version", changed.path("version").asLong()))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.lastName").value("Changed"));
+        mvc.perform(get("/api/users/me").header("Authorization", bearer(token)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.lastName").value("Changed"));
+        mvc.perform(patch("/users/me").header("Authorization", bearer(token))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"firstName\":\"Stale\",\"version\":0}"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("VERSION_CONFLICT"));
+    }
+
+    @Test
+    void originalRoleRouteStillRequiresCurrentAdminRights() throws Exception {
+        identity.bootstrapAdmin(command("admin", "admin@example.com"));
+        var alice = register("alice");
+        var userToken = login("alice");
+        var adminToken = login("admin");
+        String body = json.writeValueAsString(Map.of("role", "ADMIN", "version", alice.path("version").asLong()));
+        String route = "/users/" + alice.path("id").asLong() + "/role";
+        mvc.perform(put(route).header("Authorization", bearer(userToken))
+                .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
+        mvc.perform(put(route).header("Authorization", bearer(adminToken))
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.role").value("ADMIN"));
+    }
+
     private JsonNode register(String username) throws Exception {
         return json.readTree(mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsString(command(username, username + "@example.com"))))

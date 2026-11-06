@@ -38,15 +38,15 @@ public class DualAttachmentObjectStore implements AttachmentObjectStore {
 
     @Override
     public void delete(String key, String externalId) {
-        try {
-            dropbox.delete(key, externalId);
-        } catch (RuntimeException ignored) {
-            // best-effort
+        if (externalId == null || externalId.isBlank()) {
+            local.delete(key, null);
+            return;
         }
+        dropbox.delete(key, externalId);
         try {
             local.delete(key, null);
         } catch (RuntimeException ignored) {
-            // best-effort
+            // A leftover legacy copy is secondary to the confirmed remote deletion.
         }
     }
 }

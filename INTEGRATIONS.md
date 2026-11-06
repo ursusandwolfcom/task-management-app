@@ -65,6 +65,7 @@ the provider limit does not expand the application contract. [Source: Upload](ht
 | `DROPBOX_APP_FOLDER` | Root path, default `/projectflow` |
 | `DROPBOX_MODE=app\|team`, `DROPBOX_TEAM_FOLDER` | Configured path selection; team mode requires a path |
 | `DROPBOX_OAUTH_REDIRECT_URI` | Registered redirect URI for personal OAuth |
+| `DROPBOX_CREDENTIAL_KEY_BASE64` | Separate 32 random bytes encoded as Base64; encrypts persisted personal refresh tokens |
 
 Personal OAuth: `POST /api/dropbox/authorize` returns an `authorizeUrl` and signed
 `state`. After browser authorization, submit the code and the same state through
@@ -73,11 +74,36 @@ This exchange-completion API is not a public GET callback from Dropbox.
 Configure the external redirect URI and return handler separately.
 Status: `GET /api/dropbox`; unlink: `DELETE /api/dropbox/link`.
 
+Personal linking also requires the credential key; without it, `oauthConfigured=false`
+and authorization stops before provider calls. The authenticated encryption envelope is
+bound to its owning user; corrupt/wrong-key credentials fail closed with
+`409 DROPBOX_CREDENTIALS_UNAVAILABLE`, and a missing key when reading a linked credential
+returns `503 DROPBOX_CREDENTIALS_NOT_CONFIGURED`. Neither case switches accounts or
+returns plaintext/provider diagnostics. Preserve the key across restarts; loss/rotation
+requires relinking. Shared environment-based credentials are configured separately.
+
+Upgrade 023 deliberately clears old personal links and removes the plaintext token column.
+The user selected relinking rather than automatic token migration. Existing attachment
+metadata and remote bytes are untouched, and no Dropbox request occurs during migration.
+Removing a stored credential does not revoke it at Dropbox. Schema rollback clears links
+again; it does not recover erased tokens or make application-only downgrade safe.
+
 When Dropbox is selected, a user's personal link handles new uploads; without it,
 the shared store is used. Relinking and access to previously uploaded files require
 separate acceptance checks; this document does not promise automatic migration.
 Backfill `POST /api/attachments/backfill` is an existing ADMIN operation from local
 storage to the shared Dropbox store, not to a personal account or MEGA.
+
+Explicit attachment deletion treats Dropbox `path_lookup/not_found` as already deleted.
+Other API/transport failures return `500 STORAGE_ERROR` without provider diagnostics;
+the metadata and deletion activity transaction rolls back, so the same attachment can
+be retried. An uncertain network failure may already have removed remote bytes; the
+idempotent not-found handling lets a retry finish metadata cleanup. Database commit
+failure after a successful remote delete is not a distributed atomic transaction.
+Records without an external reference remain local even after a user links Dropbox.
+Cloud references fail closed when Dropbox storage is disabled; they are not deleted
+through the local fallback. Only optional cleanup of a secondary legacy local copy
+remains best-effort after confirmed remote deletion.
 
 ### Team Space support boundary
 

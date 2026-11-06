@@ -25,6 +25,75 @@ class OpenApiTest {
     private MockMvc mvc;
 
     @Test
+    void assignmentSpecStartsWithCoreModelsInsteadOfPlanningAndProviderExtensions() throws Exception {
+        mvc.perform(get("/v3/api-docs/assignment")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.info.title").value("Task Management assignment API"))
+                .andExpect(jsonPath("$.paths['/api/auth/register'].post").exists())
+                .andExpect(jsonPath("$.paths['/users/me'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/projects'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/tasks'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/comments'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/attachments'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/labels'].get").exists())
+                .andExpect(jsonPath("$.components.schemas.UserView").exists())
+                .andExpect(jsonPath("$.components.schemas.ProjectView").exists())
+                .andExpect(jsonPath("$.components.schemas.TaskView").exists())
+                .andExpect(jsonPath("$.components.schemas.CommentView").exists())
+                .andExpect(jsonPath("$.components.schemas.AttachmentView").exists())
+                .andExpect(jsonPath("$.components.schemas.LabelView").exists())
+                .andExpect(jsonPath("$.paths['/alpha/plan']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/portfolio']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/projects/{id}/gantt']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/tasks/{id}/dependencies']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/mega']").doesNotExist());
+    }
+
+    @Test
+    void assignmentSpecKeepsRealRequestContractsAndProtectedMutationSchemes() throws Exception {
+        String task = "$.paths['/api/tasks'].post.requestBody.content['application/json'].schema";
+        String label = "$.paths['/api/labels/{id}'].put.requestBody.content['application/json'].schema";
+        mvc.perform(get("/v3/api-docs/assignment")).andExpect(status().isOk())
+                .andExpect(jsonPath(task + ".properties.projectId").exists())
+                .andExpect(jsonPath(task + ".properties.dueDate.format").value("date"))
+                .andExpect(jsonPath(task + ".additionalProperties").value(false))
+                .andExpect(jsonPath(label + ".properties.version.minimum").value(0))
+                .andExpect(jsonPath("$.paths['/api/comments'].post.requestBody.content['application/json']"
+                        + ".schema.properties.text.maxLength").value(10000))
+                .andExpect(jsonPath("$.paths['/api/tasks'].post.responses['201']").exists())
+                .andExpect(jsonPath("$.paths['/api/attachments'].post.responses['201']").exists())
+                .andExpect(jsonPath("$.paths['/api/tasks'].post.security[1].csrfAuth").exists())
+                .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"));
+    }
+
+    @Test
+    void attachmentSpecKeepsBatchBackfillAsOkAndUploadAsCreated() throws Exception {
+        mvc.perform(get("/v3/api-docs/attachments")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/attachments'].post.responses['201']").exists())
+                .andExpect(jsonPath("$.paths['/api/attachments/backfill'].post.responses['200']").exists())
+                .andExpect(jsonPath("$.paths['/api/attachments/backfill'].post.responses['201']").doesNotExist());
+    }
+
+    @Test
+    void projectStatusIsOptionalInVersionedMetadataRequests() throws Exception {
+        mvc.perform(get("/v3/api-docs/assignment")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.schemas.ChangeRequest.properties.status.enum[0]").value("INITIATED"))
+                .andExpect(jsonPath("$.components.schemas.ChangeRequest.properties.status.enum[1]")
+                        .value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.components.schemas.ChangeRequest.properties.status.enum[2]").value("COMPLETED"))
+                .andExpect(jsonPath("$.components.schemas.ChangeRequest.required.length()").value(1))
+                .andExpect(jsonPath("$.components.schemas.ChangeRequest.required[0]").value("version"));
+    }
+
+    @Test
+    void documentsOriginalUserAliasesInsideTheProtectedIdentityGroup() throws Exception {
+        mvc.perform(get("/v3/api-docs/identity")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/users/me'].get").exists())
+                .andExpect(jsonPath("$.paths['/users/me'].put").exists())
+                .andExpect(jsonPath("$.paths['/users/me'].patch").exists())
+                .andExpect(jsonPath("$.paths['/users/{id}/role'].put").exists());
+    }
+
+    @Test
     void documentsPersonalMegaConnectionAndNoSessionResponseField() throws Exception {
         mvc.perform(get("/v3/api-docs/mega")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/mega/link'].post").exists())

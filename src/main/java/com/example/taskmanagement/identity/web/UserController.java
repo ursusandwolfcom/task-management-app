@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping({"/api/users", "/users"})
 @SecurityRequirement(name = "bearerAuth")
 public class UserController {
     public record ProfilePatch(String username, String email, String firstName, String lastName,

@@ -1,9 +1,12 @@
 package com.example.taskmanagement.integration.telegram.application;
 
 import com.example.taskmanagement.identity.api.TelegramAccountOperations;
-import com.example.taskmanagement.integration.outbox.api.OutboxConsumerOperations;
 import com.example.taskmanagement.integration.outbox.api.OutboxMessage;
+import com.example.taskmanagement.integration.outbox.api.OutboxDispatchOperations;
+import com.example.taskmanagement.integration.outbox.api.OutboxRetryOperations.Channel;
+import org.springframework.transaction.annotation.Propagation;
 import com.example.taskmanagement.integration.outbox.api.OutboxPushProjection;
+import com.example.taskmanagement.integration.outbox.api.OutboxRecipientGuard;
 import com.example.taskmanagement.integration.telegram.api.TelegramBotClient;
 import com.example.taskmanagement.integration.telegram.api.TelegramException;
 import com.example.taskmanagement.integration.telegram.api.TelegramOperations;
@@ -22,27 +25,30 @@ import tools.jackson.databind.ObjectMapper;
 @Transactional
 public class TelegramService implements TelegramOperations {
     private final TelegramAccountOperations accounts;
-    private final OutboxConsumerOperations outbox;
     private final TelegramBotClient bot;
     private final ObjectMapper json;
     private final String botToken;
     private final String botUsername;
     private final String webhookSecret;
     private final String appPublicBase;
+    private final OutboxRecipientGuard recipientGuard;
+    private final OutboxDispatchOperations dispatcher;
 
-    public TelegramService(TelegramAccountOperations accounts, OutboxConsumerOperations outbox, TelegramBotClient bot,
+    public TelegramService(TelegramAccountOperations accounts, TelegramBotClient bot,
             ObjectMapper json, @Value("${telegram.bot-token:}") String botToken,
             @Value("${telegram.bot-username:}") String botUsername,
             @Value("${telegram.webhook-secret:}") String webhookSecret,
-            @Value("${telegram.app-public-base:}") String appPublicBase) {
+            @Value("${telegram.app-public-base:}") String appPublicBase, OutboxRecipientGuard recipientGuard,
+            OutboxDispatchOperations dispatcher) {
         this.accounts = accounts;
-        this.outbox = outbox;
         this.bot = bot;
         this.json = json;
         this.botToken = blankToEmpty(botToken);
         this.botUsername = blankToEmpty(botUsername);
         this.webhookSecret = blankToEmpty(webhookSecret);
         this.appPublicBase = blankToEmpty(appPublicBase);
+        this.recipientGuard = recipientGuard;
+        this.dispatcher = dispatcher;
     }
 
     @Override
@@ -96,17 +102,12 @@ public class TelegramService implements TelegramOperations {
     }
 
     @Override
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public int deliverPending(int limit) {
         if (!configured()) {
             return 0;
         }
-        int delivered = 0;
-        for (OutboxMessage message : outbox.claimTelegramUnprocessed(limit)) {
-            deliver(message);
-            outbox.markTelegramProcessed(message.id());
-            delivered++;
-        }
-        return delivered;
+        return dispatcher.dispatch(Channel.TELEGRAM, limit, this::deliver);
     }
 
     private void deliver(OutboxMessage message) {
@@ -116,6 +117,7 @@ public class TelegramService implements TelegramOperations {
         JsonNode payload = parse(message.payload());
         Set<Long> recipients = OutboxPushProjection.recipientIds(message.eventType(), payload);
         recipients.remove(OutboxPushProjection.actorId(message.eventType(), payload));
+        recipients.removeIf(recipient -> !recipientGuard.permits(message, recipient));
         if (recipients.isEmpty()) {
             return;
         }

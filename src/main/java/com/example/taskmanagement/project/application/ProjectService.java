@@ -9,6 +9,7 @@ import com.example.taskmanagement.project.api.ProjectData;
 import com.example.taskmanagement.project.api.ProjectException;
 import com.example.taskmanagement.project.api.ProjectOperations;
 import com.example.taskmanagement.project.api.ProjectPatch;
+import com.example.taskmanagement.project.api.ProjectStatus;
 import com.example.taskmanagement.project.api.ProjectView;
 import com.example.taskmanagement.project.persistence.ProjectEntity;
 import com.example.taskmanagement.project.api.MemberBreaks;
@@ -96,9 +97,14 @@ public class ProjectService implements ProjectOperations, ProjectCoordination {
 
     @Override
     public ProjectView replace(long actorId, long projectId, ProjectData data, long version) {
+        return replace(actorId, projectId, data, null, version);
+    }
+
+    @Override
+    public ProjectView replace(long actorId, long projectId, ProjectData data, ProjectStatus status, long version) {
         var project = managed(actorId, projectId, version);
         validateData(data);
-        project.update(data);
+        project.update(data, status);
         return projects.saveAndFlush(project).view();
     }
 
@@ -107,7 +113,7 @@ public class ProjectService implements ProjectOperations, ProjectCoordination {
         var project = managed(actorId, projectId, version);
         var data = patch.applyTo(project.view());
         validateData(data);
-        project.update(data);
+        project.update(data, patch.status());
         return projects.saveAndFlush(project).view();
     }
 
@@ -178,6 +184,17 @@ public class ProjectService implements ProjectOperations, ProjectCoordination {
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
+    public java.util.Optional<ProjectView> lockForBackground(long projectId) {
+        if (projects.lockId(projectId).isEmpty()) {
+            return java.util.Optional.empty();
+        }
+        var project = found(projectId);
+        entityManager.refresh(project);
+        return java.util.Optional.of(project.view());
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
     public ProjectView markInputChanged(long actorId, long projectId) {
         var project = locked(projectId);
         authorize(actorId, project, Permission.WRITE_TASKS);
@@ -189,6 +206,12 @@ public class ProjectService implements ProjectOperations, ProjectCoordination {
     @Transactional(propagation = Propagation.MANDATORY)
     public boolean isMember(long projectId, long userId) {
         return members.existsByProjectIdAndUserId(projectId, userId);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean isCurrentOwner(long projectId, long userId) {
+        return projects.existsByIdAndOwnerId(projectId, userId);
     }
 
     @Override

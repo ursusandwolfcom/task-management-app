@@ -38,11 +38,7 @@ public class FiniteDateJdbcType extends LocalDateJdbcType {
             protected void doBind(PreparedStatement statement, T value, int index, WrapperOptions options)
                     throws SQLException {
                 LocalDate date = javaType.unwrap(value, LocalDate.class, options);
-                if (requiresFiniteText(statement, date)) {
-                    statement.setObject(index, BC_DATE.format(date), Types.OTHER);
-                } else {
-                    standard.bind(statement, value, index, options);
-                }
+                bindDate(statement, index, date);
             }
 
             @Override
@@ -56,6 +52,15 @@ public class FiniteDateJdbcType extends LocalDateJdbcType {
                 }
             }
         };
+    }
+
+    /** Binds a non-null proleptic date consistently for JPA writes and direct JDBC filters. */
+    public static void bindDate(PreparedStatement statement, int index, LocalDate date) throws SQLException {
+        if (requiresFiniteText(statement, date)) {
+            statement.setObject(index, BC_DATE.format(date), Types.OTHER);
+        } else {
+            statement.setObject(index, date, Types.DATE);
+        }
     }
 
     private static boolean requiresFiniteText(PreparedStatement statement, LocalDate date) throws SQLException {

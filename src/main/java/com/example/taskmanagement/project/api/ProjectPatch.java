@@ -3,7 +3,12 @@ package com.example.taskmanagement.project.api;
 import java.time.LocalDate;
 
 /** Null fields retain current metadata; access and version are checked under the project lock. */
-public record ProjectPatch(String name, String description, LocalDate startDate, LocalDate endDate, String timezone) {
+public record ProjectPatch(String name, String description, LocalDate startDate, LocalDate endDate, String timezone,
+        ProjectStatus status) {
+    public ProjectPatch(String name, String description, LocalDate startDate, LocalDate endDate, String timezone) {
+        this(name, description, startDate, endDate, timezone, null);
+    }
+
     public ProjectData applyTo(ProjectView current) {
         return new ProjectData(name == null ? current.name() : name,
                 description == null ? current.description() : description,

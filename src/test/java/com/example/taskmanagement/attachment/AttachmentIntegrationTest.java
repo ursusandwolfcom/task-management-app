@@ -11,6 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.example.taskmanagement.attachment.api.AttachmentException;
 import com.example.taskmanagement.attachment.api.AttachmentOperations;
+import com.example.taskmanagement.attachment.api.AttachmentView;
+import com.example.taskmanagement.attachment.application.LocalAttachmentObjectStore;
 import com.example.taskmanagement.identity.api.IdentityOperations;
 import com.example.taskmanagement.identity.api.RegisterUser;
 import com.example.taskmanagement.identity.api.UserView;
@@ -20,6 +22,7 @@ import com.example.taskmanagement.project.api.ProjectView;
 import com.example.taskmanagement.security.application.TokenService;
 import com.example.taskmanagement.support.DatabaseFixtures;
 import com.example.taskmanagement.task.api.TaskBucket;
+import com.example.taskmanagement.task.api.ActivityOperations;
 import com.example.taskmanagement.task.api.TaskData;
 import com.example.taskmanagement.task.api.TaskOperations;
 import com.example.taskmanagement.task.api.TaskPriority;
@@ -51,6 +54,8 @@ class AttachmentIntegrationTest {
     @Autowired private TokenService tokens;
     @Autowired private MockMvc mvc;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private ActivityOperations activity;
+    @Autowired private LocalAttachmentObjectStore local;
     private UserView owner;
     private UserView member;
     private UserView outsider;
@@ -118,6 +123,41 @@ class AttachmentIntegrationTest {
 
         mvc.perform(delete("/api/attachments/{id}", created.id()).header("Authorization", bearer(owner)))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void configuredFactoryRejectsCloudDownloadsWhenDropboxIsDisabled() throws Exception {
+        var created = cloudReferenceWithLegacyLocalCopy(new byte[] {1, 2, 3});
+        mvc.perform(get("/api/attachments/{id}/content", created.id()).header("Authorization", bearer(owner)))
+                .andExpect(status().isInternalServerError()).andExpect(jsonPath("$.code").value("STORAGE_ERROR"));
+        assertThat(attachments.list(owner.id(), task.id(), 0, 20).content()).containsExactly(created);
+    }
+
+    @Test
+    void configuredFactoryRetainsCloudMetadataHistoryAndLocalCopyWhenDropboxIsDisabled() throws Exception {
+        byte[] bytes = {1, 2, 3};
+        var created = cloudReferenceWithLegacyLocalCopy(bytes);
+        String key = jdbc.queryForObject("select storage_key from task_management.attachments where id=?",
+                String.class, created.id());
+        long historyBefore = activity.list(owner.id(), task.id(), 0, 100).totalElements();
+        mvc.perform(delete("/api/attachments/{id}", created.id()).header("Authorization", bearer(owner)))
+                .andExpect(status().isInternalServerError()).andExpect(jsonPath("$.code").value("STORAGE_ERROR"));
+        assertThat(attachments.list(owner.id(), task.id(), 0, 20).content()).containsExactly(created);
+        assertThat(activity.list(owner.id(), task.id(), 0, 100).totalElements()).isEqualTo(historyBefore);
+        assertThat(jdbc.queryForObject("select external_id from task_management.attachments where id=?",
+                String.class, created.id())).isEqualTo("id:offline-cloud-reference");
+        try (var body = local.open(key, null)) {
+            assertThat(body.readAllBytes()).isEqualTo(bytes);
+        }
+    }
+
+    private AttachmentView cloudReferenceWithLegacyLocalCopy(byte[] bytes) {
+        var created = attachments.upload(owner.id(), task.id(), "legacy.txt", "text/plain", bytes.length,
+                new ByteArrayInputStream(bytes));
+        // Synthetic persisted Dropbox reference; no remote transport or credentials are used.
+        jdbc.update("update task_management.attachments set external_id=? where id=?",
+                "id:offline-cloud-reference", created.id());
+        return created;
     }
 
     private UserView register(String name) {

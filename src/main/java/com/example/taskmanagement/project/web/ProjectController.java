@@ -9,6 +9,7 @@ import com.example.taskmanagement.project.api.ProjectOperations;
 import com.example.taskmanagement.project.api.ProjectOperations.MemberPage;
 import com.example.taskmanagement.project.api.ProjectOperations.ProjectPage;
 import com.example.taskmanagement.project.api.ProjectPatch;
+import com.example.taskmanagement.project.api.ProjectStatus;
 import com.example.taskmanagement.project.api.ProjectView;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -47,7 +48,10 @@ public class ProjectController {
             LocalDate startDate,
             @Schema(description = "Same PostgreSQL DATE range as startDate; must be on or after startDate")
             LocalDate endDate,
-            String timezone, @NotNull @PositiveOrZero Long version) {
+            String timezone,
+            @Schema(description = "Optional informational status; omitted/null retains the current value. "
+                    + "Owner or ADMIN may select any value; task operations are not blocked.")
+            ProjectStatus status, @NotNull @PositiveOrZero Long version) {
     }
 
     public record VersionRequest(@NotNull @PositiveOrZero Long version) {
@@ -87,11 +91,13 @@ public class ProjectController {
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "Owner or ADMIN replaces metadata with expected version; status and owner are not writable")
+    @Operation(summary = "Owner or ADMIN replaces metadata with expected version; optional status is informational",
+            description = "Creation starts at INITIATED. Any declared status may be selected; omitted/null status "
+                    + "retains its value. Owner changes use the separate ownership endpoint.")
     public ResponseEntity<ProjectView> replace(@AuthenticationPrincipal Jwt jwt, @Positive @PathVariable long id,
             @Valid @RequestBody ChangeRequest request) {
         return response(projects.replace(actor(jwt), id, new ProjectData(request.name(), request.description(),
-                request.startDate(), request.endDate(), request.timezone()), request.version()));
+                request.startDate(), request.endDate(), request.timezone()), request.status(), request.version()));
     }
 
     @PatchMapping("/{id}")
@@ -99,7 +105,7 @@ public class ProjectController {
     public ResponseEntity<ProjectView> patch(@AuthenticationPrincipal Jwt jwt, @Positive @PathVariable long id,
             @Valid @RequestBody ChangeRequest request) {
         return response(projects.patch(actor(jwt), id, new ProjectPatch(request.name(), request.description(),
-                request.startDate(), request.endDate(), request.timezone()), request.version()));
+                request.startDate(), request.endDate(), request.timezone(), request.status()), request.version()));
     }
 
     @GetMapping("/{id}/members")

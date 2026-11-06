@@ -19,6 +19,7 @@ public final class OutboxPushProjection {
         return OutboxEvents.TASK_ASSIGNED.equals(eventType)
                 || OutboxEvents.COMMENT_CREATED.equals(eventType)
                 || OutboxEvents.TASK_COMPLETED.equals(eventType)
+                || OutboxEvents.DEADLINE_REMINDER.equals(eventType)
                 || OutboxEvents.TASK_FAILED.equals(eventType);
     }
 
@@ -31,6 +32,13 @@ public final class OutboxPushProjection {
 
     public static Set<Long> recipientIds(String eventType, JsonNode payload) {
         Set<Long> recipients = new LinkedHashSet<>();
+        if (OutboxEvents.DEADLINE_REMINDER.equals(eventType)) {
+            long recipient = payload.path("recipientId").asLong(0);
+            if (recipient > 0) {
+                recipients.add(recipient);
+            }
+            return recipients;
+        }
         long assignee = payload.path("assigneeId").asLong(0);
         if (assignee > 0) {
             recipients.add(assignee);
@@ -46,6 +54,7 @@ public final class OutboxPushProjection {
 
     public static Rendered render(String eventType, JsonNode payload, String appPublicBase) {
         String title = switch (eventType) {
+            case OutboxEvents.DEADLINE_REMINDER -> "Task deadline: " + payload.path("dueDate").asString("");
             case OutboxEvents.TASK_ASSIGNED -> "Назначена задача";
             case OutboxEvents.COMMENT_CREATED -> "Новый комментарий";
             case OutboxEvents.TASK_COMPLETED -> "Задача завершена";

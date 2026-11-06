@@ -40,6 +40,18 @@ class TaskManagementAppApplicationTests {
     }
 
     @Test
+    void dropboxCredentialsUseTheEncryptedColumnAndMigrationIsTrackedInPublic() {
+        assertEquals(0, jdbcTemplate.queryForObject("select count(*) from information_schema.columns "
+                + "where table_schema='task_management' and table_name='users' "
+                + "and column_name='dropbox_refresh_token'", Integer.class));
+        assertEquals(1, jdbcTemplate.queryForObject("select count(*) from information_schema.columns "
+                + "where table_schema='task_management' and table_name='users' "
+                + "and column_name='dropbox_encrypted_refresh_token'", Integer.class));
+        assertEquals(1, jdbcTemplate.queryForObject("select count(*) from public.databasechangelog "
+                + "where id='023-protect-dropbox-credentials' and exectype='EXECUTED'", Integer.class));
+    }
+
+    @Test
     void projectGraphIndexCoversProjectAndBothDependencyIdsWithPublicLiquibaseTracking() {
         var columns = jdbcTemplate.execute((org.springframework.jdbc.core.ConnectionCallback<java.util.List<String>>)
                 connection -> {

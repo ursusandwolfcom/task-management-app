@@ -1,6 +1,7 @@
 package com.example.taskmanagement.attachment.application;
 
 import com.example.taskmanagement.identity.api.DropboxAccountOperations;
+import com.example.taskmanagement.attachment.api.AttachmentException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,6 +38,17 @@ public class DefaultAttachmentObjectStoreFactory implements AttachmentObjectStor
                                 new SdkDropboxFileClient("", token, appKey, appSecret),
                                 DropboxRootFolder.userFolder(rootFolder, userId))))
                 .orElse(fallback);
+    }
+
+    @Override
+    public AttachmentObjectStore forAttachment(long userId, String externalId) {
+        if (externalId == null || externalId.isBlank()) {
+            return fallback;
+        }
+        if (!dropboxEnabled) {
+            throw new AttachmentException(AttachmentException.Reason.STORAGE_ERROR);
+        }
+        return forUser(userId);
     }
 
     private static String blank(String value) {

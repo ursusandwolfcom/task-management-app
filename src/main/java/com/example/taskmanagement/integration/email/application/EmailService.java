@@ -10,7 +10,11 @@ import com.example.taskmanagement.integration.email.persistence.EmailDigestEntry
 import com.example.taskmanagement.integration.email.persistence.EmailDigestEntryRepository;
 import com.example.taskmanagement.integration.outbox.api.OutboxConsumerOperations;
 import com.example.taskmanagement.integration.outbox.api.OutboxMessage;
+import com.example.taskmanagement.integration.outbox.api.OutboxDispatchOperations;
+import com.example.taskmanagement.integration.outbox.api.OutboxRetryOperations.Channel;
+import org.springframework.transaction.annotation.Propagation;
 import com.example.taskmanagement.integration.outbox.api.OutboxPushProjection;
+import com.example.taskmanagement.integration.outbox.api.OutboxRecipientGuard;
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -37,19 +41,24 @@ public class EmailService implements EmailOperations {
     private final String appPublicBase;
     private final String brand;
     private final EmailHtmlFormatter.Theme theme;
+    private final OutboxRecipientGuard recipientGuard;
+    private final OutboxDispatchOperations dispatcher;
 
     public EmailService(EmailPreferenceOperations preferences, OutboxConsumerOperations outbox, EmailSender sender,
             EmailDigestEntryRepository digests, ObjectMapper json, Clock clock,
             @Value("${spring.mail.host:}") String mailHost,
             @Value("${mail.app-public-base:}") String appPublicBase,
             @Value("${mail.brand-name:ProjectFlow}") String brand,
-            @Value("${mail.theme:default}") String theme) {
+            @Value("${mail.theme:default}") String theme, OutboxRecipientGuard recipientGuard,
+            OutboxDispatchOperations dispatcher) {
         this.preferences = preferences;
         this.outbox = outbox;
         this.sender = sender;
         this.digests = digests;
         this.json = json;
         this.clock = clock;
+        this.recipientGuard = recipientGuard;
+        this.dispatcher = dispatcher;
         this.mailHost = blankToEmpty(mailHost);
         this.appPublicBase = blankToEmpty(appPublicBase);
         this.brand = blankToEmpty(brand).isEmpty() ? "ProjectFlow" : blankToEmpty(brand);
@@ -83,17 +92,12 @@ public class EmailService implements EmailOperations {
     }
 
     @Override
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public int deliverPending(int limit) {
         if (!configured()) {
             return 0;
         }
-        int delivered = 0;
-        for (OutboxMessage message : outbox.claimEmailUnprocessed(limit)) {
-            deliver(message);
-            outbox.markEmailProcessed(message.id());
-            delivered++;
-        }
-        return delivered;
+        return dispatcher.dispatch(Channel.EMAIL, limit, this::deliver);
     }
 
     @Override
@@ -115,9 +119,18 @@ public class EmailService implements EmailOperations {
         if (entries.isEmpty()) {
             return false;
         }
+        // Keep the original selection: new rows committed during dispatch belong to the next digest.
+        var selected = List.copyOf(entries);
         var preference = preferences.status(userId);
         if (!preference.enabled() || preference.address() == null || preference.address().isBlank()) {
-            digests.deleteByUserId(userId);
+            digests.deleteAll(selected);
+            return false;
+        }
+        entries = entries.stream().filter(entry -> entry.outboxMessageId() == null
+                || outbox.findMessage(entry.outboxMessageId())
+                        .filter(message -> recipientGuard.permits(message, userId)).isPresent()).toList();
+        if (entries.isEmpty()) {
+            digests.deleteAll(selected);
             return false;
         }
         StringBuilder body = new StringBuilder("ProjectFlow — дайджест уведомлений\n\n");
@@ -131,7 +144,7 @@ public class EmailService implements EmailOperations {
         String text = body.toString().strip();
         String subject = brand + ": дайджест (" + entries.size() + ")";
         dispatch(preference.address(), subject, text);
-        digests.deleteByUserId(userId);
+        digests.deleteAll(selected);
         return true;
     }
 
@@ -142,6 +155,7 @@ public class EmailService implements EmailOperations {
         JsonNode payload = parse(message.payload());
         Set<Long> recipients = OutboxPushProjection.recipientIds(message.eventType(), payload);
         recipients.remove(OutboxPushProjection.actorId(message.eventType(), payload));
+        recipients.removeIf(recipient -> !recipientGuard.permits(message, recipient));
         if (recipients.isEmpty()) {
             return;
         }
@@ -156,7 +170,7 @@ public class EmailService implements EmailOperations {
             }
             if (target.digestMode() == EmailDigestMode.DAILY) {
                 queued.add(new EmailDigestEntryEntity(userId, truncate(rendered.title(), 200),
-                        truncate(rendered.body(), 2000), now));
+                        truncate(rendered.body(), 2000), now, message.id()));
             } else {
                 dispatch(target.address(), rendered.title(), rendered.body());
             }

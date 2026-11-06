@@ -9,6 +9,7 @@ public final class OutboxEvents {
     public static final String TASK_FAILED = "task.failed";
     public static final String TASK_CANCELLED = "task.cancelled";
     public static final String ATTACHMENT_UPLOADED = "attachment.uploaded";
+    public static final String DEADLINE_REMINDER = "task.deadline-reminder";
 
     private OutboxEvents() {
     }

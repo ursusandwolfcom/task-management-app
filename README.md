@@ -1,5 +1,12 @@
 # ProjectFlow
 
+Reviewing the original Mate Academy assignment? Start with the
+**[controller and endpoint table](review/CONTROLLERS.md)** and the
+**[six-model mapping, package guide and known differences](review/MATE_ASSIGNMENT_REVIEW.md)**.
+For the current S56 PR, see the **[review packet](review/S56_HUMAN_CODE_REVIEW.md)**.
+New since the previous review: **[background notification delivery and retry walkthrough](review/DELIVERY_REVIEW.md)**.
+The customer demo below includes later extensions beyond the assignment.
+
 > Plan and execute team work: what to do next, who owns it, and what puts deadlines at risk.
 
 [![CI](https://github.com/ursusandwolfcom/task-management-app/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ursusandwolfcom/task-management-app/actions/workflows/ci.yml)
@@ -187,11 +194,53 @@ for bounded, ordered project-edge reads; previous migrations remain unchanged.
 
 ## In-app notifications
 
+Deadline reminders are produced automatically at or after 09:00 in the project's stored
+timezone, on the calendar day before the due date and on the due date. The current
+assignee and project owner receive one event each, deduplicated when they are the same
+person. Tasks without an assignee/deadline and COMPLETED/CANCELLED tasks are skipped;
+FAILED remains eligible. Restart catches up only for the current project-local day.
+
+Liquibase 024 records the unique task/due-date/recipient/kind key atomically with its
+outbox event. Changes to due date or recipients get new keys; restoring an old key does
+not repeat it. The producer re-reads metadata under the project mutation lock, and each
+channel checks current recipient eligibility before projecting/sending a reminder.
+Deferred email digests recheck eligibility again before dispatch. Preferences remain
+authoritative; stored reminders are never redirected to a different recipient.
+
+The producer scans up to 100 candidates every 30 seconds using a rolling ID cursor;
+large backlogs therefore take multiple scans. Configure `notifications.deadlines.enabled`
+(default true), `notifications.deadlines.batch-size` (1..100),
+`notifications.deadlines.delay-ms` and `notifications.deadlines.initial-delay-ms`
+(both default 30000). This timer produces events without a browser request. General
+background delivery polls the existing channels every 30 seconds, independently of
+browser polling. The daily email-digest schedule remains unchanged.
+
 Task assignment, comments, lifecycle (start/complete/fail/cancel) and attachment uploads
 enqueue durable `outbox_messages` rows (`task.assigned`, `comment.created`, `task.started`,
 `task.completed`, `task.failed`, `task.cancelled`, `attachment.uploaded`) in the same write
 transaction. `GET /api/notifications` drains a small outbox batch into per-user in-app
 notifications, then returns a page with `unreadCount`.
+Outbox consumers hold database row locks from claim through channel acknowledgement
+in one transaction. Concurrent consumers wait rather than processing the same row
+together; channels sharing a row also serialize. External delivery can still repeat
+if a provider accepts a message before the database transaction rolls back.
+Liquibase 025 stores per-channel failure counts and next-attempt times. The internal
+retry API applies the approved 1/5/15/60-minute delays (then 60 minutes), and all claim
+queries respect these persisted deadlines. A failure recorded after acknowledgement
+does not reopen a completed channel. Each event runs in its own transaction; a failed
+attempt rolls back before its retry deadline is recorded in a separate transaction.
+Later eligible events continue within the bounded batch. Counts returned by dispatch
+include acknowledged events, including unsupported or muted events that need no send.
+The background dispatcher runs every 30 seconds with a batch of up to 100 attempts
+per channel; use `notifications.delivery.enabled=false` to disable it, or configure
+`notifications.delivery.delay-ms`, `notifications.delivery.initial-delay-ms` and
+`notifications.delivery.batch-size`. Browser polling uses the same retry-aware path.
+Logs contain event IDs and channel names, without exception text or message payloads.
+External delivery remains at-least-once, including partial multi-recipient sends.
+Digest flushing locks its selected entries until send and cleanup finish. Concurrent
+flushes cannot send the same selected rows together; a failed send rolls back and
+retains the entries for another transaction. Entries inserted after selection remain
+queued for the next digest. Provider acceptance before rollback can still cause retries.
 `POST /api/notifications/{id}/read` and `POST /api/notifications/read-all` mark items read.
 In-app channel uses Liquibase 010. Optional Telegram (013) and Email (014) are add-on channels
 on the same outbox (`task.assigned`, `comment.created`, `task.completed`, `task.failed`).
@@ -208,6 +257,7 @@ Workspace: `#/notifications`.
 
 | Sprint | Delivered |
 |--------|-----------|
+| S56 | Provider-aware deletion, original `/users` aliases, encrypted Dropbox credentials/relinking, assignment fixes and deadline reminder production (Liquibase 024) |
 | S55 | Bounded local uploads, partial-file cleanup after failure and protection against overwriting an existing object |
 | S54 | Strict native MEGA response framing, operation field counts and UTF-8 validation; portable protocol regression tests |
 | S53 | Compact MEGA warning checkbox, separate disconnect action and English project documentation |
@@ -287,8 +337,12 @@ are never overwritten by a new upload.
 `GET /api/attachments?taskId=` lists newest first; `GET /api/attachments/{id}/content` downloads;
 `DELETE /api/attachments/{id}` requires the uploader, current project owner or ADMIN with live
 access. Uploads/deletes use the project write lock and do not change task or planning revisions.
-Task deletion cascades attachment rows; Dropbox delete is best-effort. Workspace task detail
+Task deletion cascades attachment rows. Explicit Dropbox attachment deletion reports
+provider failures as `500 STORAGE_ERROR` and retains metadata/history for retry;
+an already missing remote file counts as deleted. Workspace task detail
 shows the attachment panel. Browser-cookie writes require CSRF.
+The stored external reference determines the existing file's provider: local records
+stay local after personal linking, and cloud operations fail if Dropbox is disabled.
 
 ## Per-user Dropbox OAuth
 
@@ -296,7 +350,18 @@ When `DROPBOX_APP_KEY` / `DROPBOX_APP_SECRET` and `DROPBOX_OAUTH_REDIRECT_URI` a
 users can link their own Dropbox: `POST /api/dropbox/authorize` → browser →
 `POST /api/dropbox/callback` with `{code,state}`. Status/unlink:
 `GET /api/dropbox`, `DELETE /api/dropbox/link`. Refresh token is stored on `users`
-(Liquibase 020). With `ATTACHMENT_STORAGE=dropbox`, uploads/downloads for a linked user
+only as authenticated ciphertext. Personal linking additionally requires a separate
+`DROPBOX_CREDENTIAL_KEY_BASE64` containing 32 random bytes encoded as Base64; keep it
+across restarts and do not reuse the JWT or MEGA key. Missing configuration disables
+personal OAuth; shared environment-configured Dropbox credentials remain supported.
+
+Liquibase 023 removes legacy plaintext credentials and requires Dropbox relinking, as
+selected for this upgrade. Existing attachment metadata and remote files are unchanged.
+Reconnect the intended original account; account migration is not automatic. Losing or
+replacing the encryption key requires relinking. Rolling back the schema also requires
+relinking and cannot restore erased credentials; coordinate schema/application rollback.
+
+With `ATTACHMENT_STORAGE=dropbox`, uploads/downloads for a linked user
 go to that account under `{root}/u{userId}` (`root` = app or team folder); otherwise the
 shared app/team credentials are used for unlinked users and backfill.
 
@@ -490,6 +555,10 @@ Health and the explicitly enabled local alpha remain public. No permissive CORS 
 | `POST /api/users/me/password` | currentPassword/newPassword; revoke every session; 204 |
 | `PUT /api/users/{id}/role` | Current ADMIN changes USER/ADMIN with expected version |
 
+The original assignment routes `/users/me` (GET/PUT/PATCH) and `/users/{id}/role`
+(PUT) are protected aliases of `/api/users` routes. They use the same live authorization,
+expected versions and cookie CSRF checks and appear in the identity OpenAPI group.
+
 Username is 3–50 ASCII letters/digits/underscore/dot/hyphen; `@` is reserved for email
 login. Username/email are trimmed and stored in lowercase (`Locale.ROOT`) with unique
 database constraints; email is at most 254 characters. Names are trimmed, nonblank and
@@ -638,8 +707,12 @@ and `totalPages`. Members are sorted by user ID descending.
 
 Ownership transfer retains the previous owner as an ordinary member. Only the current
 owner or ADMIN may perform later management operations. A current-version transfer to
-the same owner is a no-op. Client-supplied owner, status and revision fields cannot
-bypass these rules. Status changes are reserved for later execution commands.
+the same owner is a no-op. Client-supplied owner and revision fields cannot bypass these rules.
+Projects are created in `INITIATED`. Owner or ADMIN may set informational `status` to
+`INITIATED`, `IN_PROGRESS` or `COMPLETED` through versioned PUT/PATCH; omitted/null status
+retains its current value, including legacy PUT clients. This status does not block task
+creation or lifecycle commands and is not automatically derived from task progress.
+Unknown status strings return HTTP 400 `MALFORMED_REQUEST` without changing the project.
 
 All project writers acquire the same row lock before checking access and version;
 current ADMIN rights are read from the database even within an existing transaction.

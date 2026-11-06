@@ -245,6 +245,21 @@ class BrowserSessionIntegrationTest {
         }
     }
 
+    @Test
+    void originalUserAliasRequiresCsrfForCookieWrites() throws Exception {
+        var session = login();
+        var current = json.readTree(mvc.perform(get("/users/me").cookie(access(session)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        String body = json.writeValueAsString(Map.of("username", "alice", "email", "alice@example.com",
+                "firstName", "Updated", "lastName", "Doe", "version", current.path("version").asLong()));
+        mvc.perform(put("/users/me").cookie(access(session)).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("CSRF_INVALID"));
+        var token = csrf();
+        mvc.perform(put("/users/me").cookie(access(session), token.cookie())
+                .header(token.header(), token.token()).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.firstName").value("Updated"));
+    }
+
     private Csrf csrf() throws Exception {
         var result = mvc.perform(get("/api/session/csrf")).andExpect(status().isOk()).andReturn();
         var body = json.readTree(result.getResponse().getContentAsString());

@@ -26,6 +26,7 @@ import tools.jackson.databind.ObjectMapper;
 @Validated
 @Transactional
 public class CommentService implements CommentOperations {
+    private static final int PREVIEW_CHARACTERS = 200;
     private final CommentRepository comments;
     private final CollaborationAccess access;
     private final IdentityOperations identity;
@@ -60,7 +61,7 @@ public class CommentService implements CommentOperations {
         body.put("assigneeId", task.assigneeId());
         body.put("projectId", project.id());
         body.put("taskId", data.taskId());
-        body.put("preview", data.text());
+        body.put("preview", preview(data.text()));
         outbox.append(OutboxEvents.COMMENT_CREATED, json.writeValueAsString(body));
         return created;
     }
@@ -93,6 +94,16 @@ public class CommentService implements CommentOperations {
                 "Удалён комментарий");
         comments.delete(comment);
         comments.flush();
+    }
+
+    private static String preview(String text) {
+        int end = Math.min(PREVIEW_CHARACTERS, text.length());
+        // Fit the existing push preview budget without splitting a supplementary character.
+        if (end < text.length() && Character.isHighSurrogate(text.charAt(end - 1))
+                && Character.isLowSurrogate(text.charAt(end))) {
+            end--;
+        }
+        return text.substring(0, end);
     }
 
     private static CollaborationException error(CollaborationException.Reason reason) {

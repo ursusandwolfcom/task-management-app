@@ -77,7 +77,7 @@ public class SecurityConfiguration {
         cookieConverter.setBearerTokenResolver(browser);
         var cookieFilter = new BrowserCookieAuthenticationFilter(new ProviderManager(provider), cookieConverter);
         cookieFilter.setAuthenticationEntryPoint((request, response, exception) -> error(response, 401));
-        http.securityMatcher("/api/**")
+        http.securityMatcher("/api/**", "/users/**")
                 .addFilterBefore(cookieFilter, BearerTokenAuthenticationFilter.class)
                 // Stateless request authentication is not a new login; the browser controller rotates CSRF.
                 .csrf(csrf -> csrf.csrfTokenRepository(csrfTokens).requireCsrfProtectionMatcher(browser::requiresCsrf)

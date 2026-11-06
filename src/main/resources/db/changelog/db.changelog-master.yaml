@@ -65,3 +65,12 @@ databaseChangeLog:
   - include:
       file: changes/022-user-mega-links.yaml
       relativeToChangelogFile: true
+  - include:
+      file: changes/023-protect-dropbox-credentials.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/024-deadline-reminders.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/025-outbox-retry-timing.yaml
+      relativeToChangelogFile: true

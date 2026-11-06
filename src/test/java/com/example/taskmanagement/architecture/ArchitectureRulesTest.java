@@ -53,6 +53,13 @@ class ArchitectureRulesTest {
     }
 
     @Test
+    void deadlineRulesRemainIndependentOfFrameworksAndAdapters() {
+        classes().that().resideInAPackage(ROOT + ".notification.domain..")
+                .should().onlyDependOnClassesThat().resideInAnyPackage("java..", ROOT + ".notification.domain..")
+                .check(APPLICATION);
+    }
+
+    @Test
     void modulesUseOnlyAllowedPublicContracts() {
         classes().should(new ArchCondition<JavaClass>("use allowed module APIs and planning core") {
             @Override
