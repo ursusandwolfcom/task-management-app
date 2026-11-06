@@ -80,8 +80,10 @@ but are not baseline requirements and must not substitute for checking the basel
   integrated, do not assume those aliases or encrypted Dropbox credentials are in main.
 - Deadline reminder production (#101) is included in the expanded S56 candidate:
   project-local 09:00, previous/due day, distinct owner/assignee, current-day catch-up,
-  transactional keys and current-recipient checks. General unattended push delivery
-  and retry coordination remain the next stage (#102). Neither change is in main yet.
+  transactional keys and current-recipient checks. Background delivery (#102) now uses
+  a 30-second scheduler, one transaction per event and durable per-channel retry timing.
+  Failed attempts roll back before deferral and do not block later eligible events.
+  External partial sends remain at-least-once. Neither change is in main yet.
 - CI exists; target deployment automation is still planned (#103). Measured scalability,
   live Dropbox acceptance and accessible task-board evidence remain #104–#106.
 - Green tests and the 60% line-coverage gate do not establish complete source compliance.

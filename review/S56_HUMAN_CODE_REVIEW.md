@@ -317,8 +317,8 @@ listed above. No live provider operation or deployment occurred. Final verificat
 the publication revision is recorded in PR #99 checks; older successes above must not
 substitute for the exact latest head and proposed-merge results.
 Main/dev remain 295fd9b. Reminder production is now part of the expanded S56 candidate,
-as described below. Unattended general push delivery/retries, AWS deployment, measured
-capacity and real-account acceptance remain separate work.
+as described below. Unattended delivery/retries are also included in the candidate;
+AWS deployment, measured capacity and real-account acceptance remain separate work.
 
 ## 7. Deadline reminder production
 
@@ -362,6 +362,28 @@ or authorize a task: the producer re-reads under the project mutation lock.
 
 Review boundaries: the scan is bounded and a large backlog takes multiple intervals;
 this is event production, not an exactly-once transport guarantee. General delivery
-still uses existing channel consumption and daily digests until the next stage.
+now runs through the shared dispatcher below; daily digest timing is unchanged.
 Transport tests use recording fakes. Current eligibility is checked before projection
 or send; already delivered messages are not recalled after a later role/task change.
+
+## 8. Background delivery and durable retries
+
+[The composition-root scheduler](../src/main/java/com/example/taskmanagement/config/NotificationDeliveryScheduler.java)
+polls the existing in-app/email/Telegram APIs every 30 seconds and isolates channel
+failures. Browser polling uses the same
+[dispatch coordinator](../src/main/java/com/example/taskmanagement/integration/outbox/application/OutboxDispatcher.java).
+Each attempt holds its row lock through delivery-side DB work and acknowledgement in
+one transaction. Failure rolls that attempt back before a separate transaction records
+the channel delay; later eligible events continue within the bounded attempt budget.
+
+Liquibase 025 persists channel counts/deadlines, applying the approved 1/5/15/60-minute
+delays, then 60 minutes. Already acknowledged channels cannot be reopened by late failure.
+Digest cleanup retains rows inserted after its selected batch. External provider
+acceptance before rollback, partial multi-recipient sends and simultaneous digest
+senders can still produce duplicates; no exactly-once delivery is claimed.
+
+[Retry integration scenarios](../src/test/java/com/example/taskmanagement/integration/outbox/OutboxRetryIntegrationTest.java)
+cover channel independence, exact deadlines, rollback and later-event progress.
+[Email integration scenarios](../src/test/java/com/example/taskmanagement/integration/email/EmailIntegrationTest.java)
+cover provider failure through the configured service and concurrent digest insertion.
+All transports use fakes; no real-message or live-provider acceptance is claimed.
