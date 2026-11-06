@@ -39,10 +39,10 @@ public class AttachmentService {
     public AttachmentResponse upload(Long actorId, Long taskId, MultipartFile file) throws IOException {
         var task = tasks.writable(actorId, taskId);
         String filename = file.getOriginalFilename();
-        if (filename == null || filename.isBlank() || filename.length() > 200
+        if (filename == null || filename.isBlank() || filename.length() > AttachmentLimits.MAX_FILENAME_LENGTH
                 || filename.equals(".") || filename.equals("..")
-                || filename.chars().anyMatch(value -> value < 32 || "\\/:".indexOf(value) >= 0)
-                || file.isEmpty() || file.getSize() > 5 * 1024 * 1024) {
+                || filename.chars().anyMatch(value -> Character.isISOControl(value) || "\\/:".indexOf(value) >= 0)
+                || file.isEmpty() || file.getSize() > AttachmentLimits.MAX_BYTES) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid filename or file size (1 B to 5 MB)");
         }
         String externalId;
@@ -69,7 +69,7 @@ public class AttachmentService {
     @Transactional(readOnly = true)
     public Page<AttachmentResponse> list(Long actorId, Long taskId, Pageable pageable) {
         tasks.accessible(actorId, taskId);
-        return attachments.findByTaskIdOrderByIdDesc(taskId, pageable).map(mapper::toResponse);
+        return attachments.findByTaskId(taskId, pageable).map(mapper::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -79,16 +79,20 @@ public class AttachmentService {
     }
 
     public void delete(Long actorId, Long id) {
-        Attachment attachment = accessible(actorId, id);
+        Attachment attachment = found(id);
         tasks.writable(actorId, attachment.getTask().getId());
         dropbox.delete(attachment.getDropboxFileId());
         attachments.delete(attachment);
     }
 
     private Attachment accessible(Long actorId, Long id) {
-        Attachment attachment = attachments.findById(id).orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.NOT_FOUND, "Attachment not found"));
+        Attachment attachment = found(id);
         tasks.accessible(actorId, attachment.getTask().getId());
         return attachment;
+    }
+
+    private Attachment found(Long id) {
+        return attachments.findById(id).orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Attachment not found"));
     }
 }

@@ -1,19 +1,19 @@
 package com.example.taskmanagement.service;
 
-import com.example.taskmanagement.dto.ProjectRequest;
 import com.example.taskmanagement.dto.ProjectFilter;
+import com.example.taskmanagement.dto.ProjectRequest;
 import com.example.taskmanagement.dto.ProjectResponse;
 import com.example.taskmanagement.mapper.ResponseMapper;
 import com.example.taskmanagement.model.Project;
 import com.example.taskmanagement.model.Role;
 import com.example.taskmanagement.model.User;
 import com.example.taskmanagement.repository.ProjectRepository;
+import com.example.taskmanagement.repository.SearchPatterns;
 import com.example.taskmanagement.repository.TaskRepository;
-import java.util.HashSet;
-import java.util.ArrayList;
-import java.util.Locale;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
+import java.util.ArrayList;
+import java.util.HashSet;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -67,9 +67,8 @@ public class ProjectService {
                         builder.equal(root.join("members", JoinType.LEFT).get("id"), actorId)));
             }
             if (filter.name() != null) {
-                String name = filter.name().toLowerCase(Locale.ROOT).replace("\\", "\\\\")
-                        .replace("%", "\\%").replace("_", "\\_");
-                predicates.add(builder.like(builder.lower(root.get("name")), "%" + name + "%", '\\'));
+                predicates.add(builder.like(builder.lower(root.get("name")),
+                        SearchPatterns.containsLiteral(filter.name()), '\\'));
             }
             if (filter.status() != null) {
                 predicates.add(builder.equal(root.get("status"), filter.status()));

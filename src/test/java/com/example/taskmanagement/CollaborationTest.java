@@ -45,7 +45,12 @@ class CollaborationTest extends ApiTestSupport {
         long task = task(owner, project, null);
         long comment = json(201, "POST", "/api/comments", author.token(),
                 Map.of("taskId", task, "text", "Ready for review")).get("id").asLong();
+        long later = json(201, "POST", "/api/comments", author.token(),
+                Map.of("taskId", task, "text", "Second comment")).get("id").asLong();
         var list = json(200, "GET", "/api/comments?taskId=" + task, member.token(), null).get("content");
+        assertThat(list.get(0).get("id").asLong()).isEqualTo(later);
+        assertThat(json(200, "GET", "/api/comments?taskId=" + task + "&sort=id,asc", member.token(), null)
+                .get("content").get(0).get("id").asLong()).isEqualTo(comment);
         assertThat(list.get(0).get("userId").asLong()).isEqualTo(author.id());
         assertThat(list.get(0).get("timestamp").asText()).isEqualTo("2030-02-10T09:00:00");
         assertThat(call("DELETE", "/api/comments/" + comment, member.token(), null).getStatus()).isEqualTo(403);

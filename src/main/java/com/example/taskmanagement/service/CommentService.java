@@ -55,7 +55,7 @@ public class CommentService {
     @Transactional(readOnly = true)
     public Page<CommentResponse> list(Long actorId, Long taskId, Pageable pageable) {
         tasks.accessible(actorId, taskId);
-        return comments.findByTaskIdOrderByIdDesc(taskId, pageable).map(mapper::toResponse);
+        return comments.findByTaskId(taskId, pageable).map(mapper::toResponse);
     }
 
     public void delete(Long actorId, Long id) {

@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class DeadlineReminderService {
+    private static final int REMINDER_PAGE_SIZE = 100;
     private final TaskRepository tasks;
     private final ApplicationEventPublisher events;
     private final Clock clock;
@@ -25,7 +26,7 @@ public class DeadlineReminderService {
     @Transactional(readOnly = true)
     public void remind() {
         LocalDate today = LocalDate.now(clock);
-        var page = PageRequest.of(0, 100);
+        var page = PageRequest.of(0, REMINDER_PAGE_SIZE);
         while (true) {
             var result = tasks.findReminders(today, today.plusDays(1), page);
             for (var task : result) {

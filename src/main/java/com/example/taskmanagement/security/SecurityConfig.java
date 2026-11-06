@@ -21,7 +21,7 @@ public class SecurityConfig {
     public NimbusJwtDecoder jwtDecoder(@Value("${jwt.key-base64}") String key) {
         var decoder = NimbusJwtDecoder.withSecretKey(JwtService.signingKey(key)).macAlgorithm(MacAlgorithm.HS256)
                 .build();
-        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer("task-management-api"));
+        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(JwtService.ISSUER));
         return decoder;
     }
 

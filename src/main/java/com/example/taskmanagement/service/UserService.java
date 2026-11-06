@@ -8,8 +8,8 @@ import com.example.taskmanagement.mapper.ResponseMapper;
 import com.example.taskmanagement.model.Role;
 import com.example.taskmanagement.model.User;
 import com.example.taskmanagement.repository.UserRepository;
+import com.example.taskmanagement.security.PasswordPolicy;
 import java.util.Locale;
-import java.nio.charset.StandardCharsets;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -30,7 +30,7 @@ public class UserService {
     }
 
     public UserResponse register(RegisterRequest request) {
-        if (request.password().getBytes(StandardCharsets.UTF_8).length > 72) {
+        if (PasswordPolicy.exceedsBcryptLimit(request.password())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password must not exceed 72 UTF-8 bytes");
         }
         String email = request.email().trim().toLowerCase(Locale.ROOT);

@@ -1,12 +1,41 @@
 package com.example.taskmanagement;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class SearchTest extends ApiTestSupport {
+    @Test
+    void sqlWildcardCharactersAreLiteralInProjectAndTaskNames() throws Exception {
+        var owner = account();
+        long project = project(owner);
+        project(owner);
+        var projectUpdate = new java.util.HashMap<>(projectBody(List.of()));
+        projectUpdate.put("name", "Progress_100%\\done");
+        json(200, "PUT", "/api/projects/" + project, owner.token(), projectUpdate);
+        var taskBody = taskBody(project, null, List.of());
+        taskBody.put("name", "Progress_100%\\done");
+        long task = json(201, "POST", "/api/tasks", owner.token(), taskBody).get("id").asLong();
+        task(owner, project, null);
+        for (String term : List.of("%", "_", "\\")) {
+            var projectResponse = mvc.perform(get("/api/projects").param("name", term)
+                    .header("Authorization", "Bearer " + owner.token())).andReturn().getResponse();
+            assertThat(projectResponse.getStatus()).isEqualTo(200);
+            var projects = mapper.readTree(projectResponse.getContentAsString()).get("content");
+            assertThat(projects.size()).isEqualTo(1);
+            assertThat(projects.get(0).get("id").asLong()).isEqualTo(project);
+            var taskResponse = mvc.perform(get("/api/tasks").param("projectId", "" + project).param("name", term)
+                    .header("Authorization", "Bearer " + owner.token())).andReturn().getResponse();
+            assertThat(taskResponse.getStatus()).isEqualTo(200);
+            var tasks = mapper.readTree(taskResponse.getContentAsString()).get("content");
+            assertThat(tasks.size()).isEqualTo(1);
+            assertThat(tasks.get(0).get("id").asLong()).isEqualTo(task);
+        }
+    }
+
     @Test
     void projectSearchCombinesFiltersWithoutLeakingOtherProjects() throws Exception {
         var owner = account();

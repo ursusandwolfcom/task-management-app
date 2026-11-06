@@ -12,7 +12,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class DropboxService {
-    private static final int MAX_BYTES = 5 * 1024 * 1024;
     private final DbxClientV2 client;
 
     public DropboxService(DbxClientV2 client) {
@@ -30,8 +29,8 @@ public class DropboxService {
 
     public byte[] download(String id) throws IOException {
         try (var download = client.files().download(id)) {
-            byte[] data = download.getInputStream().readNBytes(MAX_BYTES + 1);
-            if (data.length > MAX_BYTES) {
+            byte[] data = download.getInputStream().readNBytes(AttachmentLimits.MAX_BYTES + 1);
+            if (data.length > AttachmentLimits.MAX_BYTES) {
                 throw unavailable();
             }
             return data;

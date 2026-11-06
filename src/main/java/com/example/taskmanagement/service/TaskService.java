@@ -1,7 +1,7 @@
 package com.example.taskmanagement.service;
 
-import com.example.taskmanagement.dto.TaskRequest;
 import com.example.taskmanagement.dto.TaskFilter;
+import com.example.taskmanagement.dto.TaskRequest;
 import com.example.taskmanagement.dto.TaskResponse;
 import com.example.taskmanagement.mapper.ResponseMapper;
 import com.example.taskmanagement.model.Project;
@@ -10,12 +10,12 @@ import com.example.taskmanagement.model.User;
 import com.example.taskmanagement.repository.AttachmentRepository;
 import com.example.taskmanagement.repository.CommentRepository;
 import com.example.taskmanagement.repository.LabelRepository;
+import com.example.taskmanagement.repository.SearchPatterns;
 import com.example.taskmanagement.repository.TaskRepository;
+import jakarta.persistence.criteria.Predicate;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Objects;
-import java.util.ArrayList;
-import java.util.Locale;
-import jakarta.persistence.criteria.Predicate;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -77,9 +77,8 @@ public class TaskService {
             var predicates = new ArrayList<Predicate>();
             predicates.add(builder.equal(root.get("project").get("id"), projectId));
             if (filter.name() != null) {
-                String name = filter.name().toLowerCase(Locale.ROOT).replace("\\", "\\\\")
-                        .replace("%", "\\%").replace("_", "\\_");
-                predicates.add(builder.like(builder.lower(root.get("name")), "%" + name + "%", '\\'));
+                predicates.add(builder.like(builder.lower(root.get("name")),
+                        SearchPatterns.containsLiteral(filter.name()), '\\'));
             }
             if (filter.status() != null) {
                 predicates.add(builder.equal(root.get("status"), filter.status()));

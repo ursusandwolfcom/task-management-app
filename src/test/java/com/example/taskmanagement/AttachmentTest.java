@@ -72,7 +72,8 @@ class AttachmentTest extends ApiTestSupport {
         var owner = account();
         var outsider = account();
         long task = task(owner, project(owner), null);
-        for (String name : new String[] {"../secret.txt", "..", "bad\\name.txt", "bad\nname.txt", ""}) {
+        for (String name : new String[] {"../secret.txt", "..", "bad\\name.txt", "bad\nname.txt",
+                "bad\u007fname.txt", "bad\u0085name.txt", ""}) {
             var file = new MockMultipartFile("file", name, "text/plain", new byte[] {1});
             var result = mvc.perform(multipart("/api/attachments").file(file).param("taskId", "" + task)
                     .header("Authorization", "Bearer " + owner.token())).andReturn().getResponse();
