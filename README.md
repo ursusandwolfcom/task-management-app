@@ -1,4 +1,6 @@
-# ProjectFlow
+# Project
+
+[![New project here: ](https://github.com/ursusandwolfcom/task-management-course/tree/fix/course-review-findings)]
 
 > Plan and execute team work: what to do next, who owns it, and what puts deadlines at risk.
 
